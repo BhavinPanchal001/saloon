@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { 
+  Users, 
+  Scissors, 
+  Package, 
+  Box, 
+  Wallet,
+  Zap,
+  CheckCircle2
+} from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchBudgetSummary, fetchDashboardMetrics } from "../../services/mockApi";
 import { useAuthStore } from "../../stores/authStore";
@@ -33,65 +42,77 @@ export function OutletDashboardPage() {
         title="Your branch pulse"
         description="Track the health of your salon floor, jump into billing, and keep spend under control without leaving the branch workspace."
         action={
-          <Link to="/pos" className="btn-primary">
-            Create Bill
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link to="/packages" className="btn-premium-outline">
+              Build Package
+            </Link>
+            <Link to="/pos" className="btn-premium-primary">
+              Create Bill
+            </Link>
+          </div>
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
         {[
-          ["Staff On Record", metrics?.staffCount ?? "--"],
-          ["Active Services", metrics?.serviceCount ?? "--"],
-          ["Tracked SKUs", metrics?.inventoryCount ?? "--"],
-          ["Remaining Budget", budget ? formatCurrency(budget.remainingBalance) : "--"],
-        ].map(([label, value]) => (
+          ["Staff On Record", metrics?.staffCount ?? "--", Users],
+          ["Active Services", metrics?.serviceCount ?? "--", Scissors],
+          ["Active Packages", metrics?.packageCount ?? "--", Package],
+          ["Tracked SKUs", metrics?.inventoryCount ?? "--", Box],
+          ["Wallet Balance", budget ? formatCurrency(budget.remainingBalance) : "--", Wallet],
+        ].map(([label, value, Icon]) => (
           <div key={label} className="stat-card">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-              {label}
-            </p>
-            <p className="mt-4 text-3xl font-semibold text-slate-900">{value}</p>
+            <div>
+              <p className="premium-label">{label}</p>
+              <p className="mt-4 text-4xl font-black text-navy-900">{value}</p>
+            </div>
+            <div className="mt-6 flex h-12 w-12 items-center justify-center rounded-[1.25rem] bg-navy-50 text-navy-600 shadow-inner">
+               <Icon size={20} />
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_0.95fr]">
-        <div className="glass-panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-            Budget Snapshot
-          </p>
-          <h2 className="mt-3 text-3xl text-slate-900">This month’s operating room</h2>
+      <div className="mt-10 grid gap-8 xl:grid-cols-[1fr_0.95fr]">
+        <div className="glass-card">
+          <p className="premium-label">Budget Snapshot</p>
+          <h2 className="mt-2 text-3xl text-navy-900">Branch performance room</h2>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <div className="mt-8 grid gap-4 lg:grid-cols-3">
             {[
-              ["Monthly Budget", budget ? formatCurrency(budget.totalMonthlyBudget) : "--"],
-              ["Expenses So Far", budget ? formatCurrency(budget.totalExpensesSoFar) : "--"],
-              ["Remaining Balance", budget ? formatCurrency(budget.remainingBalance) : "--"],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-3xl border border-slate-100 bg-white/85 p-5">
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{label}</p>
-                <p className="mt-3 text-2xl font-semibold text-slate-900">{value}</p>
+              ["Allocated Budget", budget ? formatCurrency(budget.totalMonthlyBudget) : "--", "text-navy-900"],
+              ["Spend To Date", budget ? formatCurrency(budget.totalExpensesSoFar) : "--", "text-rose-600"],
+              ["Available Cash", budget ? formatCurrency(budget.remainingBalance) : "--", "text-emerald-600"],
+            ].map(([label, value, colorClass]) => (
+              <div key={label} className="rounded-[1.5rem] border border-navy-50 bg-white/40 p-6">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
+                <p className={`mt-3 text-2xl font-black ${colorClass}`}>{value}</p>
               </div>
             ))}
           </div>
+
+          <div className="mt-8 rounded-2xl bg-gold-50/30 p-6 border border-gold-100/50">
+             <p className="text-xs text-gold-800 leading-relaxed italic">
+               * Remaining balance is auto-calculated based on approved local expenses and central procurement logs.
+             </p>
+          </div>
         </div>
 
-        <div className="glass-panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-            Next Actions
-          </p>
-          <h2 className="mt-3 text-3xl text-slate-900">Daily operator checklist</h2>
-          <div className="mt-6 grid gap-3">
+        <div className="glass-card">
+          <p className="premium-label">OPERATOR CHECKLIST</p>
+          <h2 className="mt-2 text-3xl text-navy-900">Daily salon cockpit</h2>
+          <div className="mt-8 grid gap-4">
             {[
-              ["Bill a customer", "/pos"],
-              ["Log a branch expense", "/expenses/local"],
-              ["Top up inventory", "/inventory"],
-              ["Review staff setup", "/staff"],
-            ].map(([label, to]) => (
+              ["Bill a customer", "/pos", "btn-premium-accent"],
+              ["Log branch expense", "/expenses/local", "btn-premium-outline"],
+              ["Build package offer", "/packages", "btn-premium-outline"],
+              ["Restock inventory", "/inventory", "btn-premium-outline"],
+              ["Manage team", "/staff", "btn-premium-outline"],
+            ].map(([label, to, variant]) => (
               <Link
                 key={to}
                 to={to}
-                className="rounded-3xl border border-slate-100 bg-white/90 px-5 py-4 text-sm font-semibold text-slate-700 transition hover:border-brand-200 hover:text-brand-700"
+                className={`${variant || "btn-premium-outline"} w-full justify-start !px-6`}
               >
                 {label}
               </Link>
@@ -99,6 +120,7 @@ export function OutletDashboardPage() {
           </div>
         </div>
       </div>
+
     </div>
   );
 }

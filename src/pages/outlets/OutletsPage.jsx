@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Plus } from "lucide-react";
 import { fetchOutlets } from "../../services/mockApi";
 import { formatCurrency } from "../../utils/format";
 
 export function OutletsPage() {
   const [outlets, setOutlets] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchOutlets().then(setOutlets);
@@ -16,30 +19,51 @@ export function OutletsPage() {
         eyebrow="Network"
         title="Outlets"
         description="A placeholder management view for branch-level settings, ownership, and budget context."
+        action={
+          <button
+            onClick={() => navigate("/outlets/new")}
+            className="btn-premium-primary"
+          >
+            <Plus size={18} />
+            Add Outlet
+          </button>
+        }
       />
 
-      <div className="table-shell">
-        <table className="min-w-full">
-          <thead className="table-head">
+      <div className="table-container">
+        <table className="premium-table">
+          <thead>
             <tr>
-              <th className="px-4 py-4">Outlet</th>
-              <th className="px-4 py-4">City</th>
-              <th className="px-4 py-4">Manager</th>
-              <th className="px-4 py-4">Monthly Budget</th>
+              <th>Outlet Name</th>
+              <th>City</th>
+              <th>Branch Manager</th>
+              <th>Operating Budget</th>
+              <th className="w-20"></th>
             </tr>
           </thead>
-          <tbody className="bg-white/90">
+          <tbody>
             {outlets.map((outlet) => (
               <tr key={outlet.id}>
-                <td className="table-cell font-semibold text-slate-900">{outlet.name}</td>
-                <td className="table-cell">{outlet.city}</td>
-                <td className="table-cell">{outlet.manager}</td>
-                <td className="table-cell">{formatCurrency(outlet.monthlyBudget)}</td>
+                <td className="font-bold text-navy-900">{outlet.name}</td>
+                <td className="text-slate-600">{outlet.city}</td>
+                <td>
+                  <span className="font-bold text-navy-600">{outlet.manager}</span>
+                </td>
+                <td className="font-bold text-navy-900">{formatCurrency(outlet.monthlyBudget)}</td>
+                <td>
+                  <button
+                    onClick={() => navigate(`/outlets/${outlet.id}/edit`)}
+                    className="text-xs font-bold uppercase tracking-wider text-navy-400 hover:text-gold-600"
+                  >
+                    Edit
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
     </div>
   );
 }

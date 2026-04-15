@@ -7,11 +7,20 @@ import { ExpensesPage } from "../pages/expenses/ExpensesPage";
 import { InventoryPage } from "../pages/inventory/InventoryPage";
 import { LoginPage } from "../pages/auth/LoginPage";
 import { OutletsPage } from "../pages/outlets/OutletsPage";
+import { OutletFormPage } from "../pages/outlets/OutletFormPage";
 import { PayrollPage } from "../pages/payroll/PayrollPage";
 import { POSPage } from "../pages/pos/POSPage";
+import { PackageFormPage } from "../pages/packages/PackageFormPage";
+import { PackageProfilePage } from "../pages/packages/PackageProfilePage";
+import { PackagesPage } from "../pages/packages/PackagesPage";
 import { ServicesPage } from "../pages/services/ServicesPage";
-import { StaffPage } from "../pages/staff/StaffPage";
-import { StaffProfilePage } from "../pages/staff/StaffProfilePage";
+import EmployeeListPage from "../modules/employees/pages/EmployeeListPage";
+import EmployeeFormPage from "../modules/employees/pages/EmployeeFormPage";
+import EmployeeDetailPage from "../modules/employees/pages/EmployeeDetailPage";
+import ContractListPage from "../modules/contracts/pages/management/ContractListPage";
+import ContractFormPage from "../modules/contracts/pages/management/ContractFormPage";
+import GroupListPage from "../modules/contracts/pages/groups/GroupListPage";
+import MasterManagementPage from "../modules/contracts/pages/masters/MasterManagementPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { useAuthStore } from "../stores/authStore";
 import { getDefaultRouteForRole } from "../utils/format";
@@ -59,6 +68,14 @@ export const router = createBrowserRouter([
                 element: <OutletsPage />,
               },
               {
+                path: "/outlets/new",
+                element: <OutletFormPage />,
+              },
+              {
+                path: "/outlets/:outletId/edit",
+                element: <OutletFormPage />,
+              },
+              {
                 path: "/expenses",
                 element: <ExpensesPage scope="global" />,
               },
@@ -77,12 +94,56 @@ export const router = createBrowserRouter([
             element: <ServicesPage />,
           },
           {
-            path: "/staff",
-            element: <StaffPage />,
+            path: "/packages",
+            element: <PackagesPage />,
           },
           {
-            path: "/staff/:staffId",
-            element: <StaffProfilePage />,
+            path: "/packages/new",
+            element: <PackageFormPage />,
+          },
+          {
+            path: "/packages/:packageId/edit",
+            element: <PackageFormPage />,
+          },
+          {
+            path: "/packages/:packageId",
+            element: <PackageProfilePage />,
+          },
+          {
+            path: "/staff",
+            element: <EmployeeListPage />,
+          },
+          {
+            path: "/staff/add",
+            element: <EmployeeFormPage />,
+          },
+          {
+            path: "/staff/edit/:id",
+            element: <EmployeeFormPage />,
+          },
+          {
+            path: "/staff/:id",
+            element: <EmployeeDetailPage />,
+          },
+          {
+            path: "/contracts",
+            element: <ContractListPage />,
+          },
+          {
+            path: "/contracts/list",
+            element: <ContractListPage />,
+          },
+          {
+            path: "/contracts/new",
+            element: <ContractFormPage />,
+          },
+          {
+            path: "/contracts/groups",
+            element: <GroupListPage />,
+          },
+          {
+            path: "/contracts/masters",
+            element: <MasterManagementPage />,
           },
           {
             path: "/pos",

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { createService, fetchInventory, fetchServices } from "../../services/mockApi";
+import { createService, fetchProductMasters, fetchServices } from "../../services/mockApi";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 
@@ -25,7 +25,7 @@ export function ServicesPage() {
   const loadServicesPage = async () => {
     const [serviceList, inventoryList] = await Promise.all([
       fetchServices(),
-      fetchInventory({ outletId: user?.role === "admin" ? undefined : user?.outlet_id }),
+      fetchProductMasters(),
     ]);
 
     setServices(serviceList);
@@ -73,24 +73,24 @@ export function ServicesPage() {
         description="Build the salon menu and define which products get consumed per service so stock deduction will be backend-ready later."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="table-shell">
-          <table className="min-w-full">
-            <thead className="table-head">
+      <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="table-container">
+          <table className="premium-table">
+            <thead>
               <tr>
-                <th className="px-4 py-4">Service Name</th>
-                <th className="px-4 py-4">Price</th>
-                <th className="px-4 py-4">Duration</th>
-                <th className="px-4 py-4">Product Linkage</th>
+                <th>Service Name</th>
+                <th>Price</th>
+                <th>Duration</th>
+                <th>Product Linkage</th>
               </tr>
             </thead>
-            <tbody className="bg-white/90">
+            <tbody>
               {services.map((service) => (
                 <tr key={service.id}>
-                  <td className="table-cell font-semibold text-slate-900">{service.serviceName}</td>
-                  <td className="table-cell">{formatCurrency(service.price)}</td>
-                  <td className="table-cell">{service.duration} min</td>
-                  <td className="table-cell">
+                  <td className="font-bold text-navy-900">{service.serviceName}</td>
+                  <td>{formatCurrency(service.price)}</td>
+                  <td>{service.duration} min</td>
+                  <td className="text-xs text-slate-500 italic">
                     {service.productLinkages.length
                       ? service.productLinkages
                           .map(
@@ -106,17 +106,15 @@ export function ServicesPage() {
           </table>
         </div>
 
-        <div className="glass-panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-            Create Service
-          </p>
-          <h2 className="mt-3 text-3xl text-slate-900">Service builder</h2>
+        <div className="glass-card">
+          <p className="premium-label">Service Builder</p>
+          <h2 className="mt-2 text-3xl text-navy-900">Define your menu</h2>
 
-          <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label className="label-text">Service Name</label>
+              <label className="premium-label">Service Name</label>
               <input
-                className="input-field"
+                className="premium-input"
                 value={form.serviceName}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, serviceName: event.target.value }))
@@ -125,12 +123,12 @@ export function ServicesPage() {
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-6 sm:grid-cols-2">
               <div>
-                <label className="label-text">Price</label>
+                <label className="premium-label">Price ($)</label>
                 <input
                   type="number"
-                  className="input-field"
+                  className="premium-input"
                   value={form.price}
                   onChange={(event) =>
                     setForm((current) => ({ ...current, price: event.target.value }))
@@ -138,10 +136,10 @@ export function ServicesPage() {
                 />
               </div>
               <div>
-                <label className="label-text">Duration</label>
+                <label className="premium-label">Duration (min)</label>
                 <input
                   type="number"
-                  className="input-field"
+                  className="premium-input"
                   value={form.duration}
                   onChange={(event) =>
                     setForm((current) => ({ ...current, duration: event.target.value }))
@@ -150,17 +148,17 @@ export function ServicesPage() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-brand-100 bg-brand-50/70 p-4">
-              <div className="flex items-center justify-between">
+            <div className="rounded-[1.5rem] border border-gold-200 bg-gold-50/40 p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Product Linkage Section</p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Select inventory items and define the quantity consumed per service.
+                  <p className="text-sm font-bold text-navy-900">Product Consumption</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Define inventory usage per session.
                   </p>
                 </div>
                 <button
                   type="button"
-                  className="btn-secondary"
+                  className="btn-premium-outline !py-2 !px-4 text-xs"
                   onClick={() =>
                     setForm((current) => ({
                       ...current,
@@ -168,19 +166,20 @@ export function ServicesPage() {
                     }))
                   }
                 >
-                  Add Product
+                  Add Linkage
                 </button>
               </div>
 
-              <div className="mt-4 space-y-4">
+              <div className="mt-6 space-y-4">
                 {form.productLinkages.map((linkage, index) => (
-                  <div key={`${linkage.inventoryId}-${index}`} className="grid gap-3 md:grid-cols-[1fr_180px_90px]">
+                  <div key={`${linkage.inventoryId}-${index}`} className="grid gap-3 md:grid-cols-[1fr_120px_45px]">
                     <select
-                      className="select-field"
+                      className="premium-input appearance-none"
+                      style={{ padding: '0.75rem 1rem' }}
                       value={linkage.inventoryId}
                       onChange={(event) => updateLinkage(index, "inventoryId", event.target.value)}
                     >
-                      <option value="">Select Inventory Item</option>
+                      <option value="">Select Item</option>
                       {inventory.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.itemName}
@@ -190,14 +189,15 @@ export function ServicesPage() {
                     <input
                       type="number"
                       min="1"
-                      className="input-field"
+                      className="premium-input"
+                      style={{ padding: '0.75rem 1rem' }}
                       value={linkage.quantityUsed}
                       onChange={(event) => updateLinkage(index, "quantityUsed", event.target.value)}
-                      placeholder="Quantity Used"
+                      placeholder="Qty"
                     />
                     <button
                       type="button"
-                      className="btn-ghost"
+                      className="flex items-center justify-center rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition"
                       onClick={() =>
                         setForm((current) => ({
                           ...current,
@@ -208,19 +208,20 @@ export function ServicesPage() {
                         }))
                       }
                     >
-                      Remove
+                      ×
                     </button>
                   </div>
                 ))}
               </div>
             </div>
 
-            <button type="submit" className="btn-primary w-full">
-              Save Service
+            <button type="submit" className="btn-premium-primary w-full shadow-navy-500/20">
+              Save to Catalog
             </button>
           </form>
         </div>
       </div>
+
     </div>
   );
 }

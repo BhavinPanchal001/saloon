@@ -13,7 +13,7 @@ const commissionMap = {
   "Tier 3": 6500,
 };
 
-const outlets = [
+let outlets = [
   {
     id: "outlet_hsr",
     name: "HSR Layout",
@@ -37,41 +37,105 @@ const outlets = [
   },
 ];
 
-let inventoryItems = [
+let productMasters = [
   {
     id: "inv_loreal_tube",
     itemName: "L'Oreal Color Tube",
-    currentStock: 46,
     unitPrice: 580,
-    outletId: "outlet_hsr",
+    centralStock: 18,
   },
   {
     id: "inv_keratin_serum",
     itemName: "Keratin Repair Serum",
-    currentStock: 24,
     unitPrice: 740,
-    outletId: "outlet_hsr",
+    centralStock: 12,
   },
   {
     id: "inv_shampoo",
     itemName: "Deep Nourish Shampoo",
-    currentStock: 62,
     unitPrice: 320,
-    outletId: "outlet_indiranagar",
+    centralStock: 25,
   },
   {
     id: "inv_bleach",
     itemName: "Pro Bleach Powder",
-    currentStock: 19,
     unitPrice: 890,
-    outletId: "outlet_indiranagar",
+    centralStock: 9,
   },
   {
     id: "inv_hair_spa",
     itemName: "Spa Cream Jar",
-    currentStock: 33,
     unitPrice: 540,
+    centralStock: 14,
+  },
+];
+
+let outletInventory = [
+  {
+    id: "stock_hsr_loreal",
+    productId: "inv_loreal_tube",
+    outletId: "outlet_hsr",
+    currentStock: 46,
+  },
+  {
+    id: "stock_hsr_keratin",
+    productId: "inv_keratin_serum",
+    outletId: "outlet_hsr",
+    currentStock: 24,
+  },
+  {
+    id: "stock_indiranagar_shampoo",
+    productId: "inv_shampoo",
+    outletId: "outlet_indiranagar",
+    currentStock: 62,
+  },
+  {
+    id: "stock_indiranagar_bleach",
+    productId: "inv_bleach",
+    outletId: "outlet_indiranagar",
+    currentStock: 19,
+  },
+  {
+    id: "stock_banjara_spa",
+    productId: "inv_hair_spa",
     outletId: "outlet_banjara",
+    currentStock: 33,
+  },
+];
+
+let purchaseOrders = [
+  {
+    id: "po_001",
+    supplierName: "L'Oreal Professional",
+    productId: "inv_loreal_tube",
+    qty: 12,
+    totalCost: 6960,
+    createdAt: "2026-04-03T09:00:00.000Z",
+  },
+  {
+    id: "po_002",
+    supplierName: "Keracare Distributors",
+    productId: "inv_keratin_serum",
+    qty: 8,
+    totalCost: 5920,
+    createdAt: "2026-04-05T11:30:00.000Z",
+  },
+];
+
+let stockIssues = [
+  {
+    id: "issue_001",
+    productId: "inv_loreal_tube",
+    outletId: "outlet_hsr",
+    qty: 10,
+    createdAt: "2026-04-06T14:00:00.000Z",
+  },
+  {
+    id: "issue_002",
+    productId: "inv_hair_spa",
+    outletId: "outlet_banjara",
+    qty: 6,
+    createdAt: "2026-04-07T16:15:00.000Z",
   },
 ];
 
@@ -100,6 +164,156 @@ let services = [
     duration: 25,
     productLinkages: [],
   },
+];
+
+const cloneLinkages = (linkages = []) =>
+  linkages.map((linkage) => ({
+    inventoryId: linkage.inventoryId,
+    quantityUsed: Number(linkage.quantityUsed),
+  }));
+
+const resolvePackageOutletNames = (assignedOutletIds = []) =>
+  assignedOutletIds.length
+    ? assignedOutletIds.map(
+        (outletId) => outlets.find((outlet) => outlet.id === outletId)?.name || outletId,
+      )
+    : ["All outlets"];
+
+const normalizePackageServices = (selectedServices = []) => {
+  const groupedSelections = selectedServices.reduce((accumulator, selection) => {
+    if (!selection?.serviceId) {
+      return accumulator;
+    }
+
+    const sessions = Math.max(1, Number(selection.sessions) || 1);
+    const currentSessions = accumulator.get(selection.serviceId) || 0;
+    accumulator.set(selection.serviceId, currentSessions + sessions);
+    return accumulator;
+  }, new Map());
+
+  return Array.from(groupedSelections.entries())
+    .map(([serviceId, sessions]) => {
+      const service = services.find((entry) => entry.id === serviceId);
+
+      if (!service) {
+        return null;
+      }
+
+      return {
+        serviceId: service.id,
+        serviceName: service.serviceName,
+        price: service.price,
+        duration: service.duration,
+        sessions,
+        totalPrice: service.price * sessions,
+        totalDuration: service.duration * sessions,
+        productLinkages: cloneLinkages(service.productLinkages),
+      };
+    })
+    .filter(Boolean);
+};
+
+const buildPackageRecord = (payload, existingRecord = {}) => {
+  const serviceItems = normalizePackageServices(payload.services || payload.serviceItems || []);
+  const totalOriginalPrice = serviceItems.reduce((sum, service) => sum + service.totalPrice, 0);
+  const totalDuration = serviceItems.reduce((sum, service) => sum + service.totalDuration, 0);
+  const parsedPackagePrice = Number(payload.packagePrice);
+  const packagePrice =
+    Number.isFinite(parsedPackagePrice) && parsedPackagePrice > 0
+      ? parsedPackagePrice
+      : totalOriginalPrice;
+  const slug = slugFromName(payload.packageName || existingRecord.packageName || "");
+  const assignedOutletIds = Array.from(
+    new Set([...(payload.assignedOutletIds || existingRecord.assignedOutletIds || [])]),
+  ).filter(Boolean);
+  const saleChannels = Array.from(
+    new Set([...(payload.saleChannels || existingRecord.saleChannels || ["front_desk", "pos"])]),
+  ).filter(Boolean);
+
+  return {
+    id: payload.id || existingRecord.id || (slug ? `pkg_${slug}` : createId("pkg")),
+    packageCode:
+      payload.packageCode?.trim() ||
+      existingRecord.packageCode ||
+      `PKG-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+    packageName: payload.packageName?.trim() || existingRecord.packageName || "",
+    offerLabel: payload.offerLabel?.trim() || existingRecord.offerLabel || "Offer Package",
+    description: payload.description?.trim() || existingRecord.description || "",
+    category: payload.category || existingRecord.category || "hair",
+    validityDays: Number(payload.validityDays ?? existingRecord.validityDays ?? 30) || 30,
+    status: payload.status || existingRecord.status || "active",
+    assignedOutletIds,
+    featured:
+      typeof payload.featured === "boolean" ? payload.featured : existingRecord.featured || false,
+    bookableOnline:
+      typeof payload.bookableOnline === "boolean"
+        ? payload.bookableOnline
+        : existingRecord.bookableOnline || false,
+    prepaidOnly:
+      typeof payload.prepaidOnly === "boolean"
+        ? payload.prepaidOnly
+        : existingRecord.prepaidOnly || false,
+    maxRedemptionsPerVisit: Math.max(
+      1,
+      Number(payload.maxRedemptionsPerVisit ?? existingRecord.maxRedemptionsPerVisit ?? 1) || 1,
+    ),
+    saleChannels,
+    termsAndConditions:
+      payload.termsAndConditions?.trim() || existingRecord.termsAndConditions || "",
+    price: packagePrice,
+    totalOriginalPrice,
+    savings: Math.max(totalOriginalPrice - packagePrice, 0),
+    totalDuration,
+    serviceCount: serviceItems.length,
+    serviceItems,
+  };
+};
+
+let packages = [
+  buildPackageRecord({
+    id: "pkg_color_reset",
+    packageCode: "PKG-2001",
+    packageName: "Color Reset Ritual",
+    offerLabel: "Most Booked",
+    description: "Color touch-up plus recovery ritual for guests who want shine and softness to last.",
+    category: "hair",
+    validityDays: 45,
+    packagePrice: 4300,
+    status: "active",
+    assignedOutletIds: ["outlet_hsr", "outlet_indiranagar"],
+    featured: true,
+    bookableOnline: true,
+    prepaidOnly: true,
+    maxRedemptionsPerVisit: 1,
+    saleChannels: ["front_desk", "pos", "online"],
+    termsAndConditions: "Package is redeemable across selected outlets and cannot be split across customers.",
+    services: [
+      { serviceId: "svc_hair_color", sessions: 1 },
+      { serviceId: "svc_hair_spa", sessions: 1 },
+    ],
+  }),
+  buildPackageRecord({
+    id: "pkg_grooming_pass",
+    packageCode: "PKG-2002",
+    packageName: "Grooming Pass",
+    offerLabel: "Repeat Visits",
+    description: "A neat recurring bundle for guests who come in regularly for quick upkeep.",
+    category: "grooming",
+    validityDays: 60,
+    packagePrice: 1750,
+    status: "inactive",
+    assignedOutletIds: [],
+    featured: false,
+    bookableOnline: false,
+    prepaidOnly: false,
+    maxRedemptionsPerVisit: 2,
+    saleChannels: ["front_desk", "pos"],
+    termsAndConditions: "Unused sessions expire after validity end date and are non-refundable.",
+    services: [
+      { serviceId: "svc_beard_trim", sessions: 2 },
+      { serviceId: "svc_hair_spa", sessions: 1 },
+    ],
+  }),
 ];
 
 let staffMembers = [
@@ -197,6 +411,64 @@ const withOutletName = (record) => ({
     outlets.find((outlet) => outlet.id === record.assignedOutletId)?.name || "Unassigned",
 });
 
+const withPackagePresentation = (servicePackage) => ({
+  ...servicePackage,
+  assignedOutletNames: resolvePackageOutletNames(servicePackage.assignedOutletIds),
+  isAvailableEverywhere: !servicePackage.assignedOutletIds.length,
+});
+
+const findProductMaster = (productId) =>
+  productMasters.find((product) => product.id === productId);
+
+const getIssuedStock = (productId) =>
+  outletInventory
+    .filter((record) => record.productId === productId)
+    .reduce((sum, record) => sum + record.currentStock, 0);
+
+const withProductPresentation = (product) => ({
+  ...product,
+  issuedStock: getIssuedStock(product.id),
+  totalNetworkStock: product.centralStock + getIssuedStock(product.id),
+});
+
+const withInventoryPresentation = (record) => {
+  const product = findProductMaster(record.productId);
+
+  return {
+    ...record,
+    itemName: product?.itemName || "Unknown Product",
+    unitPrice: product?.unitPrice || 0,
+  };
+};
+
+const aggregateInventoryAcrossOutlets = () =>
+  Array.from(
+    outletInventory.reduce((accumulator, record) => {
+      const existingRecord = accumulator.get(record.productId);
+
+      if (existingRecord) {
+        existingRecord.currentStock += record.currentStock;
+        return accumulator;
+      }
+
+      accumulator.set(record.productId, {
+        productId: record.productId,
+        currentStock: record.currentStock,
+      });
+      return accumulator;
+    }, new Map()).values(),
+  ).map((record) => {
+    const product = findProductMaster(record.productId);
+
+    return {
+      id: record.productId,
+      productId: record.productId,
+      itemName: product?.itemName || "Unknown Product",
+      unitPrice: product?.unitPrice || 0,
+      currentStock: record.currentStock,
+    };
+  });
+
 const filterByOutlet = (records, outletId, key = "outletId") =>
   outletId ? records.filter((record) => record[key] === outletId) : records;
 
@@ -227,41 +499,129 @@ export const fetchOutlets = async () => {
   return clone(outlets);
 };
 
+export const fetchProductMasters = async () => {
+  await delay();
+  return clone(productMasters.map(withProductPresentation));
+};
+
 export const fetchInventory = async ({ outletId } = {}) => {
   await delay();
-  return clone(filterByOutlet(inventoryItems, outletId));
+  return clone(filterByOutlet(outletInventory, outletId).map(withInventoryPresentation));
 };
 
 export const createProduct = async (payload) => {
   await delay();
 
   const product = {
-    id: `inv_${slugFromName(payload.itemName) || createId("item")}`,
+    id:
+      productMasters.find((item) => item.itemName.toLowerCase() === payload.itemName.toLowerCase())
+        ? createId("inv")
+        : `inv_${slugFromName(payload.itemName) || createId("item")}`,
     itemName: payload.itemName,
-    currentStock: Number(payload.currentStock),
     unitPrice: Number(payload.unitPrice),
-    outletId: payload.outletId,
+    centralStock: 0,
   };
 
-  inventoryItems = [product, ...inventoryItems];
-  return clone(product);
+  productMasters = [product, ...productMasters];
+  return clone(withProductPresentation(product));
 };
 
 export const createPurchaseOrder = async (payload) => {
   await delay();
 
-  inventoryItems = inventoryItems.map((item) =>
-    item.id === payload.inventoryId
-      ? { ...item, currentStock: item.currentStock + Number(payload.qty) }
+  const productId = payload.productId || payload.inventoryId;
+  const existingProduct = findProductMaster(productId);
+
+  if (!existingProduct) {
+    throw new Error("Product master not found.");
+  }
+
+  const qty = Math.max(1, Number(payload.qty) || 0);
+
+  productMasters = productMasters.map((item) =>
+    item.id === productId
+      ? { ...item, centralStock: item.centralStock + qty }
       : item,
   );
 
-  return clone({
+  const purchaseOrder = {
     id: createId("po"),
     supplierName: payload.supplierName,
-    inventoryId: payload.inventoryId,
-    qty: Number(payload.qty),
+    productId,
+    qty,
     totalCost: Number(payload.totalCost),
+    createdAt: new Date().toISOString(),
+  };
+
+  purchaseOrders = [purchaseOrder, ...purchaseOrders];
+
+  return clone({
+    ...purchaseOrder,
+    itemName: existingProduct.itemName,
+  });
+};
+
+export const issueProductToOutlet = async (payload) => {
+  await delay();
+
+  const product = findProductMaster(payload.productId);
+  const outlet = outlets.find((entry) => entry.id === payload.outletId);
+  const qty = Math.max(1, Number(payload.qty) || 0);
+
+  if (!product) {
+    throw new Error("Product master not found.");
+  }
+
+  if (!outlet) {
+    throw new Error("Outlet not found.");
+  }
+
+  if (product.centralStock < qty) {
+    throw new Error("Not enough central stock available to issue.");
+  }
+
+  productMasters = productMasters.map((item) =>
+    item.id === payload.productId
+      ? { ...item, centralStock: item.centralStock - qty }
+      : item,
+  );
+
+  const existingOutletRecord = outletInventory.find(
+    (record) => record.productId === payload.productId && record.outletId === payload.outletId,
+  );
+
+  if (existingOutletRecord) {
+    outletInventory = outletInventory.map((record) =>
+      record.id === existingOutletRecord.id
+        ? { ...record, currentStock: record.currentStock + qty }
+        : record,
+    );
+  } else {
+    outletInventory = [
+      {
+        id: createId("stock"),
+        productId: payload.productId,
+        outletId: payload.outletId,
+        currentStock: qty,
+      },
+      ...outletInventory,
+    ];
+  }
+
+  const stockIssue = {
+    id: createId("issue"),
+    productId: payload.productId,
+    outletId: payload.outletId,
+    qty,
+    createdAt: new Date().toISOString(),
+  };
+
+  stockIssues = [stockIssue, ...stockIssues];
+
+  return clone({
+    ...stockIssue,
+    itemName: product.itemName,
+    outletName: outlet.name,
   });
 };
 
@@ -286,6 +646,81 @@ export const createService = async (payload) => {
 
   services = [service, ...services];
   return clone(service);
+};
+
+export const fetchPackages = async () => {
+  await delay();
+  return clone(packages.map(withPackagePresentation));
+};
+
+export const savePackage = async (payload) => {
+  await delay();
+
+  const existingPackage = packages.find((servicePackage) => servicePackage.id === payload.id);
+  const packageRecord = buildPackageRecord(payload, existingPackage);
+  const existingIndex = packages.findIndex((servicePackage) => servicePackage.id === packageRecord.id);
+
+  if (existingIndex >= 0) {
+    packages[existingIndex] = packageRecord;
+  } else {
+    packages = [packageRecord, ...packages];
+  }
+
+  return clone(withPackagePresentation(packageRecord));
+};
+
+export const createPackage = savePackage;
+
+export const fetchPackageProfile = async (packageId) => {
+  await delay();
+
+  const servicePackage = packages.find((entry) => entry.id === packageId);
+
+  if (!servicePackage) {
+    throw new Error("Package not found.");
+  }
+
+  return clone(withPackagePresentation(servicePackage));
+};
+
+export const deletePackage = async (packageId) => {
+  await delay();
+
+  const existingPackage = packages.find((entry) => entry.id === packageId);
+
+  if (!existingPackage) {
+    throw new Error("Package not found.");
+  }
+
+  packages = packages.filter((entry) => entry.id !== packageId);
+
+  return clone({ success: true });
+};
+
+export const togglePackageStatus = async (packageId) => {
+  await delay();
+
+  const existingPackage = packages.find((entry) => entry.id === packageId);
+
+  if (!existingPackage) {
+    throw new Error("Package not found.");
+  }
+
+  const nextPackage = buildPackageRecord(
+    {
+      ...existingPackage,
+      status: existingPackage.status === "active" ? "inactive" : "active",
+      services: existingPackage.serviceItems.map((serviceItem) => ({
+        serviceId: serviceItem.serviceId,
+        sessions: serviceItem.sessions,
+      })),
+    },
+    existingPackage,
+  );
+
+  packages = packages.map((entry) => (entry.id === packageId ? nextPackage : entry));
+
+  return clone(withPackagePresentation(nextPackage));
 };
 
 export const fetchStaff = async ({ outletId } = {}) => {
@@ -389,6 +824,12 @@ export const createExpense = async (payload) => {
   return clone(expense);
 };
 
+export const deleteExpense = async (expenseId) => {
+  await delay();
+  expenses = expenses.filter((e) => e.id !== expenseId);
+  return { success: true };
+};
+
 export const fetchBudgetSummary = async ({ outletId } = {}) => {
   await delay();
 
@@ -415,8 +856,11 @@ export const fetchBudgetSummary = async ({ outletId } = {}) => {
 export const fetchCatalog = async ({ outletId } = {}) => {
   await delay();
 
-  const products = filterByOutlet(inventoryItems, outletId).map((product) => ({
-    id: product.id,
+  const products = (outletId
+    ? filterByOutlet(outletInventory, outletId).map(withInventoryPresentation)
+    : aggregateInventoryAcrossOutlets()
+  ).map((product) => ({
+    id: product.productId,
     type: "product",
     name: product.itemName,
     price: product.unitPrice,
@@ -431,7 +875,30 @@ export const fetchCatalog = async ({ outletId } = {}) => {
     duration: service.duration,
   }));
 
-  return clone([...serviceCards, ...products]);
+  const packageCards = packages.map((servicePackage) => ({
+    id: servicePackage.id,
+    type: "package",
+    name: servicePackage.packageName,
+    price: servicePackage.price,
+    duration: servicePackage.totalDuration,
+    offerLabel: servicePackage.offerLabel,
+    serviceCount: servicePackage.serviceCount,
+    serviceItems: clone(servicePackage.serviceItems),
+    totalOriginalPrice: servicePackage.totalOriginalPrice,
+    savings: servicePackage.savings,
+    validityDays: servicePackage.validityDays,
+    status: servicePackage.status,
+    assignedOutletIds: servicePackage.assignedOutletIds,
+  }))
+    .filter((servicePackage) => servicePackage.status === "active")
+    .filter(
+      (servicePackage) =>
+        !outletId ||
+        !servicePackage.assignedOutletIds?.length ||
+        servicePackage.assignedOutletIds.includes(outletId),
+    );
+
+  return clone([...serviceCards, ...packageCards, ...products]);
 };
 
 export const checkoutBill = async (payload) => {
@@ -475,13 +942,16 @@ export const fetchDashboardMetrics = async ({ role, outletId } = {}) => {
   await delay();
 
   const scopedStaff = filterByOutlet(staffMembers, outletId, "assignedOutletId");
-  const scopedInventory = filterByOutlet(inventoryItems, outletId);
+  const scopedInventory = outletId
+    ? filterByOutlet(outletInventory, outletId)
+    : productMasters;
   const scopedExpenses = filterByOutlet(expenses, outletId);
 
   return clone({
     activeOutlets: role === "admin" ? outlets.length : 1,
     staffCount: scopedStaff.length,
     serviceCount: services.length,
+    packageCount: packages.length,
     inventoryCount: scopedInventory.length,
     expenseCount: scopedExpenses.length,
     totalBudget:
@@ -489,4 +959,31 @@ export const fetchDashboardMetrics = async ({ role, outletId } = {}) => {
         ? outlets.reduce((sum, outlet) => sum + outlet.monthlyBudget, 0)
         : outlets.find((outlet) => outlet.id === outletId)?.monthlyBudget || 0,
   });
+};
+
+export const createOutlet = async (payload) => {
+  await delay();
+  const outlet = {
+    id: payload.id || `outlet_${slugFromName(payload.name) || createId("outlet")}`,
+    name: payload.name,
+    city: payload.city,
+    manager: payload.manager,
+    monthlyBudget: Number(payload.monthlyBudget),
+  };
+
+  const existingIndex = outlets.findIndex((o) => o.id === outlet.id);
+  if (existingIndex >= 0) {
+    outlets[existingIndex] = outlet;
+  } else {
+    outlets = [...outlets, outlet];
+  }
+
+  return clone(outlet);
+};
+
+export const fetchOutletProfile = async (outletId) => {
+  await delay();
+  const outlet = outlets.find((o) => o.id === outletId);
+  if (!outlet) throw new Error("Outlet not found");
+  return clone(outlet);
 };

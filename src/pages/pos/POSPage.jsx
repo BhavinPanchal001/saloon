@@ -53,6 +53,9 @@ export function POSPage() {
           price: item.price,
           type: item.type,
           duration: item.duration,
+          offerLabel: item.offerLabel,
+          serviceCount: item.serviceCount,
+          serviceItems: item.serviceItems || [],
           quantity: 1,
           staffId: "",
         },
@@ -94,6 +97,14 @@ export function POSPage() {
         qty: line.quantity,
         price: line.price,
         staffAssigned: line.type === "service" ? line.staffId : null,
+        includedServices:
+          line.type === "package"
+            ? line.serviceItems.map((service) => ({
+                serviceId: service.serviceId,
+                serviceName: service.serviceName,
+                sessions: service.sessions,
+              }))
+            : undefined,
       })),
     };
 
@@ -111,69 +122,86 @@ export function POSPage() {
       <PageHeader
         eyebrow="POS"
         title="Billing Screen"
-        description="Add services and retail items into the cart, assign staff to every service line, and compile a checkout payload ready for backend posting."
+        description="Add services, packages, and retail items into the cart, assign staff to every live service line, and compile a checkout payload ready for backend posting."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="glass-panel p-6">
-          <div className="flex items-center justify-between">
+      <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="glass-card !p-8">
+          <div className="flex items-center justify-between border-b border-navy-50/50 pb-6">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-                Catalog
-              </p>
-              <h2 className="mt-3 text-3xl text-slate-900">Service and product cards</h2>
+              <p className="premium-label">Catalog Menu</p>
+              <h2 className="mt-2 text-3xl text-navy-900">Services & Retail</h2>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {catalog.map((item) => (
               <button
                 key={`${item.type}-${item.id}`}
                 type="button"
                 onClick={() => addToCart(item)}
-                className="rounded-3xl border border-slate-100 bg-white/90 p-5 text-left transition hover:-translate-y-1 hover:border-brand-200 hover:shadow-lg"
+                className="group relative flex flex-col rounded-[2rem] border border-navy-50 bg-white/60 p-6 text-left transition-all hover:-translate-y-2 hover:bg-white hover:shadow-2xl hover:shadow-navy-950/5"
               >
-                <span
-                  className={`badge ${
-                    item.type === "service"
-                      ? "bg-brand-50 text-brand-700"
-                      : "bg-moss-500/10 text-moss-600"
-                  }`}
-                >
-                  {item.type === "service" ? "Service" : "Product"}
-                </span>
-                <h3 className="mt-4 text-2xl text-slate-900">{item.name}</h3>
-                <p className="mt-3 text-sm text-slate-600">
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`status-badge ${
+                      item.type === "service"
+                        ? "bg-navy-50 text-navy-600"
+                        : item.type === "package"
+                          ? "bg-gold-50 text-gold-700"
+                          : "bg-emerald-50 text-emerald-700"
+                    }`}
+                  >
+                    {item.type}
+                  </span>
+                  <div className="h-2 w-2 rounded-full bg-navy-100 group-hover:bg-gold-400 group-hover:scale-150 transition-all"></div>
+                </div>
+                
+                <h3 className="mt-6 text-2xl font-bold text-navy-900 leading-tight">{item.name}</h3>
+                
+                <p className="mt-2 text-xs text-slate-500 font-medium tracking-wide">
                   {item.type === "service"
-                    ? `${item.duration} minutes`
-                    : `${item.stock} units in stock`}
+                    ? `${item.duration} min`
+                    : item.type === "package"
+                      ? `${item.serviceCount} items • ${item.duration} min`
+                      : `${item.stock} in stock`}
                 </p>
-                <p className="mt-5 text-lg font-semibold text-brand-700">
-                  {formatCurrency(item.price)}
-                </p>
+
+                {item.type === "package" && item.offerLabel && (
+                  <div className="mt-3 inline-block rounded-lg bg-gold-400/10 px-3 py-1 text-[10px] font-black uppercase text-gold-700">
+                    {item.offerLabel}
+                  </div>
+                )}
+
+                <div className="mt-8 flex items-center justify-between">
+                  <p className="text-xl font-black text-navy-800">
+                    {formatCurrency(item.price)}
+                  </p>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-navy-900 text-white opacity-0 group-hover:opacity-100 transition-all group-hover:scale-110">
+                    +
+                  </div>
+                </div>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="glass-panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-            Bill / Cart
-          </p>
-          <h2 className="mt-3 text-3xl text-slate-900">Checkout desk</h2>
+        <div className="glass-card !p-8">
+          <p className="premium-label">Checkout Desk</p>
+          <h2 className="mt-2 text-3xl text-navy-900">Client details</h2>
 
-          <div className="mt-6 grid gap-4">
+          <div className="mt-8 space-y-4">
             <input
-              className="input-field"
-              placeholder="Customer name"
+              className="premium-input"
+              placeholder="Guest Name"
               value={customer.name}
               onChange={(event) =>
                 setCustomer((current) => ({ ...current, name: event.target.value }))
               }
             />
             <input
-              className="input-field"
-              placeholder="Customer phone"
+              className="premium-input"
+              placeholder="Contact Number"
               value={customer.phone}
               onChange={(event) =>
                 setCustomer((current) => ({ ...current, phone: event.target.value }))
@@ -181,99 +209,101 @@ export function POSPage() {
             />
           </div>
 
-          <div className="mt-6 space-y-4">
+          <div className="mt-8 space-y-5">
+            <p className="premium-label">Selected Items ({cart.length})</p>
             {cart.length ? (
-              cart.map((line) => (
-                <div key={line.lineId} className="rounded-3xl border border-slate-100 bg-white/90 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-semibold text-slate-900">{line.name}</p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {line.type === "service" ? "Service" : "Retail Product"} • Qty {line.quantity}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      onClick={() => removeLine(line.lineId)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  {line.type === "service" ? (
-                    <div className="mt-4">
-                      <label className="label-text">Select Staff</label>
-                      <select
-                        className="select-field"
-                        value={line.staffId}
-                        onChange={(event) => updateLine(line.lineId, "staffId", event.target.value)}
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {cart.map((line) => (
+                  <div key={line.lineId} className="rounded-3xl border border-navy-50/50 bg-white/60 p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-navy-900">{line.name}</p>
+                        <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          {line.type} • Qty {line.quantity}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-slate-300 hover:text-rose-500 transition-colors"
+                        onClick={() => removeLine(line.lineId)}
                       >
-                        <option value="">Select Staff</option>
-                        {staffMembers.map((member) => (
-                          <option key={member.id} value={member.id}>
-                            {member.name}
-                          </option>
-                        ))}
-                      </select>
+                        Remove
+                      </button>
                     </div>
-                  ) : (
-                    <div className="mt-4">
-                      <label className="label-text">Quantity</label>
-                      <input
-                        type="number"
-                        min="1"
-                        className="input-field"
-                        value={line.quantity}
-                        onChange={(event) =>
-                          updateLine(
-                            line.lineId,
-                            "quantity",
-                            Math.max(1, Number(event.target.value) || 1),
-                          )
-                        }
-                      />
-                    </div>
-                  )}
 
-                  <p className="mt-4 text-sm font-semibold text-brand-700">
-                    Line total: {formatCurrency(line.price * line.quantity)}
-                  </p>
-                </div>
-              ))
+                    {line.type === "service" ? (
+                      <div className="mt-4">
+                        <select
+                          className="premium-input !py-3 !px-4 text-xs appearance-none"
+                          value={line.staffId}
+                          onChange={(event) => updateLine(line.lineId, "staffId", event.target.value)}
+                        >
+                          <option value="">Assign Service Talent</option>
+                          {staffMembers.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="mt-4 flex items-center gap-4">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-navy-300">Adjust Qty</label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="premium-input !py-2 !px-4 !w-24 text-center"
+                          value={line.quantity}
+                          onChange={(event) =>
+                            updateLine(
+                              line.lineId,
+                              "quantity",
+                              Math.max(1, Number(event.target.value) || 1),
+                            )
+                          }
+                        />
+                      </div>
+                    )}
+
+                    <p className="mt-4 text-sm font-black text-navy-600">
+                      {formatCurrency(line.price * line.quantity)}
+                    </p>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 p-5 text-sm text-slate-600">
-                Tap a service or product card to start the bill.
+              <div className="flex flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-navy-100 bg-white/20 p-10 text-center">
+                <div className="h-12 w-12 rounded-full bg-navy-50 mb-4 flex items-center justify-center text-navy-300 text-2xl">🛒</div>
+                <p className="text-sm font-medium text-slate-500">Cart is empty.<br/>Add items to begin bill.</p>
               </div>
             )}
           </div>
 
-          <div className="mt-6 rounded-3xl border border-slate-100 bg-white/85 p-5">
-            <p className="text-sm font-semibold text-slate-900">Checkout</p>
-            <div className="mt-4 space-y-3 text-sm text-slate-700">
-              <div className="flex items-center justify-between">
+          <div className="mt-8 rounded-[2rem] border border-navy-100 bg-navy-950/5 p-8">
+            <div className="space-y-4 text-sm font-medium text-navy-800">
+              <div className="flex items-center justify-between opacity-60 font-bold">
                 <span>Subtotal</span>
                 <span>{formatCurrency(subtotal)}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span>Tax</span>
+              <div className="flex items-center justify-between opacity-60 font-bold">
+                <span>Tax (8%)</span>
                 <span>{formatCurrency(tax)}</span>
               </div>
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-base font-semibold text-slate-900">
-                <span>Total</span>
-                <span>{formatCurrency(total)}</span>
+              <div className="flex items-center justify-between border-t border-navy-100 pt-6 text-2xl font-black text-navy-900">
+                <span>Total Due</span>
+                <span className="text-navy-900">{formatCurrency(total)}</span>
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-3 gap-3">
+            <div className="mt-8 grid grid-cols-3 gap-3">
               {paymentMethods.map((method) => (
                 <button
                   key={method}
                   type="button"
                   className={
                     paymentMethod === method
-                      ? "rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white"
-                      : "rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+                      ? "rounded-2xl bg-navy-900 py-4 text-[10px] font-black uppercase tracking-widest text-white ring-4 ring-navy-100"
+                      : "rounded-2xl border border-navy-100 bg-white py-4 text-[10px] font-black uppercase tracking-widest text-navy-600 transition hover:bg-navy-50"
                   }
                   onClick={() => setPaymentMethod(method)}
                 >
@@ -282,26 +312,27 @@ export function POSPage() {
               ))}
             </div>
 
-            {hasUnassignedService ? (
-              <p className="mt-4 text-sm text-rose-600">
-                Every service line-item must have a staff member assigned before checkout.
-              </p>
-            ) : null}
+            {hasUnassignedService && (
+              <div className="mt-6 flex items-start gap-2 rounded-2xl bg-rose-50 p-4 text-[10px] font-black uppercase tracking-widest text-rose-600">
+                <span>⚠️</span>
+                <span>Assign talent to all services to continue</span>
+              </div>
+            )}
 
             <button
               type="button"
-              className="btn-primary mt-5 w-full"
+              className="btn-premium-primary mt-8 w-full shadow-2xl transition-all disabled:opacity-50 disabled:grayscale"
               onClick={handleCheckout}
               disabled={!canCheckout}
             >
-              Complete Bill
+              Complete Billing
             </button>
           </div>
 
           {payloadPreview ? (
-            <div className="mt-6 rounded-3xl border border-slate-100 bg-slate-950 p-5 text-slate-100">
-              <p className="text-sm font-semibold">Mocked JSON payload • {payloadPreview.billNumber}</p>
-              <pre className="mt-4 overflow-x-auto text-xs leading-6 text-slate-300">
+            <div className="mt-8 rounded-[2rem] border border-navy-800 bg-navy-950 p-8 text-navy-100">
+              <p className="text-xs font-black uppercase tracking-widest text-navy-400">Mocked JSON payload • {payloadPreview.billNumber}</p>
+              <pre className="mt-6 overflow-x-auto text-xs leading-6 text-navy-300 font-mono">
                 {JSON.stringify(payloadPreview.payload, null, 2)}
               </pre>
             </div>
