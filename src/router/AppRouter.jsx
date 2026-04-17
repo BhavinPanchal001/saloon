@@ -17,10 +17,14 @@ import { ServicesPage } from "../pages/services/ServicesPage";
 import EmployeeListPage from "../modules/employees/pages/EmployeeListPage";
 import EmployeeFormPage from "../modules/employees/pages/EmployeeFormPage";
 import EmployeeDetailPage from "../modules/employees/pages/EmployeeDetailPage";
+import AttendancePage from "../modules/employees/pages/AttendancePage";
 import ContractListPage from "../modules/contracts/pages/management/ContractListPage";
 import ContractFormPage from "../modules/contracts/pages/management/ContractFormPage";
 import GroupListPage from "../modules/contracts/pages/groups/GroupListPage";
+import GroupDetailPage from "../modules/contracts/pages/groups/GroupDetailPage";
 import MasterManagementPage from "../modules/contracts/pages/masters/MasterManagementPage";
+import MasterCRUDPage from "../modules/contracts/pages/masters/MasterCRUDPage";
+import SalaryCalculationPage from "../modules/employees/pages/SalaryCalculationPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { useAuthStore } from "../stores/authStore";
 import { getDefaultRouteForRole } from "../utils/format";
@@ -126,6 +130,10 @@ export const router = createBrowserRouter([
             element: <EmployeeDetailPage />,
           },
           {
+            path: "/attendance",
+            element: <AttendancePage />,
+          },
+          {
             path: "/contracts",
             element: <ContractListPage />,
           },
@@ -142,8 +150,16 @@ export const router = createBrowserRouter([
             element: <GroupListPage />,
           },
           {
+            path: "/contracts/groups/:id",
+            element: <GroupDetailPage />,
+          },
+          {
             path: "/contracts/masters",
             element: <MasterManagementPage />,
+          },
+          {
+            path: "/contracts/masters/:type",
+            element: <MasterCRUDPage />,
           },
           {
             path: "/pos",
@@ -156,6 +172,10 @@ export const router = createBrowserRouter([
           {
             path: "/payroll",
             element: <PayrollPage />,
+          },
+          {
+            path: "/payroll/calculate",
+            element: <SalaryCalculationPage />,
           },
           {
             path: "*",

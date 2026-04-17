@@ -1,5 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { 
+  Plus, 
+  Trash2, 
+  Store, 
+  ChevronLeft, 
+  Check, 
+  Info,
+  Zap,
+  Tag,
+  Clock,
+  LayoutGrid,
+  CreditCard,
+  Globe,
+  Monitor
+} from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import {
   fetchOutlets,
@@ -170,113 +185,114 @@ export function PackageFormPage() {
 
   if (isLoading) {
     return (
-      <div>
-        <PageHeader
-          eyebrow="Packages"
-          title={isEditing ? "Edit Package" : "Create Package"}
-          description="Loading package setup..."
-        />
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-8 text-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-gold-500 border-t-transparent"></div>
+        <p className="mt-4 font-medium text-navy-400">Loading package details...</p>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-7xl animate-premium-in">
       <PageHeader
-        eyebrow="Packages"
+        eyebrow="Portfolio & Offers"
         title={isEditing ? "Edit Package" : "Create Package"}
-        description="Define pricing, services, outlet availability, and sales rules in one place so the package is ready for selling and redemption."
+        description="Design multi-service bundles that drive customer loyalty and higher ticket sizes. Configure rules once, sell across all outlets."
         action={
-          <Link to={isEditing ? `/packages/${packageId}` : "/packages"} className="btn-secondary">
-            {isEditing ? "Back to Package" : "Back to Packages"}
+          <Link 
+            to={isEditing ? `/packages/${packageId}` : "/packages"} 
+            className="btn-premium-outline group"
+          >
+            <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+            Cancel
           </Link>
         }
       />
 
-      <form className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]" onSubmit={handleSubmit}>
-        <div className="space-y-6">
-          <div className="glass-panel p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-              Package Basics
-            </p>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="label-text">Package Name</label>
-                <input
-                  className="input-field"
-                  value={form.packageName}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, packageName: event.target.value }))
-                  }
-                  placeholder="Color maintenance ritual"
-                />
+      <form className="grid gap-8 lg:grid-cols-[1fr_400px]" onSubmit={handleSubmit}>
+        <div className="space-y-8">
+          {/* Package Basics */}
+          <div className="glass-card overflow-hidden">
+            <div className="flex items-center gap-3 border-b border-navy-50/50 bg-navy-50/10 px-8 py-5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-500/10 text-gold-600">
+                <Tag className="h-5 w-5" />
               </div>
-              <div>
-                <label className="label-text">Package Code</label>
-                <input
-                  className="input-field"
-                  value={form.packageCode}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, packageCode: event.target.value }))
-                  }
-                  placeholder="PKG-2045"
-                />
-              </div>
-              <div>
-                <label className="label-text">Offer Label</label>
-                <input
-                  className="input-field"
-                  value={form.offerLabel}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, offerLabel: event.target.value }))
-                  }
-                  placeholder="Best seller"
-                />
-              </div>
-              <div>
-                <label className="label-text">Category</label>
-                <select
-                  className="select-field"
-                  value={form.category}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, category: event.target.value }))
-                  }
-                >
-                  {packageCategoryOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <h2 className="text-xl font-bold text-navy-900">Package Basics</h2>
             </div>
-
-            <div className="mt-4">
-              <label className="label-text">Description</label>
-              <textarea
-                className="input-field min-h-[120px]"
-                value={form.description}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, description: event.target.value }))
-                }
-                placeholder="Tell the team who this package is for and what value it delivers."
-              />
+            
+            <div className="p-8">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="col-span-2">
+                  <label className="premium-label">Package Name</label>
+                  <input
+                    className="premium-input text-lg font-semibold"
+                    value={form.packageName}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, packageName: event.target.value }))
+                    }
+                    placeholder="E.g., Radiant Glow Ritual"
+                  />
+                </div>
+                <div>
+                  <label className="premium-label">Package Code</label>
+                  <div className="relative">
+                    <input
+                      className="premium-input uppercase"
+                      value={form.packageCode}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, packageCode: event.target.value.toUpperCase() }))
+                      }
+                      placeholder="PKG-X1"
+                    />
+                    <Info className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-200" />
+                  </div>
+                </div>
+                <div>
+                  <label className="premium-label">Category</label>
+                  <select
+                    className="premium-input"
+                    value={form.category}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, category: event.target.value }))
+                    }
+                  >
+                    {packageCategoryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="premium-label">Short Description</label>
+                  <textarea
+                    className="premium-input min-h-[100px] resize-none leading-relaxed"
+                    value={form.description}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, description: event.target.value }))
+                    }
+                    placeholder="Describe what's included and who it's for..."
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="glass-panel p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-                  Included Services
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  Choose the services inside the package and how many sessions are included.
-                </p>
+          {/* Included Services */}
+          <div className="glass-card overflow-hidden">
+            <div className="flex items-center justify-between border-b border-navy-50/50 bg-navy-50/10 px-8 py-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy-900 text-white">
+                  <LayoutGrid className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-navy-900">Included Services</h2>
+                  <p className="text-xs font-semibold text-navy-400">Total {packageSummary.serviceCount} services</p>
+                </div>
               </div>
               <button
                 type="button"
-                className="btn-secondary"
+                className="btn-premium-accent"
                 onClick={() =>
                   setForm((current) => ({
                     ...current,
@@ -284,42 +300,49 @@ export function PackageFormPage() {
                   }))
                 }
               >
+                <Plus className="h-4 w-4" />
                 Add Service
               </button>
             </div>
 
-            <div className="mt-5 space-y-4">
-              {form.services.map((selection) => (
+            <div className="divide-y divide-navy-50/50 p-6">
+              {form.services.map((selection, index) => (
                 <div
                   key={selection.id}
-                  className="grid gap-3 md:grid-cols-[1fr_150px_96px]"
+                  className="group flex flex-col gap-4 py-6 first:pt-2 last:pb-2 md:flex-row md:items-end"
                 >
-                  <select
-                    className="select-field"
-                    value={selection.serviceId}
-                    onChange={(event) =>
-                      updateServiceSelection(selection.id, "serviceId", event.target.value)
-                    }
-                  >
-                    <option value="">Select Service</option>
-                    {services.map((service) => (
-                      <option key={service.id} value={service.id}>
-                        {service.serviceName}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    min="1"
-                    className="input-field"
-                    value={selection.sessions}
-                    onChange={(event) =>
-                      updateServiceSelection(selection.id, "sessions", event.target.value)
-                    }
-                  />
+                  <div className="flex-1">
+                    <label className="premium-label">Service {index + 1}</label>
+                    <select
+                      className="premium-input"
+                      value={selection.serviceId}
+                      onChange={(event) =>
+                        updateServiceSelection(selection.id, "serviceId", event.target.value)
+                      }
+                    >
+                      <option value="">Select a service...</option>
+                      {services.map((service) => (
+                        <option key={service.id} value={service.id}>
+                          {service.serviceName} ({formatCurrency(service.price)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-full md:w-32">
+                    <label className="premium-label">Sessions</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="premium-input text-center"
+                      value={selection.sessions}
+                      onChange={(event) =>
+                        updateServiceSelection(selection.id, "sessions", event.target.value)
+                      }
+                    />
+                  </div>
                   <button
                     type="button"
-                    className="btn-ghost"
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 transition-all hover:bg-rose-500 hover:text-white"
                     onClick={() =>
                       setForm((current) => ({
                         ...current,
@@ -330,55 +353,156 @@ export function PackageFormPage() {
                       }))
                     }
                   >
-                    Remove
+                    <Trash2 className="h-5 w-5" />
                   </button>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="glass-panel p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-              Outlet Availability
-            </p>
-            <p className="mt-2 text-sm text-slate-600">
-              Leave every outlet unchecked if this package should be redeemable everywhere.
-            </p>
+          {/* Outlet Availability */}
+          <div className="glass-card overflow-hidden">
+            <div className="flex items-center gap-3 border-b border-navy-50/50 bg-navy-50/10 px-8 py-5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy-100 text-navy-900">
+                <Store className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-navy-900">Outlet Availability</h2>
+                <p className="text-xs font-semibold text-navy-400 italic">Select outlets where this package is valid. Leave empty for all outlets.</p>
+              </div>
+            </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
-              {outlets.map((outlet) => (
-                <label
-                  key={outlet.id}
-                  className="flex items-start gap-3 rounded-3xl border border-slate-100 bg-white/85 px-4 py-4 text-sm text-slate-700"
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.assignedOutletIds.includes(outlet.id)}
-                    onChange={() => toggleOutlet(outlet.id)}
-                  />
-                  <span>
-                    <span className="block font-semibold text-slate-900">{outlet.name}</span>
-                    <span className="mt-1 block text-slate-500">{outlet.city}</span>
-                  </span>
-                </label>
-              ))}
+            <div className="grid gap-4 p-8 sm:grid-cols-2 lg:grid-cols-3">
+              {outlets.map((outlet) => {
+                const isSelected = form.assignedOutletIds.includes(outlet.id);
+                return (
+                  <label
+                    key={outlet.id}
+                    className={`relative flex cursor-pointer flex-col gap-1 rounded-3xl border-2 p-5 transition-all duration-300 ${
+                      isSelected 
+                        ? "border-navy-500 bg-navy-50/30" 
+                        : "border-navy-50/50 bg-white/50 hover:bg-white"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={isSelected}
+                      onChange={() => toggleOutlet(outlet.id)}
+                    />
+                    <div className="mb-2 flex justify-between">
+                      <div className={`flex h-6 w-6 items-center justify-center rounded-md border-2 transition-all ${
+                        isSelected ? "bg-navy-500 border-navy-500 text-white" : "border-navy-100"
+                      }`}>
+                        {isSelected && <Check className="h-3.5 w-3.5" />}
+                      </div>
+                    </div>
+                    <span className={`font-bold transition-colors ${isSelected ? "text-navy-900" : "text-navy-700"}`}>
+                      {outlet.name}
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-navy-300">
+                      {outlet.city}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="glass-panel p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-              Pricing & Rules
-            </p>
-            <div className="mt-5 space-y-4">
+        {/* Sidebar */}
+        <div className="space-y-8">
+          {/* Summary Widget */}
+          <div className="glass-card shadow-2xl shadow-navy-900/10">
+            <div className="h-2 bg-gradient-to-r from-gold-400 via-gold-500 to-gold-600"></div>
+            <div className="p-8">
+              <h3 className="premium-label mb-6 text-center text-navy-800">Package Summary</h3>
+              
+              <div className="space-y-5">
+                <div className="flex justify-between border-b border-dashed border-navy-100 pb-4">
+                  <span className="text-sm font-medium text-navy-400">Retail Value</span>
+                  <span className="text-sm font-bold text-navy-900">{formatCurrency(packageSummary.regularPrice)}</span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-sm font-medium text-navy-400">
+                    <Clock className="h-4 w-4" />
+                    Total Duration
+                  </span>
+                  <span className="text-sm font-bold text-navy-900">{packageSummary.totalDuration} min</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-sm font-medium text-navy-400">
+                    <LayoutGrid className="h-4 w-4" />
+                    Total Services
+                  </span>
+                  <span className="text-sm font-bold text-navy-900">{packageSummary.serviceCount}</span>
+                </div>
+
+                {packageSummary.savings > 0 && (
+                  <div className="flex items-center justify-between rounded-2xl bg-emerald-50 px-4 py-3 text-emerald-700">
+                    <span className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider">
+                      <Zap className="h-4 w-4" />
+                      Total Savings
+                    </span>
+                    <span className="text-lg font-black">{formatCurrency(packageSummary.savings)}</span>
+                  </div>
+                )}
+
+                <div className="mt-8 space-y-4">
+                  <label className="premium-label">Current Set Price</label>
+                  <div className="text-4xl font-black text-navy-900">
+                    {formatCurrency(packageSummary.packagePrice)}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="btn-premium-primary mt-10 w-full py-5 text-base"
+                disabled={!form.packageName.trim() || packageSummary.serviceCount === 0 || isSaving}
+              >
+                {isSaving ? "Saving..." : isEditing ? "Update Package" : "Publish Package"}
+              </button>
+              
+              <p className="mt-4 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-navy-200">
+                Final price will be saved as {formatCurrency(packageSummary.packagePrice)}
+              </p>
+            </div>
+          </div>
+
+          {/* Pricing Rules */}
+          <div className="glass-card p-8">
+            <h3 className="premium-label mb-6">Pricing & Rules</h3>
+            <div className="space-y-6">
+              <div>
+                <label className="premium-label flex justify-between">
+                  Set Package Price
+                  <span className="text-[9px] text-navy-300">(Leave empty for retail)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-navy-300">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    className="premium-input pl-10"
+                    value={form.packagePrice}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, packagePrice: event.target.value }))
+                    }
+                    placeholder="Auto-calculated"
+                  />
+                </div>
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="label-text">Validity (Days)</label>
+                  <label className="premium-label">Validity (Days)</label>
                   <input
                     type="number"
                     min="1"
-                    className="input-field"
+                    className="premium-input"
                     value={form.validityDays}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, validityDays: event.target.value }))
@@ -386,160 +510,83 @@ export function PackageFormPage() {
                   />
                 </div>
                 <div>
-                  <label className="label-text">Package Price</label>
+                  <label className="premium-label text-nowrap">Redemptions / Visit</label>
                   <input
                     type="number"
-                    min="0"
-                    className="input-field"
-                    value={form.packagePrice}
+                    min="1"
+                    className="premium-input"
+                    value={form.maxRedemptionsPerVisit}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, packagePrice: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        maxRedemptionsPerVisit: event.target.value,
+                      }))
                     }
-                    placeholder={`Default ${formatCurrency(packageSummary.regularPrice)}`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="label-text">Max Redemptions Per Visit</label>
-                <input
-                  type="number"
-                  min="1"
-                  className="input-field"
-                  value={form.maxRedemptionsPerVisit}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      maxRedemptionsPerVisit: event.target.value,
-                    }))
-                  }
-                />
+                <label className="premium-label">Sales Channels</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {saleChannelOptions.map((channel) => {
+                    const isSelected = form.saleChannels.includes(channel.value);
+                    const getIcon = () => {
+                      if (channel.value === 'pos') return <Monitor className="h-4 w-4" />;
+                      if (channel.value === 'online') return <Globe className="h-4 w-4" />;
+                      return <CreditCard className="h-4 w-4" />;
+                    };
+                    return (
+                      <button
+                        key={channel.value}
+                        type="button"
+                        onClick={() => toggleSaleChannel(channel.value)}
+                        className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-3 transition-all ${
+                          isSelected 
+                            ? "border-gold-500 bg-gold-50 text-gold-700" 
+                            : "border-navy-50/50 text-navy-400 hover:border-navy-100"
+                        }`}
+                      >
+                        {getIcon()}
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{channel.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div>
-                <label className="label-text">Status</label>
-                <select
-                  className="select-field"
-                  value={form.status}
+                <label className="premium-label">Rules & Terms</label>
+                <textarea
+                  className="premium-input min-h-[120px] text-xs leading-relaxed"
+                  value={form.termsAndConditions}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, status: event.target.value }))
+                    setForm((current) => ({
+                      ...current,
+                      termsAndConditions: event.target.value,
+                    }))
                   }
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
+                  placeholder="E.g., Valid on weekdays only, non-transferable..."
+                />
               </div>
 
-              <div className="grid gap-3">
-                <label className="flex items-center gap-3 rounded-3xl border border-slate-100 bg-white/85 px-4 py-4 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={form.featured}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, featured: event.target.checked }))
-                    }
-                  />
-                  Mark as featured package
-                </label>
-                <label className="flex items-center gap-3 rounded-3xl border border-slate-100 bg-white/85 px-4 py-4 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={form.bookableOnline}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        bookableOnline: event.target.checked,
-                      }))
-                    }
-                  />
-                  Allow online booking
-                </label>
-                <label className="flex items-center gap-3 rounded-3xl border border-slate-100 bg-white/85 px-4 py-4 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={form.prepaidOnly}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, prepaidOnly: event.target.checked }))
-                    }
-                  />
-                  Require prepayment
+              <div className="pt-2">
+                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-navy-50 p-4 transition-colors hover:bg-navy-50/30">
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border-2 border-navy-200 transition-all checked:bg-navy-600 checked:border-navy-600"
+                      checked={form.featured}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, featured: event.target.checked }))
+                      }
+                    />
+                    <Check className="pointer-events-none absolute left-0.5 top-0.5 h-4 w-4 text-white opacity-0 peer-checked:opacity-100" />
+                  </div>
+                  <span className="text-sm font-bold text-navy-700">Feature this package</span>
                 </label>
               </div>
             </div>
-          </div>
-
-          <div className="glass-panel p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-              Sales Channels
-            </p>
-            <div className="mt-4 grid gap-3">
-              {saleChannelOptions.map((channel) => (
-                <label
-                  key={channel.value}
-                  className="flex items-center gap-3 rounded-3xl border border-slate-100 bg-white/85 px-4 py-4 text-sm text-slate-700"
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.saleChannels.includes(channel.value)}
-                    onChange={() => toggleSaleChannel(channel.value)}
-                  />
-                  {channel.label}
-                </label>
-              ))}
-            </div>
-
-            <div className="mt-5">
-              <label className="label-text">Terms & Conditions</label>
-              <textarea
-                className="input-field min-h-[120px]"
-                value={form.termsAndConditions}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    termsAndConditions: event.target.value,
-                  }))
-                }
-                placeholder="Add redemption rules, expiry handling, and any front desk guidance."
-              />
-            </div>
-          </div>
-
-          <div className="glass-panel p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-              Summary
-            </p>
-            <div className="mt-4 space-y-3 text-sm text-slate-700">
-              <div className="flex items-center justify-between">
-                <span>Included services</span>
-                <span>{packageSummary.serviceCount}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Regular price</span>
-                <span>{formatCurrency(packageSummary.regularPrice)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Package price</span>
-                <span>{formatCurrency(packageSummary.packagePrice)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Total duration</span>
-                <span>{packageSummary.totalDuration} min</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Savings</span>
-                <span className="text-emerald-700">
-                  {formatCurrency(packageSummary.savings)}
-                </span>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="btn-primary mt-6 w-full"
-              disabled={!form.packageName.trim() || packageSummary.serviceCount === 0 || isSaving}
-            >
-              {isSaving ? "Saving..." : isEditing ? "Update Package" : "Save Package"}
-            </button>
           </div>
         </div>
       </form>

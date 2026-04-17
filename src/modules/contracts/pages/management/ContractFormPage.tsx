@@ -143,7 +143,7 @@ const ContractFormPage: React.FC = () => {
                 </div>
              </div>
           )}
-          
+
           {activeTab === 'shift' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                <div>
@@ -151,7 +151,7 @@ const ContractFormPage: React.FC = () => {
                   <p className="text-sm text-slate-500">Assign a shift pattern and define working hours for this contract.</p>
                </div>
                
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {[
                     { name: 'Standard Day Shift', time: '09:00 AM - 06:00 PM', days: 'Mon - Sat' },
                     { name: 'Evening Shift', time: '02:00 PM - 10:00 PM', days: 'Mon - Sat' },
@@ -169,29 +169,15 @@ const ContractFormPage: React.FC = () => {
                     </div>
                   ))}
 
-                  <button 
-                    onClick={() => navigate('/contracts/masters')}
-                    className="p-4 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-indigo-500 hover:text-indigo-600 hover:bg-indigo-50/30 transition-all"
-                  >
-                     <Plus className="w-5 h-5" />
-                     <span className="text-xs font-bold">Add New Master Shift</span>
-                  </button>
-               </div>
-
-               <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100">
-                  <h4 className="text-sm font-bold text-amber-900 mb-2 flex items-center gap-2">
-                     <Calendar className="w-4 h-4" />
-                     Related Masters Management
-                  </h4>
-                  <p className="text-xs text-amber-800 leading-relaxed mb-4">
-                     Shifts, Holidays, and Leave policies are managed in the Global Masters section. You can return here after creating new master records.
-                  </p>
-                  <button 
-                    onClick={() => navigate('/contracts/masters')}
-                    className="text-xs font-extrabold text-amber-900 underline decoration-amber-300 underline-offset-4 hover:text-amber-700 transition-colors"
-                  >
-                     Open Masters Management →
-                  </button>
+                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 md:col-span-2">
+                     <h4 className="text-sm font-bold text-slate-900 mb-2 flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-indigo-600" />
+                        Shift Configuration
+                     </h4>
+                     <p className="text-xs text-slate-500 leading-relaxed">
+                        Select a shift from the list above. Shifts are managed by administrators in the Global Masters section. If you don't see the shift you need, please contact your administrator.
+                     </p>
+                  </div>
                </div>
             </div>
           )}
@@ -205,15 +191,9 @@ const ContractFormPage: React.FC = () => {
                   })}
                </div>
                <h3 className="text-xl font-bold text-slate-900 mb-2">{TABS.find(t => t.id === activeTab)?.label} Configuration</h3>
-               <p className="text-sm text-slate-500 max-w-sm mb-8">
-                  This section is currently being integrated with the <span className="font-bold">Masters Management</span> system. 
+               <p className="text-sm text-slate-500 max-w-sm">
+                  This section uses data from the <span className="font-bold text-indigo-600">Global Masters</span> configuration. 
                </p>
-               <button 
-                onClick={() => navigate('/contracts/masters')}
-                className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm"
-               >
-                  Manage Master Data
-               </button>
             </div>
           )}
         </div>

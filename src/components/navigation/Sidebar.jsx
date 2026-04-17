@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import {
   Boxes,
   Briefcase,
+  CalendarCheck,
   CreditCard,
   FileText,
   LayoutDashboard,
@@ -19,23 +20,25 @@ const adminLinks = [
   { label: "Global Dashboard", to: "/dashboard/global", icon: LayoutDashboard },
   { label: "Outlets", to: "/outlets", icon: Store },
   { label: "Employees", to: "/staff", icon: Users },
+  { label: "Attendance", to: "/attendance", icon: CalendarCheck },
   { label: "Services", to: "/services", icon: Scissors },
   { label: "Packages", to: "/packages", icon: Boxes },
   { label: "Inventory", to: "/inventory", icon: Package },
   { label: "Contracts", to: "/contracts", icon: FileText },
   { label: "Expenses", to: "/expenses", icon: Receipt },
-  { label: "Payroll", to: "/payroll", icon: Wallet },
+  { label: "Salary Calc", to: "/payroll/calculate", icon: Wallet },
 ];
 
 const managerLinks = [
   { label: "Outlet Dashboard", to: "/dashboard/outlet", icon: LayoutDashboard },
   { label: "Employees", to: "/staff", icon: Users },
+  { label: "Attendance", to: "/attendance", icon: CalendarCheck },
   { label: "Services", to: "/services", icon: Scissors },
   { label: "Packages", to: "/packages", icon: Boxes },
   { label: "Inventory", to: "/inventory", icon: Package },
   { label: "POS / Billing", to: "/pos", icon: CreditCard },
   { label: "Local Expenses", to: "/expenses/local", icon: Receipt },
-  { label: "Payroll", to: "/payroll", icon: Wallet },
+  { label: "Salary Calc", to: "/payroll/calculate", icon: Wallet },
 ];
 
 const baseNavClasses =

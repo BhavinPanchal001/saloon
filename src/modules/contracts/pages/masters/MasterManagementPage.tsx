@@ -1,172 +1,69 @@
-import React, { useState } from 'react';
-import { Layers, FileText, DollarSign, Calendar, Clock, Heart, Search, Plus, Edit, Trash2, Check, X } from 'lucide-react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Layers, FileText, DollarSign, Calendar, Clock, Heart, Plus } from 'lucide-react';
 import ContractModuleLayout from '../../components/ContractModuleLayout';
-import MasterFormModal from '../../components/masters/MasterFormModal';
-import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
 
 const MASTER_TYPES = [
-  { id: 'types', name: 'Contract Types', icon: Layers, desc: 'Full-time, Part-time, Internship, etc.', color: 'indigo' },
-  { id: 'templates', name: 'Templates', icon: FileText, desc: 'Legal letterhead and clause sets.', color: 'blue' },
-  { id: 'salary', name: 'Salary Components', icon: DollarSign, desc: 'Basic, HRA, PF, Professional Tax.', color: 'emerald' },
-  { id: 'holidays', name: 'Holidays', icon: Calendar, desc: 'Public holidays and leave groups.', color: 'amber' },
-  { id: 'leaves', name: 'Leave Policy', icon: Heart, desc: 'Accrual rates and carry-forward rules.', color: 'rose' },
-  { id: 'shifts', name: 'Shift Master', icon: Clock, desc: 'Standard operating hours & patterns.', color: 'violet' },
+  { id: 'types', name: 'Contract Types', icon: Layers, desc: 'Full-time, Part-time, Internship, etc.', color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', activeBg: 'group-hover:bg-indigo-600' },
+  { id: 'templates', name: 'Templates', icon: FileText, desc: 'Legal letterhead and clause sets.', color: 'blue', bg: 'bg-blue-50', text: 'text-blue-600', activeBg: 'group-hover:bg-blue-600' },
+  { id: 'salary', name: 'Salary Components', icon: DollarSign, desc: 'Basic, HRA, PF, Professional Tax.', color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', activeBg: 'group-hover:bg-emerald-600' },
+  { id: 'holidays', name: 'Holidays', icon: Calendar, desc: 'Public holidays and leave groups.', color: 'amber', bg: 'bg-amber-50', text: 'text-amber-600', activeBg: 'group-hover:bg-amber-600' },
+  { id: 'leaves', name: 'Leave Policy', icon: Heart, desc: 'Accrual rates and carry-forward rules.', color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600', activeBg: 'group-hover:bg-rose-600' },
+  { id: 'shifts', name: 'Shift Master', icon: Clock, desc: 'Standard operating hours & patterns.', color: 'violet', bg: 'bg-violet-50', text: 'text-violet-600', activeBg: 'group-hover:bg-violet-600' },
 ];
 
 const MasterManagementPage: React.FC = () => {
-  const [selectedMaster, setSelectedMaster] = useState(MASTER_TYPES[0]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<any>(null);
-  const [itemToDelete, setItemToDelete] = useState<any>(null);
-
-  const handleAdd = () => {
-    setEditingItem(null);
-    setIsModalOpen(true);
-  };
-
-  const handleEdit = (item: any) => {
-    setEditingItem(item);
-    setIsModalOpen(true);
-  };
-
-  const handleDeleteClick = (item: any) => {
-    setItemToDelete(item);
-    setIsDeleteOpen(true);
-  };
-
-  const handleConfirmDelete = () => {
-    console.log('Deleting item:', itemToDelete);
-    // API Call would go here
-  };
-
-  const handleSave = (data: any) => {
-    console.log('Saving master data:', data);
-    setIsModalOpen(false);
-  };
+  const navigate = useNavigate();
 
   return (
     <ContractModuleLayout>
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Master Selector Sidebar */}
-        <aside className="w-full lg:w-80 space-y-3">
-          <h2 className="text-lg font-bold text-slate-900 px-4">Master Data</h2>
-          <div className="grid grid-cols-1 gap-2">
-            {MASTER_TYPES.map((type) => (
-              <button
-                key={type.id}
-                onClick={() => setSelectedMaster(type)}
-                className={`
-                  flex items-center gap-4 px-4 py-4 rounded-2xl transition-all text-left group
-                  ${selectedMaster.id === type.id 
-                    ? 'bg-white shadow-md border border-slate-200 ring-1 ring-slate-100' 
-                    : 'hover:bg-white/60 text-slate-500 hover:text-slate-900'}
-                `}
-              >
-                <div className={`p-2.5 rounded-xl transition-all ${selectedMaster.id === type.id ? `bg-${type.color}-600 text-white` : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600'}`}>
-                   <type.icon className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className={`text-sm font-bold ${selectedMaster.id === type.id ? 'text-slate-900' : 'text-slate-600'}`}>{type.name}</p>
-                  <p className="text-[11px] font-medium text-slate-400 leading-tight">{type.desc}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </aside>
+      <div className="max-w-6xl mx-auto space-y-8">
+        <div>
+          <h2 className="text-2xl font-extrabold text-slate-900">Master Data Management</h2>
+          <p className="text-slate-500 font-medium">Configure global settings and master records for the contract system.</p>
+        </div>
 
-        {/* CRUD Content Area */}
-        <div className="flex-1 space-y-6">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[600px] flex flex-col">
-             {/* Dynamic Header */}
-             <div className="px-8 py-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50/30">
-                <div>
-                  <h3 className="text-xl font-extrabold text-slate-900">{selectedMaster.name}</h3>
-                  <p className="text-sm text-slate-500 font-medium">{selectedMaster.desc}</p>
-                </div>
-                <button 
-                  onClick={handleAdd}
-                  className={`flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95`}
-                >
-                   <Plus className="w-4 h-4" />
-                   Add New Entry
-                </button>
-             </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {MASTER_TYPES.map((type) => (
+            <button
+              key={type.id}
+              onClick={() => navigate(`/contracts/masters/${type.id}`)}
+              className="group bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-indigo-200 transition-all text-left flex flex-col gap-4 active:scale-[0.98]"
+            >
+              <div className={`w-14 h-14 rounded-2xl ${type.bg} ${type.text} flex items-center justify-center ${type.activeBg} group-hover:text-white transition-all`}>
+                <type.icon className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{type.name}</h3>
+                <p className="text-sm text-slate-500 font-medium mt-1 leading-relaxed">{type.desc}</p>
+              </div>
+              <div className="mt-auto pt-4 flex items-center text-xs font-bold text-indigo-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                Manage Records
+                <Plus className="w-3 h-3 ml-2" />
+              </div>
+            </button>
+          ))}
+        </div>
 
-             {/* Search & Utility */}
-             <div className="p-4 border-b border-slate-50 flex gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input type="text" placeholder={`Search ${selectedMaster.name.toLowerCase()}...`} className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-1 focus:ring-slate-300 transition-all outline-none" />
-                </div>
-             </div>
-
-             {/* Placeholder Table */}
-             <div className="flex-1 overflow-auto p-4">
-               <table className="w-full text-left">
-                  <thead className="text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                    <tr>
-                      <th className="px-4 py-3">Name / Label</th>
-                      <th className="px-4 py-3">Code / ID</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {[1, 2, 3, 4, 5].map((item) => (
-                      <tr key={item} className="group hover:bg-slate-50/50 transition-colors">
-                        <td className="px-4 py-4">
-                           <p className="text-sm font-bold text-slate-800 tracking-tight">Standard {selectedMaster.name.replace('Master', '')} {item}</p>
-                           <p className="text-[11px] text-slate-400 font-medium">Default system {selectedMaster.id} record</p>
-                        </td>
-                        <td className="px-4 py-4">
-                           <span className="text-xs font-mono font-semibold bg-slate-100 text-slate-600 px-2 py-1 rounded tracking-tighter">MSTR-{selectedMaster.id.toUpperCase()}-{item}</span>
-                        </td>
-                        <td className="px-4 py-4">
-                           <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 w-fit">
-                              <Check className="w-3 h-3" />
-                              <span className="text-[10px] font-extrabold uppercase truncate">Active</span>
-                           </div>
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button 
-                                onClick={() => handleEdit({ id: item, name: 'Sample' })}
-                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteClick({ id: item, name: `Master ${selectedMaster.id} ${item}` })}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-               </table>
-             </div>
-          </div>
+        {/* Info Box */}
+        <div className="bg-indigo-900 rounded-3xl p-8 text-white relative overflow-hidden shadow-2xl shadow-indigo-200">
+           <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+              <div className="flex-1 space-y-4 text-center md:text-left">
+                 <h3 className="text-2xl font-bold">About Master Data</h3>
+                 <p className="text-indigo-100 text-sm leading-relaxed max-w-2xl font-medium">
+                    Master data provides the base configuration for all contracts in the system. Changes made here will be available across the entire contract creation and management flow. Ensure accuracy when defining salary components and leave policies.
+                 </p>
+              </div>
+              <div className="w-32 h-32 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-md">
+                 <Layers className="w-12 h-12 text-white/40" />
+              </div>
+           </div>
+           
+           {/* Decorative elements */}
+           <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/5 rounded-full blur-3xl" />
+           <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl" />
         </div>
       </div>
-
-      <MasterFormModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        masterType={selectedMaster.id}
-        initialData={editingItem}
-        onSave={handleSave}
-      />
-
-      <DeleteConfirmationModal
-        isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
-        onConfirm={handleConfirmDelete}
-        itemName={itemToDelete?.name}
-      />
     </ContractModuleLayout>
   );
 };

@@ -981,6 +981,33 @@ export const createOutlet = async (payload) => {
   return clone(outlet);
 };
 
+let attendanceRecords = [];
+
+export const fetchAttendanceData = async ({ date, outletId }) => {
+  await delay();
+  const filteredStaff = filterByOutlet(staffMembers, outletId, "assignedOutletId");
+  return clone(
+    filteredStaff.map((staff) => {
+      const record = attendanceRecords.find((r) => r.staffId === staff.id && r.date === date);
+      return {
+        ...withOutletName(staff),
+        attendanceStatus: record?.status || "not_marked",
+      };
+    }),
+  );
+};
+
+export const markAttendance = async ({ staffId, date, status }) => {
+  await delay();
+  const index = attendanceRecords.findIndex((r) => r.staffId === staffId && r.date === date);
+  if (index >= 0) {
+    attendanceRecords[index].status = status;
+  } else {
+    attendanceRecords.push({ staffId, date, status });
+  }
+  return { success: true };
+};
+
 export const fetchOutletProfile = async (outletId) => {
   await delay();
   const outlet = outlets.find((o) => o.id === outletId);

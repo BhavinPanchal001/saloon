@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Search, Filter, Plus, Users, LayoutGrid, CheckCircle2, ChevronRight, MoreVertical } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Filter, Plus, Users, LayoutGrid, CheckCircle2, ChevronRight, MoreVertical, Edit, Trash2 } from 'lucide-react';
 import ContractModuleLayout from '../../components/ContractModuleLayout';
+import GroupFormModal from '../../components/groups/GroupFormModal';
+import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
 
 // Mock Groups
-const MOCK_GROUPS = [
+const INITIAL_GROUPS = [
   {
     id: 'g1',
     name: 'Senior Hair Stylists',
@@ -27,7 +30,59 @@ const MOCK_GROUPS = [
 ];
 
 const GroupListPage: React.FC = () => {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [groups, setGroups] = useState(INITIAL_GROUPS);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<any>(null);
+  const [groupToDelete, setGroupToDelete] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredGroups = groups.filter(g => 
+    g.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    g.code.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleCreate = () => {
+    setEditingGroup(null);
+    setIsFormOpen(true);
+  };
+
+  const handleEdit = (group: any) => {
+    setEditingGroup(group);
+    setIsFormOpen(true);
+  };
+
+  const handleDeleteClick = (group: any) => {
+    setGroupToDelete(group);
+    setIsDeleteOpen(true);
+  };
+
+  const handleSave = (data: any) => {
+    if (editingGroup) {
+      setGroups(groups.map(g => g.id === editingGroup.id ? { ...g, ...data } : g));
+    } else {
+      const newGroup = {
+        id: `g${Date.now()}`,
+        name: data.name || 'New Group',
+        code: data.code || 'GRP-NEW',
+        category: data.category || 'Core',
+        memberCount: 0,
+        contractCount: 0,
+        status: 'active',
+        lastUpdated: new Date().toISOString().split('T')[0],
+        ...data
+      };
+      setGroups([...groups, newGroup]);
+    }
+    setIsFormOpen(false);
+  };
+
+  const handleDeleteConfirm = () => {
+    setGroups(groups.filter(g => g.id !== groupToDelete.id));
+    setIsDeleteOpen(false);
+  };
 
   return (
     <ContractModuleLayout>
@@ -38,7 +93,10 @@ const GroupListPage: React.FC = () => {
             <h2 className="text-xl font-bold text-slate-900">Contract Groups</h2>
             <p className="text-sm text-slate-500">Manage collective contract templates and employee clusters.</p>
           </div>
-          <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 active:scale-95">
+          <button 
+            onClick={handleCreate}
+            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 active:scale-95"
+          >
             <Plus className="w-5 h-5" />
             Create Group
           </button>
@@ -51,6 +109,8 @@ const GroupListPage: React.FC = () => {
              <input 
                type="text" 
                placeholder="Search groups by name or code..." 
+               value={searchQuery}
+               onChange={(e) => setSearchQuery(e.target.value)}
                className="w-full pl-11 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
              />
            </div>
@@ -80,17 +140,28 @@ const GroupListPage: React.FC = () => {
         {/* Grid View */}
         {viewMode === 'grid' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {MOCK_GROUPS.map((group) => (
-              <div key={group.id} className="group bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-xl hover:shadow-slate-200/50 hover:border-indigo-200 transition-all cursor-pointer relative overflow-hidden">
+            {filteredGroups.map((group) => (
+              <div key={group.id} className="group bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-xl hover:shadow-slate-200/50 hover:border-indigo-200 transition-all relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500 transform -translate-x-full group-hover:translate-x-0 transition-transform" />
                 
                 <div className="flex justify-between items-start mb-4">
                   <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600">
                     <Users className="w-6 h-6" />
                   </div>
-                  <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400">
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => handleEdit(group)}
+                      className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteClick(group)}
+                      className="p-2 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-1 mb-6">
@@ -118,7 +189,10 @@ const GroupListPage: React.FC = () => {
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span className="text-[10px] font-extrabold uppercase tracking-wider">{group.status}</span>
                    </div>
-                   <button className="flex items-center gap-1 text-sm font-bold text-indigo-600 hover:gap-2 transition-all">
+                   <button 
+                     onClick={() => navigate(`/contracts/groups/${group.id}`)}
+                     className="flex items-center gap-1 text-sm font-bold text-indigo-600 hover:gap-2 transition-all"
+                   >
                       View Details
                       <ChevronRight className="w-4 h-4" />
                    </button>
@@ -127,7 +201,10 @@ const GroupListPage: React.FC = () => {
             ))}
 
             {/* Empty State / Add Card */}
-            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 flex flex-col items-center justify-center text-center opacity-70 hover:opacity-100 hover:border-indigo-300 hover:bg-indigo-50/20 transition-all cursor-pointer">
+            <div 
+              onClick={handleCreate}
+              className="border-2 border-dashed border-slate-200 rounded-2xl p-6 flex flex-col items-center justify-center text-center opacity-70 hover:opacity-100 hover:border-indigo-300 hover:bg-indigo-50/20 transition-all cursor-pointer"
+            >
                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-4">
                   <Plus className="w-6 h-6 text-slate-400" />
                </div>
@@ -136,7 +213,63 @@ const GroupListPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Table View Placeholder */}
+        {viewMode === 'table' && (
+          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+             <table className="w-full text-left">
+                <thead className="bg-slate-50/50 border-b border-slate-100">
+                   <tr>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Group Name</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Members</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Contracts</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                      <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                   </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                   {filteredGroups.map(group => (
+                      <tr key={group.id} className="hover:bg-slate-50/50 transition-colors">
+                         <td className="px-6 py-4">
+                            <p className="text-sm font-bold text-slate-900">{group.name}</p>
+                            <p className="text-[11px] font-mono text-slate-400">{group.code}</p>
+                         </td>
+                         <td className="px-6 py-4 font-bold text-sm text-slate-600">{group.memberCount}</td>
+                         <td className="px-6 py-4 font-bold text-sm text-slate-600">{group.contractCount}</td>
+                         <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border border-emerald-100">
+                               {group.status}
+                            </span>
+                         </td>
+                         <td className="px-6 py-4 text-right">
+                            <button 
+                              onClick={() => navigate(`/contracts/groups/${group.id}`)}
+                              className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-indigo-600"
+                            >
+                               <ChevronRight className="w-4 h-4" />
+                            </button>
+                         </td>
+                      </tr>
+                   ))}
+                </tbody>
+             </table>
+          </div>
+        )}
       </div>
+
+      <GroupFormModal 
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+        initialData={editingGroup}
+        onSave={handleSave}
+      />
+
+      <DeleteConfirmationModal 
+        isOpen={isDeleteOpen}
+        onClose={() => setIsDeleteOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        itemName={groupToDelete?.name}
+      />
     </ContractModuleLayout>
   );
 };
