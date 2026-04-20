@@ -1,0 +1,153 @@
+:root {
+  --pkg-primary: #235079;
+  --pkg-primary-light: #578db8;
+  --pkg-bg: #faf9f6;
+  --pkg-card-bg: rgba(255, 255, 255, 0.7);
+  --pkg-glass-border: rgba(255, 255, 255, 0.4);
+  --pkg-shadow: 0 20px 50px -12px rgba(14, 32, 49, 0.12);
+  --pkg-text-main: #0e2031;
+  --pkg-text-muted: #64748b;
+  --pkg-border: #e2e8f0;
+}
+
+.packages-module {
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: var(--pkg-text-main);
+  background: var(--pkg-bg);
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.module-title h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.module-title p {
+  color: var(--pkg-text-muted);
+  margin-top: 0.25rem;
+}
+
+/* Package Card Specifics */
+.package-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.package-form-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.form-section {
+  margin-bottom: 2rem;
+}
+
+.form-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--pkg-border);
+}
+
+.form-section-header h2 {
+  font-size: 1.25rem;
+  font-weight: 601;
+  color: var(--pkg-primary);
+}
+
+.service-selection-item {
+  display: grid;
+  grid-template-columns: 1fr 120px 45px;
+  gap: 1rem;
+  align-items: end;
+  background: white;
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px solid var(--pkg-border);
+  margin-bottom: 1rem;
+}
+
+.package-badge-active {
+  background: #ecfdf5;
+  color: #059669;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.package-badge-inactive {
+  background: #fef2f2;
+  color: #dc2626;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Tab Navigation */
+.form-tabs {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--pkg-border);
+  padding: 0.5rem 0.5rem 0px;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  padding: 0.75rem 1rem;
+  border: none;
+  background: none;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--pkg-text-muted);
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  color: var(--pkg-primary);
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--pkg-primary);
+}
+
+.tab-btn:hover:not(.active) {
+  color: var(--pkg-primary-light);
+}
+
+.stepper-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 2rem;
+  margin-top: 2rem;
+  border-top: 1px solid var(--pkg-border);
+}

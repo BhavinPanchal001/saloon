@@ -54,8 +54,8 @@ export const EmployeeForm: React.FC = () => {
           borderTop: '1px solid #e2e8f0',
           paddingTop: '1.5rem'
         }}>
-          <button className="btn btn-outline">Cancel</button>
-          <button className="btn btn-primary">
+          <button className="btn-premium-outline">Cancel</button>
+          <button className="btn-premium-primary">
             <CheckCircle size={18} />
             Save Employee
           </button>

@@ -27,25 +27,15 @@ const EmployeeDetailPage: React.FC = () => {
         <div className="module-title">
           <button
             onClick={() => window.history.back()}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              background: 'none',
-              border: 'none',
-              color: 'var(--emp-primary)',
-              cursor: 'pointer',
-              fontWeight: '600',
-              padding: 0,
-              marginBottom: '0.5rem'
-            }}
+            className="flex items-center gap-1.5 text-navy-600 hover:text-navy-900 font-bold transition-colors mb-2"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
           >
             <ArrowLeft size={16} />
             Back to List
           </button>
           <h1>Employee Profile</h1>
         </div>
-        <button className="btn btn-primary">
+        <button className="btn-premium-primary">
           <Edit size={18} />
           Edit Profile
         </button>
@@ -89,10 +79,10 @@ const EmployeeDetailPage: React.FC = () => {
 
           <div className="glass-card">
             <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '1rem' }}>Quick Actions</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <button className="btn btn-outline" style={{ justifyContent: 'flex-start', width: '100%' }}>View Documents</button>
-              <button className="btn btn-outline" style={{ justifyContent: 'flex-start', width: '100%' }}>Reset Password</button>
-              <button className="btn btn-outline" style={{ justifyContent: 'flex-start', width: '100%', color: '#ef4444' }}>Deactivate Account</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button className="btn-premium-outline w-full !justify-start">View Documents</button>
+              <button className="btn-premium-outline w-full !justify-start">Reset Password</button>
+              <button className="btn-premium-outline w-full !justify-start !text-rose-600 !border-rose-100 !bg-rose-50/30">Deactivate Account</button>
             </div>
           </div>
         </div>

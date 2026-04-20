@@ -634,7 +634,7 @@ export const createService = async (payload) => {
   await delay();
 
   const service = {
-    id: `svc_${slugFromName(payload.serviceName) || createId("service")}`,
+    id: payload.id || `svc_${slugFromName(payload.serviceName) || createId("service")}`,
     serviceName: payload.serviceName,
     price: Number(payload.price),
     duration: Number(payload.duration),
@@ -644,7 +644,13 @@ export const createService = async (payload) => {
     })),
   };
 
-  services = [service, ...services];
+  const existingIndex = services.findIndex((s) => s.id === service.id);
+  if (existingIndex >= 0) {
+    services[existingIndex] = service;
+  } else {
+    services = [service, ...services];
+  }
+  
   return clone(service);
 };
 

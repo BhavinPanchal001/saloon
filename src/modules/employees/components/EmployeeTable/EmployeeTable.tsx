@@ -67,13 +67,13 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={() => onView(emp.id)} className="btn btn-outline" style={{ padding: '0.4rem' }}>
+                    <button onClick={() => onView(emp.id)} className="h-9 w-9 flex items-center justify-center rounded-xl border border-navy-100 bg-white/50 text-navy-600 hover:bg-navy-50 hover:text-navy-900 transition-all">
                       <Eye size={16} />
                     </button>
-                    <button onClick={() => onEdit(emp.id)} className="btn btn-outline" style={{ padding: '0.4rem' }}>
+                    <button onClick={() => onEdit(emp.id)} className="h-9 w-9 flex items-center justify-center rounded-xl border border-navy-100 bg-white/50 text-navy-600 hover:bg-navy-50 hover:text-navy-900 transition-all">
                       <Edit size={16} />
                     </button>
-                    <button onClick={() => onDelete(emp.id)} className="btn btn-outline" style={{ padding: '0.4rem', color: '#ef4444' }}>
+                    <button onClick={() => onDelete(emp.id)} className="h-9 w-9 flex items-center justify-center rounded-xl border border-rose-100 bg-rose-50/30 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -96,8 +96,8 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
           Showing 1 to {employees.length} of 45 employees
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button className="btn btn-outline" disabled>Previous</button>
-          <button className="btn btn-outline">Next</button>
+          <button className="btn-premium-outline !py-2 !px-4" disabled>Previous</button>
+          <button className="btn-premium-outline !py-2 !px-4">Next</button>
         </div>
       </div>
     </div>

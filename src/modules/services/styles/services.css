@@ -1,0 +1,78 @@
+:root {
+  --svc-primary: #235079;
+  --svc-primary-light: #578db8;
+  --svc-bg: #faf9f6;
+  --svc-card-bg: rgba(255, 255, 255, 0.7);
+  --svc-glass-border: rgba(255, 255, 255, 0.4);
+  --svc-shadow: 0 20px 50px -12px rgba(14, 32, 49, 0.12);
+  --svc-text-main: #0e2031;
+  --svc-text-muted: #64748b;
+  --svc-border: #e2e8f0;
+}
+
+.services-module {
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: var(--svc-text-main);
+  background: var(--svc-bg);
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.module-title h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.module-title p {
+  color: var(--svc-text-muted);
+  margin-top: 0.25rem;
+}
+
+/* Form Styles */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-field label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--svc-text-muted);
+}
+
+.form-section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 1.5rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--svc-primary-light);
+  display: inline-block;
+}
+
+.linkage-row {
+  display: grid;
+  grid-template-columns: 1fr 120px 45px;
+  gap: 1rem;
+  align-items: end;
+  background: white;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--svc-border);
+  margin-bottom: 1rem;
+}

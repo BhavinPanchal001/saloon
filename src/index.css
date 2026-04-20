@@ -93,9 +93,10 @@
     @apply inline-flex items-center rounded-full px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest;
   }
 
-  .status-active { @apply bg-emerald-100 text-emerald-700; }
-  .status-pending { @apply bg-amber-100 text-amber-700; }
-  .status-danger { @apply bg-rose-100 text-rose-700; }
+  .status-active, .status-success { @apply bg-emerald-100 text-emerald-700; }
+  .status-pending, .status-warning { @apply bg-amber-100 text-amber-700; }
+  .status-danger, .status-error, .status-resigned { @apply bg-rose-100 text-rose-700; }
+  .status-on-leave, .status-leave { @apply bg-indigo-100 text-indigo-700; }
 }
 
 /* Custom Gradients */

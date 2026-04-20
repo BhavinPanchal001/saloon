@@ -10,17 +10,12 @@ const EmployeeFormPage: React.FC = () => {
         <div className="module-title">
           <button 
             onClick={() => window.history.back()} 
+            className="flex items-center gap-1.5 text-navy-600 hover:text-navy-900 font-bold transition-colors mb-2"
             style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '4px', 
               background: 'none', 
               border: 'none', 
-              color: 'var(--emp-primary)', 
               cursor: 'pointer',
-              fontWeight: '600',
               padding: 0,
-              marginBottom: '0.5rem'
             }}
           >
             <ArrowLeft size={16} />

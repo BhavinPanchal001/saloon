@@ -27,26 +27,26 @@ export const EmployeeFilters: React.FC<EmployeeFiltersProps> = ({
       </div>
       
       <div style={{ display: 'flex', gap: '0.75rem' }}>
-        <select className="btn btn-outline" onChange={(e) => onFilterChange({ department: e.target.value })}>
+        <select className="premium-input px-4 py-2" style={{ width: 'auto' }} onChange={(e) => onFilterChange({ department: e.target.value })}>
           <option value="">All Departments</option>
           <option value="hr">Human Resources</option>
           <option value="eng">Engineering</option>
           <option value="sales">Sales</option>
         </select>
 
-        <select className="btn btn-outline" onChange={(e) => onFilterChange({ status: e.target.value })}>
+        <select className="premium-input px-4 py-2" style={{ width: 'auto' }} onChange={(e) => onFilterChange({ status: e.target.value })}>
           <option value="">All Status</option>
           <option value="Active">Active</option>
           <option value="On Leave">On Leave</option>
           <option value="Resigned">Resigned</option>
         </select>
 
-        <button className="btn btn-outline">
+        <button className="btn-premium-outline">
           <Download size={18} />
           Export
         </button>
 
-        <button className="btn btn-primary" onClick={onAddClick}>
+        <button className="btn-premium-primary" onClick={onAddClick}>
           <Plus size={18} />
           Add Employee
         </button>

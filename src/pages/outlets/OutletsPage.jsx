@@ -4,14 +4,31 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { Plus } from "lucide-react";
 import { fetchOutlets } from "../../services/mockApi";
 import { formatCurrency } from "../../utils/format";
+import { OutletFormModal } from "./OutletFormModal";
 
 export function OutletsPage() {
   const [outlets, setOutlets] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingOutletId, setEditingOutletId] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const loadOutlets = () => {
     fetchOutlets().then(setOutlets);
+  };
+
+  useEffect(() => {
+    loadOutlets();
   }, []);
+
+  const handleAddClick = () => {
+    setEditingOutletId(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditClick = (id) => {
+    setEditingOutletId(id);
+    setIsModalOpen(true);
+  };
 
   return (
     <div>
@@ -21,7 +38,7 @@ export function OutletsPage() {
         description="A placeholder management view for branch-level settings, ownership, and budget context."
         action={
           <button
-            onClick={() => navigate("/outlets/new")}
+            onClick={handleAddClick}
             className="btn-premium-primary"
           >
             <Plus size={18} />
@@ -52,7 +69,7 @@ export function OutletsPage() {
                 <td className="font-bold text-navy-900">{formatCurrency(outlet.monthlyBudget)}</td>
                 <td>
                   <button
-                    onClick={() => navigate(`/outlets/${outlet.id}/edit`)}
+                    onClick={() => handleEditClick(outlet.id)}
                     className="text-xs font-bold uppercase tracking-wider text-navy-400 hover:text-gold-600"
                   >
                     Edit
@@ -64,6 +81,12 @@ export function OutletsPage() {
         </table>
       </div>
 
+      <OutletFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        outletId={editingOutletId}
+        onSave={loadOutlets}
+      />
     </div>
   );
 }

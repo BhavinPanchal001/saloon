@@ -7,13 +7,13 @@ import { ExpensesPage } from "../pages/expenses/ExpensesPage";
 import { InventoryPage } from "../pages/inventory/InventoryPage";
 import { LoginPage } from "../pages/auth/LoginPage";
 import { OutletsPage } from "../pages/outlets/OutletsPage";
-import { OutletFormPage } from "../pages/outlets/OutletFormPage";
 import { PayrollPage } from "../pages/payroll/PayrollPage";
 import { POSPage } from "../pages/pos/POSPage";
-import { PackageFormPage } from "../pages/packages/PackageFormPage";
-import { PackageProfilePage } from "../pages/packages/PackageProfilePage";
-import { PackagesPage } from "../pages/packages/PackagesPage";
-import { ServicesPage } from "../pages/services/ServicesPage";
+import PackageListPage from "../modules/packages/pages/PackageListPage";
+import { PackageFormPage } from "../modules/packages/pages/PackageFormPage";
+import { PackageProfilePage } from "../modules/packages/pages/PackageProfilePage";
+import ServiceListPage from "../modules/services/pages/ServiceListPage";
+import ServiceFormPage from "../modules/services/pages/ServiceFormPage";
 import EmployeeListPage from "../modules/employees/pages/EmployeeListPage";
 import EmployeeFormPage from "../modules/employees/pages/EmployeeFormPage";
 import EmployeeDetailPage from "../modules/employees/pages/EmployeeDetailPage";
@@ -72,14 +72,6 @@ export const router = createBrowserRouter([
                 element: <OutletsPage />,
               },
               {
-                path: "/outlets/new",
-                element: <OutletFormPage />,
-              },
-              {
-                path: "/outlets/:outletId/edit",
-                element: <OutletFormPage />,
-              },
-              {
                 path: "/expenses",
                 element: <ExpensesPage scope="global" />,
               },
@@ -95,11 +87,19 @@ export const router = createBrowserRouter([
           },
           {
             path: "/services",
-            element: <ServicesPage />,
+            element: <ServiceListPage />,
+          },
+          {
+            path: "/services/add",
+            element: <ServiceFormPage />,
+          },
+          {
+            path: "/services/edit/:id",
+            element: <ServiceFormPage />,
           },
           {
             path: "/packages",
-            element: <PackagesPage />,
+            element: <PackageListPage />,
           },
           {
             path: "/packages/new",

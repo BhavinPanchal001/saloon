@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { PageHeader } from "../../components/ui/PageHeader";
+import { PageHeader } from "../../../components/ui/PageHeader";
 import {
   deletePackage,
   fetchPackageProfile,
   togglePackageStatus,
-} from "../../services/mockApi";
-import { formatCurrency } from "../../utils/format";
-import { formatPackageValue } from "./packageFormUtils";
+} from "../../../services/mockApi";
+import { formatCurrency } from "../../../utils/format";
+import { formatPackageValue } from "../utils/packageFormUtils";
 
 const statusBadgeClassName = {
   active: "bg-emerald-100 text-emerald-700",

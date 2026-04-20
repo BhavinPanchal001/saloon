@@ -1,15 +1,15 @@
 :root {
-  --emp-primary: #6366f1;
-  --emp-primary-light: #818cf8;
-  --emp-bg: #f8fafc;
-  --emp-card-bg: rgba(255, 255, 255, 0.8);
-  --emp-glass-border: rgba(255, 255, 255, 0.1);
-  --emp-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
-  --emp-text-main: #1e293b;
+  --emp-primary: #235079;
+  --emp-primary-light: #578db8;
+  --emp-bg: #faf9f6;
+  --emp-card-bg: rgba(255, 255, 255, 0.7);
+  --emp-glass-border: rgba(255, 255, 255, 0.4);
+  --emp-shadow: 0 20px 50px -12px rgba(14, 32, 49, 0.12);
+  --emp-text-main: #0e2031;
   --emp-text-muted: #64748b;
   --emp-border: #e2e8f0;
   
-  /* Status Colors */
+  /* Status Colors from global theme */
   --status-active: #10b981;
   --status-leave: #f59e0b;
   --status-resigned: #ef4444;
@@ -24,22 +24,8 @@
   padding: 2rem;
 }
 
-/* Glass Card Base */
-.glass-card {
-  background: var(--emp-card-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: var(--emp-shadow);
-  padding: 1.5rem;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
+/* Glass cards are handled by global index.css for consistency */
 
-.glass-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.1);
-}
 
 /* Page Header */
 .module-header {
@@ -193,49 +179,5 @@
   background: var(--emp-primary);
 }
 
-/* Badges */
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-}
+/* Status Badges and Buttons are handled by global index.css */
 
-.status-active { background: #dcfce7; color: #166534; }
-.status-leave { background: #fef3c7; color: #92400e; }
-.status-resigned { background: #fee2e2; color: #991b1b; }
-
-/* Buttons */
-.btn {
-  padding: 0.625rem 1.25rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.btn-primary {
-  background: var(--emp-primary);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #4f46e5;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
-}
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--emp-border);
-  color: var(--emp-text-main);
-}
-
-.btn-outline:hover {
-  background: #f1f5f9;
-}
