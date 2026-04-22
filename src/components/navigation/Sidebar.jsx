@@ -36,7 +36,8 @@ const managerLinks = [
   { label: "Services", to: "/services", icon: Scissors },
   { label: "Packages", to: "/packages", icon: Boxes },
   { label: "Inventory", to: "/inventory", icon: Package },
-  { label: "POS / Billing", to: "/pos", icon: CreditCard },
+  { label: "POS / Billing", to: "/pos", icon: CreditCard, exact: true },
+  { label: "Billing History", to: "/pos/bills", icon: Receipt },
   { label: "Local Expenses", to: "/expenses/local", icon: Receipt },
   { label: "Salary Calc", to: "/payroll/calculate", icon: Wallet },
 ];
@@ -97,6 +98,7 @@ export function Sidebar({ isOpen, onClose }) {
               <NavLink
                 key={item.to}
                 to={item.to}
+                end={item.exact}
                 onClick={onClose}
                 className={({ isActive }) =>
                   `${baseNavClasses} ${

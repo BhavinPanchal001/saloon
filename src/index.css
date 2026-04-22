@@ -117,3 +117,364 @@
   animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* ═══════════════════════════════════════════
+   INVOICE STYLES — Women's Salon Theme
+   ═══════════════════════════════════════════ */
+
+.invoice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  background: rgba(14, 32, 49, 0.55);
+  backdrop-filter: blur(6px);
+  padding: 2rem 1rem;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.invoice-modal-wrapper {
+  width: 100%;
+  max-width: 820px;
+}
+
+.invoice-action-bar {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.invoice-paper {
+  background: #ffffff;
+  border-radius: 1.5rem;
+  padding: 3rem 3rem 2.5rem;
+  box-shadow: 0 30px 80px rgba(14, 32, 49, 0.18);
+  border: 1px solid rgba(225, 185, 65, 0.15);
+}
+
+.invoice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.invoice-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.invoice-logo {
+  width: 60px;
+  height: 60px;
+  border-radius: 1rem;
+  object-fit: cover;
+  border: 2px solid #f6efb5;
+}
+
+.invoice-brand {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #235079;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.invoice-tagline {
+  font-size: 0.75rem;
+  color: #b49434;
+  font-weight: 600;
+  margin-top: 0.25rem;
+  letter-spacing: 0.04em;
+}
+
+.invoice-header-right {
+  text-align: right;
+}
+
+.invoice-company-detail {
+  font-size: 0.7rem;
+  color: #578db8;
+  line-height: 1.7;
+  max-width: 260px;
+}
+
+.invoice-gold-divider {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #e1b941, #f6efb5, #e1b941, transparent);
+  margin: 1.5rem 0;
+  border-radius: 2px;
+}
+
+.invoice-gold-divider-sm {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 10%, #e1b941 50%, transparent 90%);
+  margin: 0.75rem 0;
+}
+
+.invoice-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.invoice-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #235079;
+  letter-spacing: 0.12em;
+}
+
+.invoice-status-badge {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.invoice-status-badge[data-status="paid"] {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.invoice-status-badge[data-status="refunded"] {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.invoice-meta-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: right;
+}
+
+.invoice-meta-item {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.invoice-meta-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #8bb3cf;
+}
+
+.invoice-meta-value {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0d2031;
+  min-width: 120px;
+}
+
+.invoice-billto {
+  background: linear-gradient(135deg, #f1f5f9, #faf9f6);
+  border: 1px solid #e2eaf1;
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.invoice-billto-label {
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  color: #8bb3cf;
+  margin-bottom: 0.35rem;
+}
+
+.invoice-billto-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0d2031;
+}
+
+.invoice-billto-phone {
+  font-size: 0.8rem;
+  color: #578db8;
+  margin-top: 0.15rem;
+}
+
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+}
+
+.invoice-table thead tr {
+  border-bottom: 2px solid #e1b941;
+}
+
+.invoice-table th {
+  padding: 0.75rem 1rem;
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #235079;
+  text-align: left;
+}
+
+.invoice-th-num { width: 40px; }
+.invoice-th-right { text-align: right; }
+
+.invoice-table td {
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  color: #0e2031;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.invoice-table tbody tr:nth-child(even) {
+  background: #faf9f6;
+}
+
+.invoice-td-num { color: #8bb3cf; font-weight: 700; }
+.invoice-td-name { font-weight: 600; }
+.invoice-td-right { text-align: right; }
+.invoice-td-amount { font-weight: 800; color: #235079; }
+
+.invoice-type-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.invoice-type-badge[data-type="service"] {
+  background: #e2eaf1;
+  color: #235079;
+}
+
+.invoice-type-badge[data-type="package"] {
+  background: #fefdf3;
+  color: #876f27;
+}
+
+.invoice-type-badge[data-type="product"] {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.invoice-totals {
+  margin-left: auto;
+  max-width: 300px;
+}
+
+.invoice-totals-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  font-size: 0.85rem;
+  color: #0e2031;
+}
+
+.invoice-grand-total {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #235079;
+  padding: 0.6rem 0;
+  font-family: "Fraunces", Georgia, serif;
+}
+
+.invoice-payment-method {
+  text-align: right;
+  font-size: 0.75rem;
+  color: #578db8;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #bad0e0;
+}
+
+.invoice-footer-content {
+  text-align: center;
+}
+
+.invoice-thankyou {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #235079;
+}
+
+.invoice-sparkle { color: #e1b941; }
+
+.invoice-footer-msg {
+  font-size: 0.85rem;
+  color: #b49434;
+  margin-top: 0.35rem;
+}
+
+.invoice-footer-terms {
+  margin-top: 1rem;
+  font-size: 0.65rem;
+  color: #8bb3cf;
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════
+   PRINT STYLES — A4 Invoice
+   ═══════════════════════════════════ */
+
+@media print {
+  /* Hide everything on the page */
+  body > *:not(.invoice-overlay) {
+    display: none !important;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+
+  .invoice-overlay {
+    position: static;
+    background: none;
+    backdrop-filter: none;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .invoice-modal-wrapper {
+    max-width: 100%;
+  }
+
+  #invoice-print-area {
+    position: static;
+    width: 100%;
+    padding: 1.5cm 2cm;
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
+    background: #fff;
+  }
+
+  @page {
+    size: A4;
+    margin: 0;
+  }
+}
+

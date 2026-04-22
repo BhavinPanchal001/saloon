@@ -907,14 +907,96 @@ export const fetchCatalog = async ({ outletId } = {}) => {
   return clone([...serviceCards, ...packageCards, ...products]);
 };
 
+let bills = [
+  {
+    id: "bill_001", billNumber: "GL-2026-1001", createdAt: "2026-04-22T10:30:00.000Z",
+    customer: { name: "Priya Sharma", phone: "+91 98765 10001" }, paymentMethod: "Card",
+    outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 5000, tax: 400, total: 5400,
+    lineItems: [
+      { itemName: "Signature Hair Color", itemType: "service", qty: 1, price: 3200, staffAssigned: "staff_naina" },
+      { itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia" },
+    ],
+  },
+  {
+    id: "bill_002", billNumber: "GL-2026-1002", createdAt: "2026-04-21T14:15:00.000Z",
+    customer: { name: "Ananya Reddy", phone: "+91 98765 10002" }, paymentMethod: "UPI",
+    outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 4300, tax: 344, total: 4644,
+    lineItems: [
+      { itemName: "Color Reset Ritual", itemType: "package", qty: 1, price: 4300, staffAssigned: null },
+    ],
+  },
+  {
+    id: "bill_003", billNumber: "GL-2026-1003", createdAt: "2026-04-20T11:00:00.000Z",
+    customer: { name: "Meera Joshi", phone: "+91 98765 10003" }, paymentMethod: "Cash",
+    outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 2380, tax: 190.4, total: 2570.4,
+    lineItems: [
+      { itemName: "L'Oreal Color Tube", itemType: "product", qty: 2, price: 580, staffAssigned: null },
+      { itemName: "Keratin Repair Serum", itemType: "product", qty: 1, price: 740, staffAssigned: null },
+      { itemName: "Deep Nourish Shampoo", itemType: "product", qty: 1, price: 320, staffAssigned: null },
+    ],
+  },
+  {
+    id: "bill_004", billNumber: "GL-2026-1004", createdAt: "2026-04-19T16:45:00.000Z",
+    customer: { name: "Kavitha Nair", phone: "+91 98765 10004" }, paymentMethod: "Card",
+    outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 650, tax: 52, total: 702,
+    lineItems: [
+      { itemName: "Beard Sculpt", itemType: "service", qty: 1, price: 650, staffAssigned: "staff_naina" },
+    ],
+  },
+  {
+    id: "bill_005", billNumber: "GL-2026-1005", createdAt: "2026-04-18T09:30:00.000Z",
+    customer: { name: "Divya Patel", phone: "+91 98765 10005" }, paymentMethod: "UPI",
+    outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 5540, tax: 443.2, total: 5983.2,
+    lineItems: [
+      { itemName: "Signature Hair Color", itemType: "service", qty: 1, price: 3200, staffAssigned: "staff_naina" },
+      { itemName: "Spa Cream Jar", itemType: "product", qty: 1, price: 540, staffAssigned: null },
+      { itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia" },
+    ],
+  },
+  {
+    id: "bill_006", billNumber: "GL-2026-1006", createdAt: "2026-04-17T13:00:00.000Z",
+    customer: { name: "Ritu Kapoor", phone: "+91 98765 10006" }, paymentMethod: "Cash",
+    outletId: "outlet_hsr", outletName: "HSR Layout", status: "refunded", subtotal: 1800, tax: 144, total: 1944,
+    lineItems: [
+      { itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia" },
+    ],
+  },
+];
+
+export const fetchBills = async ({ outletId } = {}) => {
+  await delay();
+  const filtered = outletId ? bills.filter((b) => b.outletId === outletId) : bills;
+  return clone(filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+};
+
+export const fetchBillById = async (billId) => {
+  await delay();
+  const bill = bills.find((b) => b.id === billId);
+  if (!bill) throw new Error("Bill not found.");
+  return clone(bill);
+};
+
 export const checkoutBill = async (payload) => {
   await delay(500);
 
-  return clone({
-    success: true,
-    billNumber: `GL-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`,
-    payload,
-  });
+  const billNumber = `GL-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+  const newBill = {
+    id: createId("bill"),
+    billNumber,
+    createdAt: new Date().toISOString(),
+    customer: payload.customer,
+    paymentMethod: payload.paymentMethod,
+    outletId: payload.outletId,
+    outletName: outlets.find((o) => o.id === payload.outletId)?.name || "Unknown",
+    status: "paid",
+    subtotal: payload.subtotal,
+    tax: payload.tax,
+    total: payload.total,
+    lineItems: payload.lineItems,
+  };
+  bills = [newBill, ...bills];
+
+  return clone({ success: true, billNumber, payload });
 };
 
 export const generatePayrollPreview = async ({ outletId } = {}) => {
