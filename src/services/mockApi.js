@@ -16,25 +16,37 @@ const commissionMap = {
 let outlets = [
   {
     id: "outlet_hsr",
+    code: "HSR-01",
     name: "HSR Layout",
     city: "Bengaluru",
+    address: "Sector 2, HSR Layout, Bengaluru, Karnataka 560102",
+    invoicePrefix: "HSR-",
     manager: "Meera Kapoor",
-    monthlyBudget: 150000,
   },
   {
     id: "outlet_indiranagar",
+    code: "IND-01",
     name: "Indiranagar",
     city: "Bengaluru",
+    address: "100 Feet Road, Indiranagar, Bengaluru, Karnataka 560038",
+    invoicePrefix: "IND-",
     manager: "Aarav Nair",
-    monthlyBudget: 135000,
   },
   {
     id: "outlet_banjara",
+    code: "BNJ-01",
     name: "Banjara Hills",
     city: "Hyderabad",
+    address: "Road No. 1, Banjara Hills, Hyderabad, Telangana 500034",
+    invoicePrefix: "BNJ-",
     manager: "Sara Thomas",
-    monthlyBudget: 165000,
   },
+];
+
+let monthlyBudgets = [
+  { outletId: "outlet_hsr", monthKey: currentMonth, amount: 150000 },
+  { outletId: "outlet_indiranagar", monthKey: currentMonth, amount: 135000 },
+  { outletId: "outlet_banjara", monthKey: currentMonth, amount: 165000 },
 ];
 
 let productMasters = [
@@ -842,10 +854,14 @@ export const fetchBudgetSummary = async ({ outletId } = {}) => {
   const selectedOutlets = outletId
     ? outlets.filter((outlet) => outlet.id === outletId)
     : outlets;
-  const totalMonthlyBudget = selectedOutlets.reduce(
-    (sum, outlet) => sum + outlet.monthlyBudget,
-    0,
-  );
+  
+  const totalMonthlyBudget = selectedOutlets.reduce((sum, outlet) => {
+    const budgetRecord = monthlyBudgets.find(
+      (b) => b.outletId === outlet.id && b.monthKey === currentMonth,
+    );
+    return sum + (budgetRecord?.amount || 0);
+  }, 0);
+
   const totalExpensesSoFar = expenses
     .filter((expense) => expense.monthKey === currentMonth)
     .filter((expense) => !outletId || expense.outletId === outletId)
@@ -856,7 +872,36 @@ export const fetchBudgetSummary = async ({ outletId } = {}) => {
     totalExpensesSoFar,
     remainingBalance: totalMonthlyBudget - totalExpensesSoFar,
     monthKey: currentMonth,
+    budgets: selectedOutlets.map(outlet => {
+      const budgetRecord = monthlyBudgets.find(
+        (b) => b.outletId === outlet.id && b.monthKey === currentMonth,
+      );
+      return {
+        outletId: outlet.id,
+        outletName: outlet.name,
+        amount: budgetRecord?.amount || 0
+      };
+    })
   });
+};
+
+export const updateMonthlyBudget = async ({ outletId, amount }) => {
+  await delay();
+  const existingIndex = monthlyBudgets.findIndex(
+    (b) => b.outletId === outletId && b.monthKey === currentMonth,
+  );
+
+  if (existingIndex >= 0) {
+    monthlyBudgets[existingIndex].amount = Number(amount);
+  } else {
+    monthlyBudgets.push({
+      outletId,
+      monthKey: currentMonth,
+      amount: Number(amount),
+    });
+  }
+
+  return fetchBudgetSummary({ outletId });
 };
 
 export const fetchCatalog = async ({ outletId } = {}) => {
@@ -1035,6 +1080,17 @@ export const fetchDashboardMetrics = async ({ role, outletId } = {}) => {
     : productMasters;
   const scopedExpenses = filterByOutlet(expenses, outletId);
 
+  const selectedOutletsForBudget = outletId
+    ? outlets.filter((outlet) => outlet.id === outletId)
+    : outlets;
+
+  const totalMonthlyBudget = selectedOutletsForBudget.reduce((sum, outlet) => {
+    const budgetRecord = monthlyBudgets.find(
+      (b) => b.outletId === outlet.id && b.monthKey === currentMonth,
+    );
+    return sum + (budgetRecord?.amount || 0);
+  }, 0);
+
   return clone({
     activeOutlets: role === "admin" ? outlets.length : 1,
     staffCount: scopedStaff.length,
@@ -1042,10 +1098,7 @@ export const fetchDashboardMetrics = async ({ role, outletId } = {}) => {
     packageCount: packages.length,
     inventoryCount: scopedInventory.length,
     expenseCount: scopedExpenses.length,
-    totalBudget:
-      role === "admin"
-        ? outlets.reduce((sum, outlet) => sum + outlet.monthlyBudget, 0)
-        : outlets.find((outlet) => outlet.id === outletId)?.monthlyBudget || 0,
+    totalBudget: totalMonthlyBudget,
   });
 };
 
@@ -1053,10 +1106,12 @@ export const createOutlet = async (payload) => {
   await delay();
   const outlet = {
     id: payload.id || `outlet_${slugFromName(payload.name) || createId("outlet")}`,
+    code: payload.code,
     name: payload.name,
     city: payload.city,
+    address: payload.address,
+    invoicePrefix: payload.invoicePrefix,
     manager: payload.manager,
-    monthlyBudget: Number(payload.monthlyBudget),
   };
 
   const existingIndex = outlets.findIndex((o) => o.id === outlet.id);

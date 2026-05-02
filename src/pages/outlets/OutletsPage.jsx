@@ -52,9 +52,9 @@ export function OutletsPage() {
           <thead>
             <tr>
               <th>Outlet Name</th>
+              <th>Code</th>
               <th>City</th>
               <th>Branch Manager</th>
-              <th>Operating Budget</th>
               <th className="w-20"></th>
             </tr>
           </thead>
@@ -62,11 +62,13 @@ export function OutletsPage() {
             {outlets.map((outlet) => (
               <tr key={outlet.id}>
                 <td className="font-bold text-navy-900">{outlet.name}</td>
+                <td>
+                  <span className="status-badge bg-navy-50 text-navy-600">{outlet.code || "N/A"}</span>
+                </td>
                 <td className="text-slate-600">{outlet.city}</td>
                 <td>
                   <span className="font-bold text-navy-600">{outlet.manager}</span>
                 </td>
-                <td className="font-bold text-navy-900">{formatCurrency(outlet.monthlyBudget)}</td>
                 <td>
                   <button
                     onClick={() => handleEditClick(outlet.id)}

@@ -122,7 +122,7 @@ const ServiceFormPage: React.FC = () => {
                 </div>
                 <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                    <div className="form-field">
-                    <label>Price ($)</label>
+                    <label>Price (RM)</label>
                     <input
                       type="number"
                       className="premium-input"

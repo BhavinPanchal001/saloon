@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   Receipt, 
   Wallet, 
@@ -18,6 +19,7 @@ import {
   fetchBudgetSummary,
   fetchExpenses,
   deleteExpense,
+  updateMonthlyBudget,
 } from "../../services/mockApi";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
@@ -35,6 +37,7 @@ export function ExpensesPage({ scope }) {
   const scopedOutletId =
     scope === "global" && user?.role === "admin" ? undefined : user?.outlet_id;
 
+  const navigate = useNavigate();
   const [budget, setBudget] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [form, setForm] = useState(initialExpenseForm);
@@ -117,9 +120,19 @@ export function ExpensesPage({ scope }) {
               <Wallet size={24} />
             </div>
           </div>
-          <div className="mt-6 flex items-center gap-2 text-xs font-bold text-navy-400">
-            <Calendar size={14} />
-            <span>Fiscal Month: April 2026</span>
+          <div className="mt-6 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-bold text-navy-400">
+              <Calendar size={14} />
+              <span>Fiscal Month: April 2026</span>
+            </div>
+            {user?.role === "admin" && (
+              <button 
+                onClick={() => navigate("/budgets")}
+                className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700"
+              >
+                Set Budgets →
+              </button>
+            )}
           </div>
         </div>
 
@@ -226,11 +239,11 @@ export function ExpensesPage({ scope }) {
                 <label className="premium-label">Estimated Total</label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-5 text-navy-400 group-focus-within:text-navy-900 transition-colors">
-                    <span className="text-sm font-bold">₹</span>
+                    <span className="text-sm font-bold">RM </span>
                   </div>
                   <input
                     name="totalAmount"
-                    className="premium-input pl-10 font-bold text-navy-900 bg-navy-50/30"
+                    className="premium-input pl-14 font-bold text-navy-900 bg-navy-50/30"
                     value={form.totalAmount}
                     readOnly
                     placeholder="0.00"
@@ -346,6 +359,7 @@ export function ExpensesPage({ scope }) {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

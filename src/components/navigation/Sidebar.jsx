@@ -26,6 +26,7 @@ const adminLinks = [
   { label: "Inventory", to: "/inventory", icon: Package },
   { label: "Contracts", to: "/contracts", icon: FileText },
   { label: "Expenses", to: "/expenses", icon: Receipt },
+  { label: "Budgets", to: "/budgets", icon: Wallet },
   { label: "Salary Calc", to: "/payroll/calculate", icon: Wallet },
 ];
 

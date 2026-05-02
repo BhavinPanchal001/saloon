@@ -364,10 +364,10 @@ export function PackageFormPage() {
                     <div className="form-field">
                       <label className="premium-label">Package Price</label>
                       <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">RM </span>
                         <input
                           type="number"
-                          className="premium-input pl-8"
+                          className="premium-input pl-14"
                           value={form.packagePrice}
                           onChange={(e) => setForm({ ...form, packagePrice: e.target.value })}
                           placeholder={packageSummary.regularPrice.toString()}

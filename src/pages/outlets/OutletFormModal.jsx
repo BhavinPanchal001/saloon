@@ -6,9 +6,11 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
+    code: "",
     city: "",
+    address: "",
+    invoicePrefix: "",
     manager: "",
-    monthlyBudget: "",
   });
 
   useEffect(() => {
@@ -18,18 +20,22 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
         fetchOutletProfile(outletId).then((data) => {
           setFormData({
             name: data.name,
+            code: data.code || "",
             city: data.city,
+            address: data.address || "",
+            invoicePrefix: data.invoicePrefix || "",
             manager: data.manager,
-            monthlyBudget: data.monthlyBudget.toString(),
           });
           setLoading(false);
         }).catch(() => setLoading(false));
       } else {
         setFormData({
           name: "",
+          code: "",
           city: "",
+          address: "",
+          invoicePrefix: "",
           manager: "",
-          monthlyBudget: "",
         });
       }
     }
@@ -90,56 +96,82 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
 
           <form className="p-10" onSubmit={handleSubmit}>
             <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="premium-label">Outlet Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="e.g. HSR Layout"
-                  className="premium-input"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="premium-label">City</label>
-                <input
-                  type="text"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleChange}
-                  placeholder="e.g. Bengaluru"
-                  className="premium-input"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="premium-label">Branch Manager</label>
-                <input
-                  type="text"
-                  name="manager"
-                  value={formData.manager}
-                  onChange={handleChange}
-                  placeholder="Enter name of the manager"
-                  className="premium-input"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="premium-label">Monthly Operating Budget</label>
-                <div className="relative group">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-navy-300 font-bold group-focus-within:text-navy-500 transition-colors">$</span>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="premium-label">Outlet Name</label>
                   <input
-                    type="number"
-                    name="monthlyBudget"
-                    value={formData.monthlyBudget}
+                    type="text"
+                    name="name"
+                    value={formData.name}
                     onChange={handleChange}
-                    placeholder="0.00"
-                    className="premium-input pl-10"
+                    placeholder="e.g. HSR Layout"
+                    className="premium-input"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="premium-label">Outlet Code</label>
+                  <input
+                    type="text"
+                    name="code"
+                    value={formData.code}
+                    onChange={handleChange}
+                    placeholder="e.g. HSR-01"
+                    className="premium-input"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="premium-label">City</label>
+                  <input
+                    type="text"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                    placeholder="e.g. Bengaluru"
+                    className="premium-input"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="premium-label">Invoice Prefix</label>
+                  <input
+                    type="text"
+                    name="invoicePrefix"
+                    value={formData.invoicePrefix}
+                    onChange={handleChange}
+                    placeholder="e.g. HSR-"
+                    className="premium-input"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="premium-label">Full Address</label>
+                <textarea
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  placeholder="Enter complete outlet address"
+                  className="premium-input min-h-[100px] py-4"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="premium-label">Branch Manager</label>
+                  <input
+                    type="text"
+                    name="manager"
+                    value={formData.manager}
+                    onChange={handleChange}
+                    placeholder="Manager Name"
+                    className="premium-input"
                     required
                   />
                 </div>

@@ -344,7 +344,7 @@ export function InventoryPage() {
                 />
               </div>
               <div>
-                <label className="premium-label">Unit Price ($)</label>
+                <label className="premium-label">Unit Price (RM)</label>
                 <input
                   type="number"
                   min="0"

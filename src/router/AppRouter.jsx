@@ -4,6 +4,7 @@ import { AppLayout } from "../layouts/AppLayout";
 import { OutletDashboardPage } from "../pages/dashboard/OutletDashboardPage";
 import { GlobalDashboardPage } from "../pages/dashboard/GlobalDashboardPage";
 import { ExpensesPage } from "../pages/expenses/ExpensesPage";
+import { BudgetsPage } from "../pages/expenses/BudgetsPage";
 import { InventoryPage } from "../pages/inventory/InventoryPage";
 import { LoginPage } from "../pages/auth/LoginPage";
 import { OutletsPage } from "../pages/outlets/OutletsPage";
@@ -75,6 +76,10 @@ export const router = createBrowserRouter([
               {
                 path: "/expenses",
                 element: <ExpensesPage scope="global" />,
+              },
+              {
+                path: "/budgets",
+                element: <BudgetsPage />,
               },
             ],
           },

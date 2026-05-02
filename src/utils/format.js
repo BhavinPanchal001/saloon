@@ -1,9 +1,12 @@
-export const formatCurrency = (value) =>
-  new Intl.NumberFormat("en-IN", {
+export const formatCurrency = (value) => {
+  const formatted = new Intl.NumberFormat("en-MY", {
     style: "currency",
-    currency: "INR",
+    currency: "MYR",
     maximumFractionDigits: 0,
   }).format(Number(value || 0));
+  // Replace 'RM' with 'RM ' to ensure a space
+  return formatted.replace("RM", "RM ");
+};
 
 export const formatRoleLabel = (role) =>
   role === "admin" ? "Super Admin" : "Outlet Manager";

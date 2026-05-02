@@ -56,8 +56,8 @@ const MasterFormModal: React.FC<MasterFormModalProps> = ({
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Default Value</label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
-                <input type="number" step="0.01" className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">RM </span>
+                <input type="number" step="0.01" className="w-full pl-14 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
               </div>
             </div>
           </div>
