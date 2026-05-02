@@ -65,7 +65,7 @@ export function Sidebar({ isOpen, onClose }) {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gold-400">
-                Glocoy
+                Glowy
               </p>
               <h1 className="mt-3 text-3xl text-white">Glow to go</h1>
             <p className="mt-2 max-w-[14rem] text-sm text-slate-300">

@@ -3,6 +3,7 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { checkoutBill, fetchCatalog, fetchStaff } from "../../services/mockApi";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
+import { InvoiceModal } from "./InvoiceModal";
 
 const paymentMethods = ["Cash", "Card", "UPI"];
 
@@ -16,6 +17,8 @@ export function POSPage() {
   const [cart, setCart] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [payloadPreview, setPayloadPreview] = useState(null);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [currentBill, setCurrentBill] = useState(null);
 
   useEffect(() => {
     const loadPos = async () => {
@@ -109,12 +112,15 @@ export function POSPage() {
     };
 
     const result = await checkoutBill(payload);
+    setCurrentBill(result);
+    setShowInvoice(true);
     setPayloadPreview({
       billNumber: result.billNumber,
       payload,
     });
     setCart([]);
     setPaymentMethod("");
+    setCustomer({ name: "", phone: "" });
   };
 
   return (
@@ -338,6 +344,12 @@ export function POSPage() {
             </div>
           ) : null}
         </div>
+      {showInvoice && (
+        <InvoiceModal
+          bill={currentBill}
+          onClose={() => setShowInvoice(false)}
+        />
+      )}
       </div>
     </div>
   );

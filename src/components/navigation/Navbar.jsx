@@ -22,7 +22,7 @@ export function Navbar({ onOpenSidebar }) {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
 
-  let pageTitle = pageTitles[location.pathname] || "Glocoy";
+  let pageTitle = pageTitles[location.pathname] || "Glowy";
 
   if (location.pathname === "/packages/new") {
     pageTitle = "Create Package";

@@ -42,7 +42,7 @@ export function InvoiceModal({ bill, onClose }) {
           {/* Header */}
           <header className="invoice-header">
             <div className="invoice-header-left">
-              <img src="/glocoy-logo.png" alt="Glocoy" className="invoice-logo" />
+              <img src="/glowy-logo.png" alt="Glowy" className="invoice-logo" />
               <div>
                 <h1 className="invoice-brand">{COMPANY_INFO.name}</h1>
                 <p className="invoice-tagline">{COMPANY_INFO.tagline}</p>

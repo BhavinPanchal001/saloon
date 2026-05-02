@@ -41,7 +41,7 @@ export const useAuthStore = create(
       clearLoginError: () => set({ loginError: null }),
     }),
     {
-      name: "glocoy-auth",
+      name: "glowy-auth",
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,

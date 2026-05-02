@@ -487,7 +487,7 @@ export const loginUser = async ({ email, password }) => {
 
   return clone({
     id: isAdmin ? "user_admin" : "user_manager",
-    name: isAdmin ? "Glocoy Super Admin" : "HSR Outlet Manager",
+    name: isAdmin ? "Glowy Super Admin" : "HSR Outlet Manager",
     email: normalizedEmail,
     role,
     outlet_id: outletId,
@@ -996,7 +996,7 @@ export const checkoutBill = async (payload) => {
   };
   bills = [newBill, ...bills];
 
-  return clone({ success: true, billNumber, payload });
+  return clone(newBill);
 };
 
 export const generatePayrollPreview = async ({ outletId } = {}) => {

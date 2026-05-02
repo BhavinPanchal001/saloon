@@ -4,12 +4,12 @@ import { useAuthStore } from "../../stores/authStore";
 
 const demoCredentials = {
   admin: {
-    email: "admin@glocoy.com",
-    password: "glocoy123",
+    email: "admin@glowy.com",
+    password: "glowy123",
   },
   outlet_manager: {
-    email: "manager@glocoy.com",
-    password: "glocoy123",
+    email: "manager@glowy.com",
+    password: "glowy123",
   },
 };
 
@@ -54,10 +54,10 @@ export function LoginPage() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(221,111,53,0.35),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.12),transparent_26%)]" />
           <div className="relative z-10">
             <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-200">
-              GLOCoy
+              GLOWy
             </p>
             <h1 className="mt-6 max-w-lg text-5xl leading-tight md:text-6xl">
-              Glow to go with Glocoy.
+              Glow to go with Glowy.
             </h1>
             <p className="mt-6 max-w-xl text-base leading-8 text-slate-300">
               A multi-outlet salon management POS with branch-sensitive access, inventory-aware
@@ -102,7 +102,7 @@ export function LoginPage() {
               >
                 <p className="text-sm font-semibold text-slate-900">Super Admin Demo</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
-                  admin@glocoy.com
+                  admin@glowy.com
                 </p>
               </button>
               <button
@@ -112,7 +112,7 @@ export function LoginPage() {
               >
                 <p className="text-sm font-semibold text-slate-900">Outlet Manager Demo</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
-                  manager@glocoy.com
+                  manager@glowy.com
                 </p>
               </button>
             </div>
@@ -127,7 +127,7 @@ export function LoginPage() {
                   name="email"
                   type="email"
                   className="input-field"
-                  placeholder="name@glocoy.com"
+                  placeholder="name@glowy.com"
                   value={form.email}
                   onChange={handleChange}
                 />
@@ -155,7 +155,7 @@ export function LoginPage() {
               ) : null}
 
               <button type="submit" className="btn-primary w-full" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Enter Glocoy"}
+                {isLoading ? "Signing in..." : "Enter Glowy"}
               </button>
             </form>
           </div>
