@@ -23,6 +23,7 @@ import {
   fetchPackageProfile,
   fetchServices,
   savePackage,
+  fetchServiceCategories,
 } from "../../../services/mockApi";
 import { formatCurrency } from "../../../utils/format";
 import {
@@ -41,6 +42,7 @@ export function PackageFormPage() {
   const [form, setForm] = useState(createInitialPackageForm());
   const [services, setServices] = useState([]);
   const [outlets, setOutlets] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("basics");
@@ -59,9 +61,10 @@ export function PackageFormPage() {
       setIsLoading(true);
 
       try {
-        const [serviceList, outletList, packageRecord] = await Promise.all([
+        const [serviceList, outletList, categoryList, packageRecord] = await Promise.all([
           fetchServices(),
           fetchOutlets(),
+          fetchServiceCategories(),
           isEditing ? fetchPackageProfile(packageId) : Promise.resolve(null),
         ]);
 
@@ -69,6 +72,7 @@ export function PackageFormPage() {
 
         setServices(serviceList);
         setOutlets(outletList);
+        setCategories(categoryList);
         setForm(packageRecord ? mapPackageToForm(packageRecord) : createInitialPackageForm());
       } finally {
         if (isMounted) setIsLoading(false);
@@ -248,8 +252,8 @@ export function PackageFormPage() {
                       value={form.category}
                       onChange={(e) => setForm({ ...form, category: e.target.value })}
                     >
-                      {packageCategoryOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
                       ))}
                     </select>
                   </div>

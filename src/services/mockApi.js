@@ -178,6 +178,13 @@ let services = [
   },
 ];
 
+let serviceCategories = [
+  { id: "cat_hair", name: "Hair", code: "HAIR", status: "active" },
+  { id: "cat_nails", name: "Nails", code: "NAILS", status: "active" },
+  { id: "cat_skin", name: "Skin", code: "SKIN", status: "active" },
+  { id: "cat_grooming", name: "Grooming", code: "GROOM", status: "active" },
+];
+
 const cloneLinkages = (linkages = []) =>
   linkages.map((linkage) => ({
     inventoryId: linkage.inventoryId,
@@ -635,6 +642,35 @@ export const issueProductToOutlet = async (payload) => {
     itemName: product.itemName,
     outletName: outlet.name,
   });
+};
+
+export const fetchServiceCategories = async () => {
+  await delay();
+  return clone(serviceCategories);
+};
+
+export const saveServiceCategory = async (payload) => {
+  await delay();
+  const category = {
+    id: payload.id || createId("cat"),
+    name: payload.name,
+    code: payload.code || payload.name.substring(0, 3).toUpperCase(),
+    status: payload.status || "active",
+  };
+
+  const index = serviceCategories.findIndex((c) => c.id === category.id);
+  if (index >= 0) {
+    serviceCategories[index] = category;
+  } else {
+    serviceCategories = [category, ...serviceCategories];
+  }
+  return clone(category);
+};
+
+export const deleteServiceCategory = async (id) => {
+  await delay();
+  serviceCategories = serviceCategories.filter((c) => c.id !== id);
+  return { success: true };
 };
 
 export const fetchServices = async () => {

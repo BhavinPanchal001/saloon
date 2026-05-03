@@ -359,7 +359,6 @@ export function ExpensesPage({ scope }) {
           </div>
         </div>
       </div>
-      )}
     </div>
   );
 }

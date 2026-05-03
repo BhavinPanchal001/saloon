@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { createService, fetchProductMasters, fetchServices } from '../../../services/mockApi';
+import { createService, fetchProductMasters, fetchServices, fetchServiceCategories } from '../../../services/mockApi';
 import '../styles/services.css';
 
 const createInitialLinkage = () => ({
@@ -21,12 +21,17 @@ const ServiceFormPage: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [form, setForm] = useState(createInitialServiceForm());
 
   useEffect(() => {
     const loadData = async () => {
-      const inventoryList = await fetchProductMasters();
+      const [inventoryList, categoryList] = await Promise.all([
+        fetchProductMasters(),
+        fetchServiceCategories()
+      ]);
       setInventory(inventoryList);
+      setCategories(categoryList);
 
       if (id) {
         const serviceList = await fetchServices();
@@ -114,10 +119,9 @@ const ServiceFormPage: React.FC = () => {
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
                   >
-                    <option value="hair">Hair</option>
-                    <option value="skin">Skin</option>
-                    <option value="nails">Nails</option>
-                    <option value="grooming">Grooming</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

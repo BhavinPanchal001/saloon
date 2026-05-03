@@ -16,6 +16,7 @@ import { PackageFormPage } from "../modules/packages/pages/PackageFormPage";
 import { PackageProfilePage } from "../modules/packages/pages/PackageProfilePage";
 import ServiceListPage from "../modules/services/pages/ServiceListPage";
 import ServiceFormPage from "../modules/services/pages/ServiceFormPage";
+import ServiceCategoryMasterPage from "../modules/services/pages/ServiceCategoryMasterPage";
 import EmployeeListPage from "../modules/employees/pages/EmployeeListPage";
 import EmployeeFormPage from "../modules/employees/pages/EmployeeFormPage";
 import EmployeeDetailPage from "../modules/employees/pages/EmployeeDetailPage";
@@ -102,6 +103,10 @@ export const router = createBrowserRouter([
           {
             path: "/services/edit/:id",
             element: <ServiceFormPage />,
+          },
+          {
+            path: "/services/categories",
+            element: <ServiceCategoryMasterPage />,
           },
           {
             path: "/packages",
