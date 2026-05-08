@@ -3,74 +3,252 @@ import {
   Boxes,
   Briefcase,
   CalendarCheck,
+  ChevronRight,
   CreditCard,
+  DollarSign,
   FileText,
   LayoutDashboard,
   Package,
   Receipt,
   Scissors,
+  Settings,
   Store,
   Tags,
   Users,
   Wallet,
   X,
+  Bell,
+  ClipboardList,
+  BarChart2,
+  UserCheck,
+  BookOpen,
+  Layers,
 } from "lucide-react";
 import { useAuthStore } from "../../stores/authStore";
 
-const adminLinks = [
-  { label: "Global Dashboard", to: "/dashboard/global", icon: LayoutDashboard },
-  { label: "Outlets", to: "/outlets", icon: Store },
-  { label: "Employees", to: "/staff", icon: Users },
-  { label: "Attendance", to: "/attendance", icon: CalendarCheck },
-  { label: "Services", to: "/services", icon: Scissors, exact: true },
-  { label: "Service Categories", to: "/services/categories", icon: Tags },
-  { label: "Packages", to: "/packages", icon: Boxes },
-  { label: "Inventory", to: "/inventory", icon: Package },
-  { label: "Contracts", to: "/contracts", icon: FileText },
-  { label: "Expenses", to: "/expenses", icon: Receipt },
-  { label: "Budgets", to: "/budgets", icon: Wallet },
-  { label: "Salary Calc", to: "/payroll/calculate", icon: Wallet },
+// ─── Navigation structure ───────────────────────────────────────────────────
+
+const adminNav = [
+  {
+    section: "Dashboard",
+    icon: LayoutDashboard,
+    links: [
+      { label: "Global Dashboard", to: "/dashboard/global", icon: LayoutDashboard },
+      { label: "Outlet Dashboard", to: "/dashboard/outlet", icon: Store },
+      { label: "Reports", to: "/reports", icon: BarChart2 },
+    ],
+  },
+  {
+    section: "Employee",
+    icon: Users,
+    links: [
+      { label: "Employees", to: "/staff", icon: Users, exact: true },
+      { label: "Attendance", to: "/attendance", icon: CalendarCheck, exact: true },
+      { label: "Attendance Summary", to: "/attendance/summary", icon: UserCheck },
+      { label: "Contracts", to: "/contracts", icon: FileText, exact: true },
+      { label: "Contract Groups", to: "/contracts/groups", icon: Layers },
+      { label: "Contract Masters", to: "/contracts/masters", icon: BookOpen },
+    ],
+  },
+  {
+    section: "HR & Payroll",
+    icon: DollarSign,
+    links: [
+      { label: "Payroll", to: "/payroll", icon: Wallet, exact: true },
+      { label: "Salary Calculation", to: "/payroll/calculate", icon: ClipboardList },
+    ],
+  },
+  {
+    section: "Services & Packages",
+    icon: Scissors,
+    links: [
+      { label: "Services", to: "/services", icon: Scissors, exact: true },
+      { label: "Service Categories", to: "/services/categories", icon: Tags },
+      { label: "Packages", to: "/packages", icon: Boxes, exact: true },
+    ],
+  },
+  {
+    section: "Inventory",
+    icon: Package,
+    links: [
+      { label: "Inventory", to: "/inventory", icon: Package, exact: true },
+      { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
+    ],
+  },
+  {
+    section: "POS & Billing",
+    icon: CreditCard,
+    links: [
+      { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
+      { label: "Billing History", to: "/pos/bills", icon: Receipt },
+    ],
+  },
+  {
+    section: "Finance",
+    icon: Wallet,
+    links: [
+      { label: "Expenses", to: "/expenses", icon: Receipt, exact: true },
+      { label: "Local Expenses", to: "/expenses/local", icon: Receipt },
+      { label: "Budgets", to: "/budgets", icon: Wallet },
+      { label: "Outlets", to: "/outlets", icon: Store },
+    ],
+  },
+  {
+    section: "Settings",
+    icon: Settings,
+    links: [
+      { label: "Settings", to: "/settings", icon: Settings },
+      { label: "Notifications", to: "/notifications", icon: Bell },
+    ],
+  },
 ];
 
-const managerLinks = [
-  { label: "Outlet Dashboard", to: "/dashboard/outlet", icon: LayoutDashboard },
-  { label: "Employees", to: "/staff", icon: Users },
-  { label: "Attendance", to: "/attendance", icon: CalendarCheck },
-  { label: "Services", to: "/services", icon: Scissors, exact: true },
-  { label: "Packages", to: "/packages", icon: Boxes },
-  { label: "Inventory", to: "/inventory", icon: Package },
-  { label: "POS / Billing", to: "/pos", icon: CreditCard, exact: true },
-  { label: "Billing History", to: "/pos/bills", icon: Receipt },
-  { label: "Local Expenses", to: "/expenses/local", icon: Receipt },
-  { label: "Salary Calc", to: "/payroll/calculate", icon: Wallet },
+const managerNav = [
+  {
+    section: "Dashboard",
+    icon: LayoutDashboard,
+    links: [
+      { label: "Outlet Dashboard", to: "/dashboard/outlet", icon: LayoutDashboard },
+    ],
+  },
+  {
+    section: "Employee",
+    icon: Users,
+    links: [
+      { label: "Employees", to: "/staff", icon: Users, exact: true },
+      { label: "Attendance", to: "/attendance", icon: CalendarCheck, exact: true },
+      { label: "Attendance Summary", to: "/attendance/summary", icon: UserCheck },
+      { label: "Contracts", to: "/contracts", icon: FileText, exact: true },
+      { label: "Contract Groups", to: "/contracts/groups", icon: Layers },
+      { label: "Contract Masters", to: "/contracts/masters", icon: BookOpen },
+    ],
+  },
+  {
+    section: "HR & Payroll",
+    icon: DollarSign,
+    links: [
+      { label: "Payroll", to: "/payroll", icon: Wallet, exact: true },
+      { label: "Salary Calculation", to: "/payroll/calculate", icon: ClipboardList },
+    ],
+  },
+  {
+    section: "Services & Packages",
+    icon: Scissors,
+    links: [
+      { label: "Services", to: "/services", icon: Scissors, exact: true },
+      { label: "Service Categories", to: "/services/categories", icon: Tags },
+      { label: "Packages", to: "/packages", icon: Boxes, exact: true },
+    ],
+  },
+  {
+    section: "Inventory",
+    icon: Package,
+    links: [
+      { label: "Inventory", to: "/inventory", icon: Package, exact: true },
+      { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
+    ],
+  },
+  {
+    section: "POS & Billing",
+    icon: CreditCard,
+    links: [
+      { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
+      { label: "Billing History", to: "/pos/bills", icon: Receipt },
+    ],
+  },
+  {
+    section: "Finance",
+    icon: Wallet,
+    links: [
+      { label: "Local Expenses", to: "/expenses/local", icon: Receipt },
+      { label: "Budgets", to: "/budgets", icon: Wallet },
+    ],
+  },
+  {
+    section: "Settings",
+    icon: Settings,
+    links: [
+      { label: "Settings", to: "/settings", icon: Settings },
+      { label: "Notifications", to: "/notifications", icon: Bell },
+    ],
+  },
 ];
 
-const baseNavClasses =
-  "group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition";
+// ─── Sub-link styles ─────────────────────────────────────────────────────────
+
+const baseLinkClasses =
+  "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition";
+
+// ─── Section component ────────────────────────────────────────────────────────
+
+function NavSection({ section, icon: SectionIcon, links, onClose }) {
+  return (
+    <div>
+      {/* Section header */}
+      <div className="flex items-center gap-2 px-2 py-1.5 mt-1">
+        <SectionIcon size={13} className="text-gold-400 shrink-0" />
+        <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-gold-400">
+          {section}
+        </span>
+        <ChevronRight size={11} className="ml-auto text-slate-500" />
+      </div>
+
+      {/* Links */}
+      <div className="space-y-0.5 pl-2">
+        {links.map((item) => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.exact}
+              onClick={onClose}
+              className={({ isActive }) =>
+                `${baseLinkClasses} ${
+                  isActive
+                    ? "bg-gold-500 text-navy-950 shadow-md shadow-gold-500/20 font-semibold"
+                    : "text-slate-300 hover:bg-white/10 hover:text-white"
+                }`
+              }
+            >
+              <Icon size={15} className="shrink-0" />
+              <span>{item.label}</span>
+            </NavLink>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 export function Sidebar({ isOpen, onClose }) {
   const user = useAuthStore((state) => state.user);
-  const navigation = user?.role === "admin" ? adminLinks : managerLinks;
+  const navigation = user?.role === "admin" ? adminNav : managerNav;
 
   return (
     <>
+      {/* Mobile overlay */}
       <div
         className={`fixed inset-0 z-30 bg-slate-950/30 transition md:hidden ${
           isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
       />
-        <aside
-          className={`fixed inset-y-0 left-0 z-40 w-[280px] bg-navy-900 px-5 py-6 text-white shadow-2xl transition md:static md:translate-x-0 md:rounded-r-[2rem] ${
-            isOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gold-400">
-                Glowy
-              </p>
-              <h1 className="mt-3 text-3xl text-white">Glow to go</h1>
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-[280px] bg-navy-900 px-5 py-6 text-white shadow-2xl transition md:static md:translate-x-0 md:rounded-r-[2rem] flex flex-col ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {/* ── Brand ── */}
+        <div className="flex items-start justify-between shrink-0">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gold-400">
+              Glowy
+            </p>
+            <h1 className="mt-3 text-3xl text-white">Glow to go</h1>
             <p className="mt-2 max-w-[14rem] text-sm text-slate-300">
               Retail, services, payroll, and branch operations in one salon cockpit.
             </p>
@@ -84,7 +262,8 @@ export function Sidebar({ isOpen, onClose }) {
           </button>
         </div>
 
-        <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-4">
+        {/* ── User card ── */}
+        <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4 shrink-0">
           <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Signed In As</p>
           <p className="mt-3 text-lg font-semibold text-white">{user?.name}</p>
           <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
@@ -93,32 +272,21 @@ export function Sidebar({ isOpen, onClose }) {
           </div>
         </div>
 
-        <nav className="mt-8 space-y-2">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.exact}
-                onClick={onClose}
-                className={({ isActive }) =>
-                  `${baseNavClasses} ${
-                    isActive
-                      ? "bg-gold-500 text-navy-950 shadow-lg shadow-gold-500/20"
-                      : "text-slate-300 hover:bg-white/10 hover:text-white"
-                  }`
-                }
-              >
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
+        {/* ── Navigation ── */}
+        <nav className="mt-6 flex-1 overflow-y-auto pr-1 space-y-3 pb-4">
+          {navigation.map((group) => (
+            <NavSection
+              key={group.section}
+              section={group.section}
+              icon={group.icon}
+              links={group.links}
+              onClose={onClose}
+            />
+          ))}
         </nav>
 
-        <div className="mt-10 rounded-3xl border border-gold-400/30 bg-gold-500/10 p-4 text-sm text-gold-100">
+        {/* ── Mocked mode notice ── */}
+        <div className="shrink-0 rounded-3xl border border-gold-400/30 bg-gold-500/10 p-4 text-sm text-gold-100">
           <p className="font-semibold text-white">Mocked mode active</p>
           <p className="mt-2 leading-6 text-gold-100/90">
             API calls are promise-based placeholders so we can ship the frontend before the

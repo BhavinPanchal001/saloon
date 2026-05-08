@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Navbar } from "../components/navigation/Navbar";
 import { Sidebar } from "../components/navigation/Sidebar";
+import { ToastContainer } from "../components/ui/ToastContainer";
 
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -15,6 +16,7 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <ToastContainer />
     </div>
   );
 }

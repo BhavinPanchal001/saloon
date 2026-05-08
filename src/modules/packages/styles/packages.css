@@ -11,7 +11,7 @@
 }
 
 .packages-module {
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: 'Manrope', -apple-system, sans-serif;
   color: var(--pkg-text-main);
   background: var(--pkg-bg);
   min-height: 100vh;

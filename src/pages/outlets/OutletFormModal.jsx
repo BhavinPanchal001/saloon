@@ -67,7 +67,7 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 md:pl-[calc(280px+1.5rem)]">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-navy-900/40 backdrop-blur-sm transition-opacity duration-300" 
@@ -75,9 +75,11 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
       />
       
       {/* Modal Card */}
-      <div className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden animate-premium-in p-1">
-        <div className="bg-white rounded-[2.2rem] overflow-hidden">
-          <div className="px-10 py-8 border-b border-navy-50/50 flex items-center justify-between bg-navy-50/20">
+      <div className="relative w-full max-w-xl bg-white rounded-[2.5rem] shadow-2xl animate-premium-in p-1 flex flex-col max-h-[calc(100vh-3rem)]">
+        <div className="bg-white rounded-[2.2rem] flex flex-col overflow-hidden">
+
+          {/* Sticky Header */}
+          <div className="px-8 py-8 border-b border-navy-50/50 flex items-center justify-between bg-navy-50/20 flex-shrink-0">
             <div>
               <h2 className="text-2xl font-bold text-navy-900 leading-tight">
                 {outletId ? "Edit Outlet" : "Add New Outlet"}
@@ -94,8 +96,9 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
             </button>
           </div>
 
-          <form className="p-10" onSubmit={handleSubmit}>
-            <div className="space-y-6">
+          {/* Scrollable Form Body */}
+          <form className="flex flex-col overflow-hidden" onSubmit={handleSubmit}>
+            <div className="px-8 py-8 overflow-y-auto space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="premium-label">Outlet Name</label>
@@ -178,7 +181,8 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
               </div>
             </div>
 
-            <div className="mt-12 flex gap-4">
+            {/* Sticky Footer */}
+            <div className="px-8 py-6 border-t border-navy-50/50 flex gap-4 flex-shrink-0 bg-white">
               <button 
                 type="button"
                 onClick={onClose} 
@@ -205,6 +209,7 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
               </button>
             </div>
           </form>
+
         </div>
       </div>
     </div>

@@ -49,6 +49,72 @@ let monthlyBudgets = [
   { outletId: "outlet_banjara", monthKey: currentMonth, amount: 165000 },
 ];
 
+let purchaseOrders = [
+  {
+    id: "po_001",
+    poNumber: "PO-2026-001",
+    supplierName: "Beauty Supplies Co.",
+    supplierContact: "+60 3-1234 5678",
+    supplierEmail: "orders@beautysupplies.com",
+    status: "received",
+    orderDate: "2026-01-15",
+    expectedDate: "2026-01-25",
+    totalCost: 12500,
+    items: [
+      { productName: "Shampoo Premium 1L", qty: 20, unitPrice: 45 },
+      { productName: "Conditioner Premium 1L", qty: 20, unitPrice: 42 },
+      { productName: "Hair Serum 100ml", qty: 30, unitPrice: 85 },
+    ],
+  },
+  {
+    id: "po_002",
+    poNumber: "PO-2026-002",
+    supplierName: "Salon Equipment Ltd",
+    supplierContact: "+60 3-8765 4321",
+    supplierEmail: "sales@salonequip.com",
+    status: "approved",
+    orderDate: "2026-02-10",
+    expectedDate: "2026-02-28",
+    totalCost: 28500,
+    items: [
+      { productName: "Professional Hair Dryer", qty: 5, unitPrice: 350 },
+      { productName: "Salon Chair - Black", qty: 3, unitPrice: 1200 },
+      { productName: "Styling Station Mirror", qty: 2, unitPrice: 800 },
+    ],
+  },
+  {
+    id: "po_003",
+    poNumber: "PO-2026-003",
+    supplierName: "Organic Beauty Products",
+    supplierContact: "+60 3-5555 8888",
+    supplierEmail: "wholesale@organicbeauty.my",
+    status: "pending",
+    orderDate: "2026-03-05",
+    expectedDate: "2026-03-20",
+    totalCost: 8750,
+    items: [
+      { productName: "Organic Face Mask (Box of 10)", qty: 50, unitPrice: 65 },
+      { productName: "Essential Oil Set", qty: 25, unitPrice: 95 },
+      { productName: "Natural Body Scrub", qty: 40, unitPrice: 55 },
+    ],
+  },
+  {
+    id: "po_004",
+    poNumber: "PO-2026-004",
+    supplierName: "Beauty Supplies Co.",
+    supplierContact: "+60 3-1234 5678",
+    supplierEmail: "orders@beautysupplies.com",
+    status: "cancelled",
+    orderDate: "2026-03-12",
+    expectedDate: "2026-03-25",
+    totalCost: 4200,
+    items: [
+      { productName: "Nail Polish Set", qty: 100, unitPrice: 15 },
+      { productName: "Nail Dryer Lamp", qty: 5, unitPrice: 140 },
+    ],
+  },
+];
+
 let productMasters = [
   {
     id: "inv_loreal_tube",
@@ -115,25 +181,6 @@ let outletInventory = [
   },
 ];
 
-let purchaseOrders = [
-  {
-    id: "po_001",
-    supplierName: "L'Oreal Professional",
-    productId: "inv_loreal_tube",
-    qty: 12,
-    totalCost: 6960,
-    createdAt: "2026-04-03T09:00:00.000Z",
-  },
-  {
-    id: "po_002",
-    supplierName: "Keracare Distributors",
-    productId: "inv_keratin_serum",
-    qty: 8,
-    totalCost: 5920,
-    createdAt: "2026-04-05T11:30:00.000Z",
-  },
-];
-
 let stockIssues = [
   {
     id: "issue_001",
@@ -153,20 +200,35 @@ let stockIssues = [
 
 let services = [
   {
+    id: "svc_hair_cut",
+    serviceName: "Classic Cut",
+    price: 1200,
+    duration: 45,
+    category: "hair",
+    productLinkages: [],
+  },
+  {
     id: "svc_hair_color",
-    serviceName: "Signature Hair Color",
-    price: 3200,
+    serviceName: "Premium Color",
+    price: 2800,
+    duration: 90,
+    category: "hair",
+    productLinkages: [{ inventoryId: "inv_loreal_tube", quantityUsed: 1 }],
+  },
+  {
+    id: "svc_keratin",
+    serviceName: "Keratin Treatment",
+    price: 4800,
     duration: 120,
-    productLinkages: [
-      { inventoryId: "inv_loreal_tube", quantityUsed: 1 },
-      { inventoryId: "inv_keratin_serum", quantityUsed: 1 },
-    ],
+    category: "hair",
+    productLinkages: [{ inventoryId: "inv_keratin_serum", quantityUsed: 2 }],
   },
   {
     id: "svc_hair_spa",
-    serviceName: "Luxury Hair Spa",
+    serviceName: "Hair Spa",
     price: 1800,
     duration: 60,
+    category: "hair",
     productLinkages: [{ inventoryId: "inv_hair_spa", quantityUsed: 1 }],
   },
   {
@@ -174,6 +236,23 @@ let services = [
     serviceName: "Beard Sculpt",
     price: 650,
     duration: 25,
+    category: "grooming",
+    productLinkages: [],
+  },
+  {
+    id: "svc_facial",
+    serviceName: "Deep Cleansing Facial",
+    price: 2200,
+    duration: 75,
+    category: "skin",
+    productLinkages: [],
+  },
+  {
+    id: "svc_manicure",
+    serviceName: "Gel Manicure",
+    price: 1500,
+    duration: 60,
+    category: "nails",
     productLinkages: [],
   },
 ];
@@ -515,7 +594,17 @@ export const loginUser = async ({ email, password }) => {
 
 export const fetchOutlets = async () => {
   await delay();
-  return clone(outlets);
+  // Add monthlyBudget field to each outlet from monthlyBudgets array
+  const outletsWithBudget = outlets.map(outlet => {
+    const budgetRecord = monthlyBudgets.find(
+      (b) => b.outletId === outlet.id && b.monthKey === currentMonth,
+    );
+    return {
+      ...outlet,
+      monthlyBudget: budgetRecord?.amount || 0,
+    };
+  });
+  return clone(outletsWithBudget);
 };
 
 export const fetchProductMasters = async () => {
@@ -849,6 +938,42 @@ export const grantAdvance = async (staffId, payload) => {
   return fetchStaffProfile(staffId);
 };
 
+export const updateStaffStatus = async (staffId, status) => {
+  await delay();
+
+  const staffIndex = staffMembers.findIndex((member) => member.id === staffId);
+
+  if (staffIndex === -1) {
+    throw new Error("Staff member not found.");
+  }
+
+  staffMembers[staffIndex] = {
+    ...staffMembers[staffIndex],
+    status,
+    deactivatedAt: status === 'inactive' ? new Date().toISOString() : undefined,
+  };
+
+  return clone(withOutletName(staffMembers[staffIndex]));
+};
+
+export const resetStaffPassword = async (staffId) => {
+  await delay(400);
+
+  const staffIndex = staffMembers.findIndex((member) => member.id === staffId);
+
+  if (staffIndex === -1) {
+    throw new Error("Staff member not found.");
+  }
+
+  const tempPassword = Math.random().toString(36).slice(-8);
+
+  return {
+    success: true,
+    tempPassword,
+    message: `Temporary password generated and sent to ${staffMembers[staffIndex].phone}`,
+  };
+};
+
 export const fetchExpenses = async ({ outletId } = {}) => {
   await delay();
 
@@ -890,7 +1015,7 @@ export const fetchBudgetSummary = async ({ outletId } = {}) => {
   const selectedOutlets = outletId
     ? outlets.filter((outlet) => outlet.id === outletId)
     : outlets;
-  
+
   const totalMonthlyBudget = selectedOutlets.reduce((sum, outlet) => {
     const budgetRecord = monthlyBudgets.find(
       (b) => b.outletId === outlet.id && b.monthKey === currentMonth,
@@ -903,19 +1028,35 @@ export const fetchBudgetSummary = async ({ outletId } = {}) => {
     .filter((expense) => !outletId || expense.outletId === outletId)
     .reduce((sum, expense) => sum + expense.totalAmount, 0);
 
+  // Calculate spend percentage for progress bar visualization
+  const spendPercentage = totalMonthlyBudget > 0
+    ? Math.round((totalExpensesSoFar / totalMonthlyBudget) * 100)
+    : 0;
+
   return clone({
     totalMonthlyBudget,
     totalExpensesSoFar,
     remainingBalance: totalMonthlyBudget - totalExpensesSoFar,
+    spendPercentage,
     monthKey: currentMonth,
     budgets: selectedOutlets.map(outlet => {
       const budgetRecord = monthlyBudgets.find(
         (b) => b.outletId === outlet.id && b.monthKey === currentMonth,
       );
+      // Calculate per-outlet spend percentage
+      const outletExpenses = expenses
+        .filter((e) => e.monthKey === currentMonth && e.outletId === outlet.id)
+        .reduce((sum, e) => sum + e.totalAmount, 0);
+      const outletBudget = budgetRecord?.amount || 0;
+      const outletSpendPercentage = outletBudget > 0
+        ? Math.round((outletExpenses / outletBudget) * 100)
+        : 0;
+
       return {
         outletId: outlet.id,
         outletName: outlet.name,
-        amount: budgetRecord?.amount || 0
+        amount: outletBudget,
+        spendPercentage: outletSpendPercentage,
       };
     })
   });
@@ -1192,4 +1333,198 @@ export const fetchOutletProfile = async (outletId) => {
   const outlet = outlets.find((o) => o.id === outletId);
   if (!outlet) throw new Error("Outlet not found");
   return clone(outlet);
+};
+
+export const fetchPurchaseOrders = async ({ outletId } = {}) => {
+  await delay();
+  
+  let result = purchaseOrders.map(po => ({
+    ...po,
+    supplierName: po.supplierName || "Unknown Supplier",
+  }));
+  
+  if (outletId) {
+    result = result.filter(po => po.outletId === outletId);
+  }
+  
+  return clone(result);
+};
+
+export const approvePurchaseOrder = async (orderId) => {
+  await delay(400);
+  
+  const orderIndex = purchaseOrders.findIndex((order) => order.id === orderId);
+  
+  if (orderIndex === -1) {
+    throw new Error("Purchase order not found.");
+  }
+  
+  purchaseOrders[orderIndex] = {
+    ...purchaseOrders[orderIndex],
+    status: "approved",
+    approvedAt: new Date().toISOString(),
+  };
+  
+  return clone(purchaseOrders[orderIndex]);
+};
+
+export const receivePurchaseOrder = async (orderId) => {
+  await delay(400);
+  
+  const orderIndex = purchaseOrders.findIndex((order) => order.id === orderId);
+  
+  if (orderIndex === -1) {
+    throw new Error("Purchase order not found.");
+  }
+  
+  purchaseOrders[orderIndex] = {
+    ...purchaseOrders[orderIndex],
+    status: "received",
+    receivedAt: new Date().toISOString(),
+  };
+  
+  return clone(purchaseOrders[orderIndex]);
+};
+
+export const generatePayrollPreviewOrders = async () => {
+  await delay();
+  return clone(purchaseOrders);
+};
+
+let settings = {
+  profile: {
+    companyName: "Luxury Salon",
+    email: "contact@luxurysalon.com",
+    phone: "+91 98765 43210",
+    address: "123 Main Street, Bangalore",
+  },
+  notifications: {
+    emailNotifications: true,
+    smsNotifications: false,
+    appointmentReminders: true,
+    marketingEmails: false,
+  },
+  appearance: {
+    theme: "light",
+    primaryColor: "#1e3a5f",
+    language: "en",
+  },
+  security: {
+    twoFactorAuth: false,
+    sessionTimeout: 30,
+  },
+};
+
+export const fetchSettings = async () => {
+  await delay(300);
+  return clone(settings);
+};
+
+export const saveSettings = async (newSettings) => {
+  await delay(600);
+  settings = {
+    ...settings,
+    ...newSettings,
+  };
+  return clone(settings);
+};
+
+export const deleteService = async (serviceId) => {
+  await delay(400);
+  const serviceIndex = services.findIndex((s) => s.id === serviceId);
+  if (serviceIndex === -1) {
+    throw new Error("Service not found.");
+  }
+  services = services.filter((s) => s.id !== serviceId);
+  return { success: true, message: "Service deleted successfully" };
+};
+
+let groups = [
+  {
+    id: "grp-001",
+    name: "Senior Stylists",
+    code: "GRP-SNR-HS",
+    description: "Experienced hair stylists with 5+ years",
+    members: ["staff_naina", "staff_rahul"],
+    contractId: "contract_001",
+  },
+];
+
+export const fetchGroups = async () => {
+  await delay(300);
+  return clone(groups);
+};
+
+export const saveGroup = async (groupData) => {
+  await delay(500);
+  const existingIndex = groups.findIndex((g) => g.id === groupData.id);
+  if (existingIndex >= 0) {
+    groups[existingIndex] = { ...groups[existingIndex], ...groupData };
+    return clone(groups[existingIndex]);
+  } else {
+    const newGroup = {
+      ...groupData,
+      id: groupData.id || `grp_${createId("group")}`,
+    };
+    groups.push(newGroup);
+    return clone(newGroup);
+  }
+};
+
+export const deleteEmployee = async (staffId) => {
+  await delay(400);
+  const staffIndex = staffMembers.findIndex((s) => s.id === staffId);
+  if (staffIndex === -1) {
+    throw new Error("Employee not found.");
+  }
+  staffMembers = staffMembers.filter((s) => s.id !== staffId);
+  return { success: true, message: "Employee deleted successfully" };
+};
+
+export const exportPayrollToCSV = (records) => {
+  const headers = ["Employee ID", "Name", "Role", "Base Salary", "Allowances", "Commissions", "Deductions", "Net Pay", "Status"];
+  const rows = records.map(r => [
+    r.employeeId,
+    r.name,
+    r.role,
+    r.baseSalary,
+    r.allowances,
+    r.commissions,
+    r.deductions,
+    r.netPay,
+    r.status
+  ]);
+  return [headers, ...rows];
+};
+
+export const calculateAllSalaries = async (month) => {
+  await delay(1000);
+  return {
+    success: true,
+    message: `Salaries calculated for ${month}`,
+    calculatedCount: staffMembers.length,
+  };
+};
+
+export const fetchRevenueChart = async ({ outletId } = {}) => {
+  await delay(200);
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const base = outletId ? [4200, 3800, 5100, 6400, 4700, 8200, 7100] : [12400, 10800, 14300, 18600, 13900, 24500, 21300];
+  return clone(days.map((day, i) => ({ day, revenue: base[i] })));
+};
+
+export const fetchTodayOrders = async ({ outletId } = {}) => {
+  await delay(200);
+  const filtered = outletId ? bills.filter((b) => b.outletId === outletId) : bills;
+  const todayCount = filtered.length > 0 ? Math.min(filtered.length, 4) : 0;
+  const todayRevenue = filtered.slice(0, todayCount).reduce((sum, b) => sum + b.total, 0);
+  const recentBills = filtered.slice(0, 5).map((b) => ({
+    id: b.id,
+    billNumber: b.billNumber,
+    customer: b.customer.name,
+    total: b.total,
+    paymentMethod: b.paymentMethod,
+    status: b.status,
+  }));
+  return clone({ todayCount, todayRevenue, recentBills });
 };

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import {
   createProduct,
@@ -321,7 +322,7 @@ export function InventoryPage() {
 
       {isProductModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-lg">
+          <div className="card-solid w-full max-w-lg">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-3xl text-navy-900">Create product master</h2>
@@ -368,7 +369,7 @@ export function InventoryPage() {
 
       {isPoModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-lg">
+          <div className="card-solid w-full max-w-lg">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-3xl text-navy-900">Create purchase order</h2>
@@ -444,7 +445,7 @@ export function InventoryPage() {
 
       {isIssueModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-lg">
+          <div className="card-solid w-full max-w-lg">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-3xl text-navy-900">Issue product to outlet</h2>

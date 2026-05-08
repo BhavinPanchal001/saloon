@@ -367,16 +367,17 @@ export function PackageFormPage() {
                  <div className="grid gap-6 md:grid-cols-2">
                     <div className="form-field">
                       <label className="premium-label">Package Price</label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">RM </span>
-                        <input
-                          type="number"
-                          className="premium-input pl-14"
-                          value={form.packagePrice}
-                          onChange={(e) => setForm({ ...form, packagePrice: e.target.value })}
-                          placeholder={packageSummary.regularPrice.toString()}
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        className="premium-input"
+                        value={form.packagePrice}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9.]/g, '');
+                          setForm({ ...form, packagePrice: val });
+                        }}
+                        placeholder={new Intl.NumberFormat("en-MY", { maximumFractionDigits: 0 }).format(packageSummary.regularPrice)}
+                      />
                     </div>
                     <div className="form-field">
                       <label className="premium-label">Validity (Days)</label>

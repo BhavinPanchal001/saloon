@@ -48,6 +48,14 @@ export default function BillingListPage() {
     return matchesSearch && matchesPayment;
   });
 
+  const handleDownload = (bill) => {
+    setSelectedBill(bill);
+    // Trigger print after modal opens
+    setTimeout(() => {
+      window.print();
+    }, 300);
+  };
+
   const totalRevenue = filtered
     .filter((b) => b.status === "paid")
     .reduce((s, b) => s + b.total, 0);
@@ -191,8 +199,7 @@ export default function BillingListPage() {
                   </td>
                   <td className="text-center">
                     <button
-                      type="button"
-                      onClick={() => setSelectedBill(bill)}
+                      onClick={() => handleDownload(bill)}
                       className="group inline-flex items-center gap-1.5 rounded-2xl border border-gold-300/50 bg-gold-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gold-700 transition-all hover:bg-gold-400 hover:text-navy-900 hover:shadow-gold"
                     >
                       <Download size={13} />

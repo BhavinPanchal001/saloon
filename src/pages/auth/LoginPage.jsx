@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "../../stores/authStore";
 
 const demoCredentials = {
@@ -134,9 +134,17 @@ export function LoginPage() {
               </div>
 
               <div>
-                <label className="label-text" htmlFor="password">
-                  Password
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="label-text" htmlFor="password">
+                    Password
+                  </label>
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs font-medium text-brand-700 transition-colors hover:text-brand-800"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <input
                   id="password"
                   name="password"
@@ -157,6 +165,18 @@ export function LoginPage() {
               <button type="submit" className="btn-primary w-full" disabled={isLoading}>
                 {isLoading ? "Signing in..." : "Enter Glowy"}
               </button>
+
+              <div className="text-center pt-4">
+                <p className="text-sm text-slate-600">
+                  Don't have an account?{" "}
+                  <Link
+                    to="/register"
+                    className="font-medium text-brand-700 transition-colors hover:text-brand-800"
+                  >
+                    Create account
+                  </Link>
+                </p>
+              </div>
             </form>
           </div>
         </section>

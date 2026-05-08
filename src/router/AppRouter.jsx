@@ -3,10 +3,15 @@ import { ProtectedRoute } from "../components/auth/ProtectedRoute";
 import { AppLayout } from "../layouts/AppLayout";
 import { OutletDashboardPage } from "../pages/dashboard/OutletDashboardPage";
 import { GlobalDashboardPage } from "../pages/dashboard/GlobalDashboardPage";
+import { ReportsPage } from "../pages/dashboard/ReportsPage";
 import { ExpensesPage } from "../pages/expenses/ExpensesPage";
 import { BudgetsPage } from "../pages/expenses/BudgetsPage";
 import { InventoryPage } from "../pages/inventory/InventoryPage";
+import { PurchaseOrderHistoryPage } from "../pages/inventory/PurchaseOrderHistoryPage";
 import { LoginPage } from "../pages/auth/LoginPage";
+import { ForgotPasswordPage } from "../pages/auth/ForgotPasswordPage";
+import { RegisterPage } from "../pages/auth/RegisterPage";
+import { OTPVerificationPage } from "../pages/auth/OTPVerificationPage";
 import { OutletsPage } from "../pages/outlets/OutletsPage";
 import { PayrollPage } from "../pages/payroll/PayrollPage";
 import { POSPage } from "../pages/pos/POSPage";
@@ -17,10 +22,12 @@ import { PackageProfilePage } from "../modules/packages/pages/PackageProfilePage
 import ServiceListPage from "../modules/services/pages/ServiceListPage";
 import ServiceFormPage from "../modules/services/pages/ServiceFormPage";
 import ServiceCategoryMasterPage from "../modules/services/pages/ServiceCategoryMasterPage";
+import ServiceDetailPage from "../modules/services/pages/ServiceDetailPage";
 import EmployeeListPage from "../modules/employees/pages/EmployeeListPage";
 import EmployeeFormPage from "../modules/employees/pages/EmployeeFormPage";
 import EmployeeDetailPage from "../modules/employees/pages/EmployeeDetailPage";
 import AttendancePage from "../modules/employees/pages/AttendancePage";
+import AttendanceSummaryPage from "../modules/employees/pages/AttendanceSummaryPage";
 import ContractListPage from "../modules/contracts/pages/management/ContractListPage";
 import ContractFormPage from "../modules/contracts/pages/management/ContractFormPage";
 import GroupListPage from "../modules/contracts/pages/groups/GroupListPage";
@@ -28,6 +35,8 @@ import GroupDetailPage from "../modules/contracts/pages/groups/GroupDetailPage";
 import MasterManagementPage from "../modules/contracts/pages/masters/MasterManagementPage";
 import MasterCRUDPage from "../modules/contracts/pages/masters/MasterCRUDPage";
 import SalaryCalculationPage from "../modules/employees/pages/SalaryCalculationPage";
+import { SettingsPage } from "../pages/settings/SettingsPage";
+import { NotificationsPage } from "../pages/notifications/NotificationsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { useAuthStore } from "../stores/authStore";
 import { getDefaultRouteForRole } from "../utils/format";
@@ -54,6 +63,18 @@ export const router = createBrowserRouter([
     element: <LoginRoute />,
   },
   {
+    path: "/forgot-password",
+    element: <ForgotPasswordPage />,
+  },
+  {
+    path: "/register",
+    element: <RegisterPage />,
+  },
+  {
+    path: "/verify-otp",
+    element: <OTPVerificationPage />,
+  },
+  {
     element: <ProtectedRoute />,
     children: [
       {
@@ -69,6 +90,10 @@ export const router = createBrowserRouter([
               {
                 path: "/dashboard/global",
                 element: <GlobalDashboardPage />,
+              },
+              {
+                path: "/reports",
+                element: <ReportsPage />,
               },
               {
                 path: "/outlets",
@@ -93,6 +118,10 @@ export const router = createBrowserRouter([
             element: <InventoryPage />,
           },
           {
+            path: "/inventory/po-history",
+            element: <PurchaseOrderHistoryPage />,
+          },
+          {
             path: "/services",
             element: <ServiceListPage />,
           },
@@ -107,6 +136,10 @@ export const router = createBrowserRouter([
           {
             path: "/services/categories",
             element: <ServiceCategoryMasterPage />,
+          },
+          {
+            path: "/services/:id",
+            element: <ServiceDetailPage />,
           },
           {
             path: "/packages",
@@ -143,6 +176,10 @@ export const router = createBrowserRouter([
           {
             path: "/attendance",
             element: <AttendancePage />,
+          },
+          {
+            path: "/attendance/summary",
+            element: <AttendanceSummaryPage />,
           },
           {
             path: "/contracts",
@@ -191,6 +228,14 @@ export const router = createBrowserRouter([
           {
             path: "/payroll/calculate",
             element: <SalaryCalculationPage />,
+          },
+          {
+            path: "/settings",
+            element: <SettingsPage />,
+          },
+          {
+            path: "/notifications",
+            element: <NotificationsPage />,
           },
           {
             path: "*",

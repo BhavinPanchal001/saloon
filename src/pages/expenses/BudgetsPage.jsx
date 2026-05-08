@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { Wallet, ArrowLeft, Save } from "lucide-react";
+import { Wallet, ArrowLeft, Save, PieChart } from "lucide-react";
 import { Link } from "react-router-dom";
 import { fetchBudgetSummary, updateMonthlyBudget } from "../../services/mockApi";
 import { formatCurrency } from "../../utils/format";
@@ -104,7 +104,7 @@ export function BudgetsPage() {
                   <p className="mt-2 text-3xl font-black">{formatCurrency(budgetData?.totalMonthlyBudget || 0)}</p>
                 </div>
                 <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center">
-                  <span className="text-2xl">📊</span>
+                  <PieChart className="h-6 w-6 text-white" />
                 </div>
               </div>
             </div>
