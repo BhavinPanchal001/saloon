@@ -7,8 +7,7 @@ import { ConfirmModal } from "../ui/Modal";
 import { fetchOutlets } from "../../services/mockApi";
 
 const pageTitles = {
-  "/dashboard/global": "Global Dashboard",
-  "/dashboard/outlet": "Outlet Dashboard",
+  "/dashboard": "Dashboard",
   "/outlets": "Outlet Directory",
   "/inventory": "Inventory & Purchase Orders",
   "/services": "Service Catalog",
@@ -91,64 +90,66 @@ export function Navbar({ onOpenSidebar }) {
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-white/60 bg-cream/70 backdrop-blur-xl">
-      <div className="flex items-center justify-between gap-4 px-4 py-4 md:px-8">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-700 md:hidden"
-            onClick={onOpenSidebar}
-          >
-            <Menu size={18} />
-          </button>
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-gold-600">
-              <Sparkles size={14} />
-              Salon OS
+    <>
+      <header className="sticky top-0 z-20 border-b border-white/60 bg-cream/70 backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-4 px-4 py-4 md:px-8">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-700 md:hidden"
+              onClick={onOpenSidebar}
+            >
+              <Menu size={18} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-gold-600">
+                <Sparkles size={14} />
+                Salon OS
+              </div>
+              <h2 className="mt-1 text-2xl text-ink">{pageTitle}</h2>
             </div>
-            <h2 className="mt-1 text-2xl text-ink">{pageTitle}</h2>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Notification Bell */}
-          <Link
-            to="/notifications"
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-          >
-            <Bell size={18} />
-            {notificationCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
-                {notificationCount}
-              </span>
-            )}
-          </Link>
-
-          {/* User Info */}
-          <div className="hidden rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-right shadow-sm md:block">
-            <p className="text-sm font-semibold text-ink">{user?.email}</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
-              {outletName}
-            </p>
           </div>
 
-          {/* Settings Link */}
-          <Link
-            to="/settings"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-          >
-            <Settings size={18} />
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Notification Bell */}
+            <Link
+              to="/notifications"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              <Bell size={18} />
+              {notificationCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+                  {notificationCount}
+                </span>
+              )}
+            </Link>
 
-          {/* Logout Button */}
-          <button type="button" className="btn-secondary gap-2" onClick={handleLogout}>
-            <LogOut size={16} />
-            Logout
-          </button>
+            {/* User Info */}
+            <div className="hidden rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-right shadow-sm md:block">
+              <p className="text-sm font-semibold text-ink">{user?.email}</p>
+              <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
+                {outletName}
+              </p>
+            </div>
+
+            {/* Settings Link */}
+            <Link
+              to="/settings"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              <Settings size={18} />
+            </Link>
+
+            {/* Logout Button */}
+            <button type="button" className="btn-secondary gap-2" onClick={handleLogout}>
+              <LogOut size={16} />
+              Logout
+            </button>
+          </div>
         </div>
-      </div>
+      </header>
 
-      {/* Logout Confirmation Modal */}
+      {/* Logout Confirmation Modal — outside header to ensure backdrop covers full viewport */}
       <ConfirmModal
         isOpen={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}
@@ -157,8 +158,8 @@ export function Navbar({ onOpenSidebar }) {
         message="Are you sure you want to logout?"
         confirmText="Logout"
         cancelText="Cancel"
-        variant="neutral"
+        variant="logout"
       />
-    </header>
+    </>
   );
 }

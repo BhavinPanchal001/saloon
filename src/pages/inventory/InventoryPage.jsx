@@ -36,6 +36,7 @@ export function InventoryPage() {
   const scopedOutletId = isAdmin ? "" : user?.outlet_id || "";
 
   const [activeTab, setActiveTab] = useState("product_master");
+  const [outletFilter, setOutletFilter] = useState("");
   const [productMasters, setProductMasters] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [outlets, setOutlets] = useState([]);
@@ -145,6 +146,11 @@ export function InventoryPage() {
     }
   };
 
+  const filteredInventory = useMemo(() => {
+    if (!outletFilter) return inventory;
+    return inventory.filter((item) => item.outletId === outletFilter);
+  }, [inventory, outletFilter]);
+
   const handleIssueSubmit = async (event) => {
     event.preventDefault();
     resetMessages();
@@ -246,28 +252,58 @@ export function InventoryPage() {
                 </tbody>
               </table>
             ) : (
-              <table className="premium-table">
-                <thead>
-                  <tr>
-                    <th>Item Name</th>
-                    {isAdmin ? <th>Outlet</th> : null}
-                    <th>Outlet Stock</th>
-                    <th>Unit Price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inventory.map((item) => (
-                    <tr key={item.id}>
-                      <td className="font-bold text-navy-900">{item.itemName}</td>
-                      {isAdmin ? (
-                        <td>{outletNameById[item.outletId] || "Outlet"}</td>
-                      ) : null}
-                      <td>{item.currentStock}</td>
-                      <td>{formatCurrency(item.unitPrice)}</td>
+              <>
+                {isAdmin && (
+                  <div className="px-8 pb-4">
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm font-medium text-slate-500">Filter by Outlet:</label>
+                      <select
+                        className="premium-input !py-2 !text-sm appearance-none min-w-[200px]"
+                        value={outletFilter}
+                        onChange={(e) => setOutletFilter(e.target.value)}
+                      >
+                        <option value="">All Outlets</option>
+                        {outlets.map((outlet) => (
+                          <option key={outlet.id} value={outlet.id}>
+                            {outlet.name}
+                          </option>
+                        ))}
+                      </select>
+                      {outletFilter && (
+                        <button
+                          type="button"
+                          onClick={() => setOutletFilter("")}
+                          className="text-xs text-slate-400 hover:text-navy-600 underline"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <table className="premium-table">
+                  <thead>
+                    <tr>
+                      <th>Item Name</th>
+                      {isAdmin ? <th>Outlet</th> : null}
+                      <th>Outlet Stock</th>
+                      <th>Unit Price</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredInventory.map((item) => (
+                      <tr key={item.id}>
+                        <td className="font-bold text-navy-900">{item.itemName}</td>
+                        {isAdmin ? (
+                          <td>{outletNameById[item.outletId] || "Outlet"}</td>
+                        ) : null}
+                        <td>{item.currentStock}</td>
+                        <td>{formatCurrency(item.unitPrice)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
             )}
           </section>
         </div>

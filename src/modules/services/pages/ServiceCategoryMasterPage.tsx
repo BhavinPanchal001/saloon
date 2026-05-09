@@ -1,13 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
-  Tags, Search, Plus, Edit, Trash2, Check, ArrowLeft, X 
+  Tags, Search, Plus, Edit, Trash2, Check, X
 } from 'lucide-react';
 import { fetchServiceCategories, saveServiceCategory, deleteServiceCategory } from '../../../services/mockApi';
 import DeleteConfirmationModal from '../../contracts/components/common/DeleteConfirmationModal';
+import '../styles/services.css';
 
 const ServiceCategoryMasterPage: React.FC = () => {
-  const navigate = useNavigate();
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,66 +74,83 @@ const ServiceCategoryMasterPage: React.FC = () => {
     cat.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Calculate stats
+  const stats = useMemo(() => {
+    const total = categories.length;
+    const active = categories.filter(c => c.status === 'active').length;
+    const inactive = categories.filter(c => c.status === 'inactive').length;
+    return { total, active, inactive };
+  }, [categories]);
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="service-module">
       {/* Header Area */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <button 
-            onClick={() => navigate('/services')}
-            className="flex items-center gap-2 text-slate-500 hover:text-gold-600 font-bold mb-2 transition-all group"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm">Back to Services</span>
-          </button>
-          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Service Category Master</h2>
-          <p className="text-slate-500 font-medium mt-1">Manage global classification for all your salon services.</p>
+      <header className="module-header">
+        <div className="module-title">
+          <h1>Service Category Master</h1>
+          <p>Manage global classification for all your salon services.</p>
         </div>
         <button 
           onClick={handleAdd}
-          className="flex items-center gap-2 px-6 py-3 bg-navy-900 text-white font-bold rounded-2xl hover:bg-navy-800 transition-all shadow-xl shadow-navy-900/10 active:scale-95"
+          className="btn-premium"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
           Add Category
         </button>
+      </header>
+
+      {/* Stats Summary Panel */}
+      <div className="grid gap-4 sm:grid-cols-3 mb-6">
+        <div className="glass-card p-5">
+          <div className="text-sm text-navy-500 font-medium">Total Categories</div>
+          <div className="text-2xl font-bold mt-1">{stats.total}</div>
+        </div>
+        <div className="glass-card p-5">
+          <div className="text-sm text-navy-500 font-medium">Active</div>
+          <div className="text-2xl font-bold mt-1 text-emerald-600">{stats.active}</div>
+        </div>
+        <div className="glass-card p-5">
+          <div className="text-sm text-navy-500 font-medium">Inactive</div>
+          <div className="text-2xl font-bold mt-1 text-slate-500">{stats.inactive}</div>
+        </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden min-h-[500px] flex flex-col">
-        {/* Search Bar */}
-        <div className="p-6 border-b border-slate-100 flex gap-4 bg-slate-50/30">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search by name or code..." 
-              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+      {/* Search Bar */}
+      <div className="filter-bar">
+        <div className="search-input-wrapper">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-navy-400" />
+          <input 
+            type="text" 
+            placeholder="Search by name or code..." 
+            className="search-input"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
+      </div>
 
-        {/* Categories Table */}
-        <div className="flex-1 overflow-auto p-6">
-          <table className="w-full text-left">
-            <thead className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
+      {/* Categories Table */}
+      <div className="glass-card" style={{ padding: 0 }}>
+        <div className="service-table-container">
+          <table className="service-table">
+            <thead>
               <tr>
-                <th className="px-6 py-4">Category Name</th>
-                <th className="px-6 py-4">Internal Code</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th>Category Name</th>
+                <th>Internal Code</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-20 text-center text-slate-400 font-medium">
+                  <td colSpan={4} className="text-center py-20 text-navy-400">
                     Loading categories...
                   </td>
                 </tr>
               ) : filteredCategories.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-20 text-center">
+                  <td colSpan={4} className="text-center py-20">
                     <div className="flex flex-col items-center gap-3 opacity-20">
                       <Tags size={64} />
                       <p className="text-lg font-bold">No categories found</p>
@@ -143,43 +159,40 @@ const ServiceCategoryMasterPage: React.FC = () => {
                 </tr>
               ) : (
                 filteredCategories.map((cat) => (
-                  <tr key={cat.id} className="group hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-5">
+                  <tr key={cat.id}>
+                    <td>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gold-100 text-gold-600 flex items-center justify-center font-black text-xs">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold-100 to-gold-200 flex items-center justify-center font-bold text-gold-700 text-sm">
                           {cat.name.substring(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-sm font-bold text-slate-800">{cat.name}</span>
+                        <span className="font-semibold text-navy-900">{cat.name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-5">
+                    <td>
                       <span className="text-xs font-mono font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-lg">
                         {cat.code}
                       </span>
                     </td>
-                    <td className="px-6 py-5">
-                      <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border w-fit ${
-                        cat.status === 'active' 
-                          ? 'text-emerald-600 bg-emerald-50 border-emerald-100' 
-                          : 'text-slate-400 bg-slate-50 border-slate-100'
-                      }`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${cat.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                        <span className="text-[10px] font-black uppercase">{cat.status}</span>
-                      </div>
+                    <td>
+                      <span className={`status-badge ${cat.status === 'active' ? 'status-active' : 'status-inactive'}`}>
+                        {cat.status || 'active'}
+                      </span>
                     </td>
-                    <td className="px-6 py-5 text-right">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <td>
+                      <div className="flex gap-2">
                         <button 
                           onClick={() => handleEdit(cat)}
-                          className="p-2.5 text-slate-400 hover:text-gold-600 hover:bg-gold-50 rounded-xl transition-colors"
+                          className="h-9 w-9 flex items-center justify-center rounded-xl border border-navy-100 bg-white/50 text-navy-600 hover:bg-navy-50 hover:text-navy-900 transition-all"
+                          title="Edit"
                         >
-                          <Edit className="w-4 h-4" />
+                          <Edit size={16} />
                         </button>
                         <button 
                           onClick={() => handleDeleteClick(cat)}
-                          className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                          className="h-9 w-9 flex items-center justify-center rounded-xl border border-rose-100 bg-rose-50/30 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all"
+                          title="Delete"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>
@@ -188,6 +201,17 @@ const ServiceCategoryMasterPage: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+        
+        {/* Pagination Footer */}
+        <div className="px-4 py-3 flex justify-between items-center border-t border-navy-100">
+          <div className="text-sm text-navy-500">
+            Showing {filteredCategories.length} categor{filteredCategories.length !== 1 ? 'ies' : 'y'}
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-premium-outline !py-2 !px-4" disabled>Previous</button>
+            <button className="btn-premium-outline !py-2 !px-4">Next</button>
+          </div>
         </div>
       </div>
 

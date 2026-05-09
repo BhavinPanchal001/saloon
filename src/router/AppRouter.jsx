@@ -1,9 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "../components/auth/ProtectedRoute";
 import { AppLayout } from "../layouts/AppLayout";
-import { OutletDashboardPage } from "../pages/dashboard/OutletDashboardPage";
 import { GlobalDashboardPage } from "../pages/dashboard/GlobalDashboardPage";
-import { ReportsPage } from "../pages/dashboard/ReportsPage";
 import { ExpensesPage } from "../pages/expenses/ExpensesPage";
 import { BudgetsPage } from "../pages/expenses/BudgetsPage";
 import { InventoryPage } from "../pages/inventory/InventoryPage";
@@ -30,10 +28,7 @@ import AttendancePage from "../modules/employees/pages/AttendancePage";
 import AttendanceSummaryPage from "../modules/employees/pages/AttendanceSummaryPage";
 import ContractListPage from "../modules/contracts/pages/management/ContractListPage";
 import ContractFormPage from "../modules/contracts/pages/management/ContractFormPage";
-import GroupListPage from "../modules/contracts/pages/groups/GroupListPage";
-import GroupDetailPage from "../modules/contracts/pages/groups/GroupDetailPage";
-import MasterManagementPage from "../modules/contracts/pages/masters/MasterManagementPage";
-import MasterCRUDPage from "../modules/contracts/pages/masters/MasterCRUDPage";
+import ContractMastersPage from "../modules/contracts/pages/management/ContractMastersPage";
 import SalaryCalculationPage from "../modules/employees/pages/SalaryCalculationPage";
 import { SettingsPage } from "../pages/settings/SettingsPage";
 import { NotificationsPage } from "../pages/notifications/NotificationsPage";
@@ -88,12 +83,8 @@ export const router = createBrowserRouter([
             element: <ProtectedRoute allowedRoles={["admin"]} />,
             children: [
               {
-                path: "/dashboard/global",
+                path: "/dashboard",
                 element: <GlobalDashboardPage />,
-              },
-              {
-                path: "/reports",
-                element: <ReportsPage />,
               },
               {
                 path: "/outlets",
@@ -108,10 +99,6 @@ export const router = createBrowserRouter([
                 element: <BudgetsPage />,
               },
             ],
-          },
-          {
-            path: "/dashboard/outlet",
-            element: <OutletDashboardPage />,
           },
           {
             path: "/inventory",
@@ -195,19 +182,19 @@ export const router = createBrowserRouter([
           },
           {
             path: "/contracts/groups",
-            element: <GroupListPage />,
+            element: <Navigate to="/contracts/list" replace />,
           },
           {
             path: "/contracts/groups/:id",
-            element: <GroupDetailPage />,
+            element: <Navigate to="/contracts/list" replace />,
           },
           {
             path: "/contracts/masters",
-            element: <MasterManagementPage />,
+            element: <ContractMastersPage />,
           },
           {
             path: "/contracts/masters/:type",
-            element: <MasterCRUDPage />,
+            element: <ContractMastersPage />,
           },
           {
             path: "/pos",

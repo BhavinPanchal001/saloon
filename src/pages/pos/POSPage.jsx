@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { checkoutBill, fetchCatalog, fetchStaff } from "../../services/mockApi";
+import { checkoutBill, fetchCatalog, fetchStaff, fetchOutlets, fetchProductMasters } from "../../services/mockApi";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
@@ -25,23 +25,53 @@ export function POSPage() {
   const [currentBill, setCurrentBill] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [outlets, setOutlets] = useState([]);
+  const [selectedOutlet, setSelectedOutlet] = useState("");
+  const [productMasters, setProductMasters] = useState([]);
+  const isAdmin = user?.role === "admin";
+
+  const productNameById = useMemo(() => {
+    return Object.fromEntries(productMasters.map((p) => [p.id, p.itemName]));
+  }, [productMasters]);
+
+  // Load outlets for admin and pre-select first outlet
+  useEffect(() => {
+    if (isAdmin) {
+      fetchOutlets().then((outletList) => {
+        setOutlets(outletList);
+        if (outletList.length > 0 && !selectedOutlet) {
+          setSelectedOutlet(outletList[0].id);
+        }
+      });
+    }
+  }, [isAdmin]);
+
+  // Set default outlet for non-admin
+  useEffect(() => {
+    if (!isAdmin && user?.outlet_id) {
+      setSelectedOutlet(user.outlet_id);
+    }
+  }, [isAdmin, user]);
 
   useEffect(() => {
     const loadPos = async () => {
-      const [catalogItems, staffList] = await Promise.all([
-        fetchCatalog({ outletId: user?.role === "admin" ? undefined : user?.outlet_id }),
-        fetchStaff({ outletId: user?.role === "admin" ? undefined : user?.outlet_id }),
+      const outletId = isAdmin ? (selectedOutlet || undefined) : user?.outlet_id;
+      const [catalogItems, staffList, products] = await Promise.all([
+        fetchCatalog({ outletId }),
+        fetchStaff({ outletId }),
+        fetchProductMasters(),
       ]);
 
       setCatalog(catalogItems);
       setFilteredCatalog(catalogItems);
       setStaffMembers(staffList);
+      setProductMasters(products);
     };
 
     if (user) {
       loadPos();
     }
-  }, [user]);
+  }, [user, isAdmin, selectedOutlet]);
 
   const addToCart = (item) => {
     setCart((current) => {
@@ -66,8 +96,13 @@ export function POSPage() {
           offerLabel: item.offerLabel,
           serviceCount: item.serviceCount,
           serviceItems: item.serviceItems || [],
+          productLinkages: (item.productLinkages || []).map((link) => ({
+            ...link,
+            qtyAdjustment: 0, // User adjustment on top of base quantity
+          })),
           quantity: 1,
           staffId: "",
+          customPrice: null, // For editing service price when products change
         },
       ];
     });
@@ -78,6 +113,32 @@ export function POSPage() {
       current.map((line) => (line.lineId === lineId ? { ...line, [key]: value } : line)),
     );
   };
+
+  const updateProductLinkageQty = (lineId, inventoryId, delta) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          productLinkages: line.productLinkages.map((link) =>
+            link.inventoryId === inventoryId
+              ? { ...link, qtyAdjustment: (link.qtyAdjustment || 0) + delta }
+              : link
+          ),
+        };
+      })
+    );
+  };
+
+  const updateLinePrice = (lineId, newPrice) => {
+    setCart((current) =>
+      current.map((line) =>
+        line.lineId === lineId ? { ...line, customPrice: newPrice ? Number(newPrice) : null } : line
+      )
+    );
+  };
+
+  const getLinePrice = (line) => line.customPrice ?? line.price;
 
   const removeLine = (lineId) => {
     setCart((current) => current.filter((line) => line.lineId !== lineId));
@@ -127,7 +188,7 @@ export function POSPage() {
     setFilteredCatalog(filtered);
   }, [searchQuery, activeCategory, catalog]);
 
-  const subtotal = cart.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const subtotal = cart.reduce((sum, line) => sum + getLinePrice(line) * line.quantity, 0);
   const tax = subtotal * 0.08;
   const total = subtotal + tax;
 
@@ -140,7 +201,7 @@ export function POSPage() {
     const payload = {
       customer,
       paymentMethod,
-      outletId: user?.outlet_id || "all_outlets",
+      outletId: selectedOutlet || user?.outlet_id || "all_outlets",
       subtotal,
       tax,
       total,
@@ -149,7 +210,7 @@ export function POSPage() {
         itemType: line.type,
         itemName: line.name,
         qty: line.quantity,
-        price: line.price,
+        price: getLinePrice(line),
         staffAssigned: line.type === "service" ? line.staffId : null,
         includedServices:
           line.type === "package"
@@ -187,7 +248,23 @@ export function POSPage() {
         <div className="glass-card !p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <p className="premium-label !mb-0">Catalog Menu</p>
-            <span className="text-xs font-semibold text-slate-400">{filteredCatalog.length} items</span>
+            <div className="flex items-center gap-3">
+              {isAdmin && (
+                <select
+                  className="premium-input !py-1.5 !px-3 !text-xs appearance-none min-w-[140px]"
+                  value={selectedOutlet}
+                  onChange={(e) => setSelectedOutlet(e.target.value)}
+                >
+                  <option value="">All Outlets</option>
+                  {outlets.map((outlet) => (
+                    <option key={outlet.id} value={outlet.id}>
+                      {outlet.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <span className="text-xs font-semibold text-slate-400">{filteredCatalog.length} items</span>
+            </div>
           </div>
 
           {/* Search + filter row */}
@@ -271,9 +348,16 @@ export function POSPage() {
                   </span>
                 )}
 
-                <p className="mt-2 text-sm font-black text-navy-800">
-                  {formatCurrency(item.price)}
-                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  {item.totalOriginalPrice > item.price && (
+                    <span className="text-xs text-slate-400 line-through">
+                      {formatCurrency(item.totalOriginalPrice)}
+                    </span>
+                  )}
+                  <span className="text-sm font-black text-navy-800">
+                    {formatCurrency(item.price)}
+                  </span>
+                </div>
               </button>
             ))}
           </div>
@@ -318,9 +402,9 @@ export function POSPage() {
           <div>
             <p className="premium-label !mb-2">Cart Items ({cart.length})</p>
             {cart.length ? (
-              <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
+              <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
                 {cart.map((line) => (
-                  <div key={line.lineId} className="rounded-xl border border-navy-50/50 bg-white/60 p-3">
+                  <div key={line.lineId} className="rounded-xl border border-navy-200 bg-white p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-navy-900 truncate">{line.name}</p>
@@ -337,59 +421,114 @@ export function POSPage() {
                       </button>
                     </div>
 
-                    {line.type === "service" ? (
-                      <div className="mt-2 flex items-center gap-2">
-                        <select
-                          className="premium-input !py-2 !px-3 !text-xs appearance-none flex-1"
-                          value={line.staffId}
-                          onChange={(event) => updateLine(line.lineId, "staffId", event.target.value)}
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-navy-300">Qty</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => adjustQuantity(line.lineId, -1)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-navy-200 bg-white text-navy-700 hover:bg-navy-50"
+                          disabled={line.quantity <= 1}
                         >
-                          <option value="">Assign Talent</option>
-                          {staffMembers.map((member) => (
-                            <option key={member.id} value={member.id}>
-                              {member.name}
-                            </option>
-                          ))}
-                        </select>
-                        {line.staffId && (
-                          <button
-                            type="button"
-                            onClick={() => unassignStaff(line.lineId)}
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                          >
-                            Unassign
-                          </button>
-                        )}
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <span className="w-8 text-center text-sm font-semibold text-navy-900">
+                          {line.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => adjustQuantity(line.lineId, 1)}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-navy-200 bg-white text-navy-700 hover:bg-navy-50"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
                       </div>
-                    ) : (
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-navy-300">Qty</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => adjustQuantity(line.lineId, -1)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-navy-200 bg-white text-navy-700 hover:bg-navy-50"
-                            disabled={line.quantity <= 1}
+                    </div>
+
+                    {line.type === "service" && (
+                      <>
+                        <div className="mt-2 flex items-center gap-2">
+                          <select
+                            className="premium-input !py-2 !px-3 !text-xs appearance-none flex-1"
+                            value={line.staffId}
+                            onChange={(event) => updateLine(line.lineId, "staffId", event.target.value)}
                           >
-                            <Minus className="h-3 w-3" />
-                          </button>
-                          <span className="w-8 text-center text-sm font-semibold text-navy-900">
-                            {line.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => adjustQuantity(line.lineId, 1)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-navy-200 bg-white text-navy-700 hover:bg-navy-50"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </button>
+                            <option value="">Assign Talent</option>
+                            {staffMembers.map((member) => (
+                              <option key={member.id} value={member.id}>
+                                {member.name}
+                              </option>
+                            ))}
+                          </select>
+                          {line.staffId && (
+                            <button
+                              type="button"
+                              onClick={() => unassignStaff(line.lineId)}
+                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                            >
+                              Unassign
+                            </button>
+                          )}
                         </div>
-                      </div>
+
+                        {/* Products used in service */}
+                        {line.productLinkages && line.productLinkages.length > 0 && (
+                          <div className="mt-3 space-y-2 rounded-lg bg-navy-50 p-3 border border-navy-100">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-navy-500">Products Used</p>
+                            {line.productLinkages.map((link) => {
+                              // Calculate actual quantity: base from service × service quantity + user adjustment
+                              const baseQty = link.quantityUsed * line.quantity;
+                              const adjustment = link.qtyAdjustment || 0;
+                              const finalQty = Math.max(0, baseQty + adjustment);
+                              return (
+                                <div key={link.inventoryId} className="flex items-center justify-between gap-2">
+                                  <span className="text-xs text-navy-700 truncate flex-1">
+                                    {productNameById[link.inventoryId] || link.inventoryId}
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, -1)}
+                                      className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                      disabled={finalQty <= 0}
+                                    >
+                                      <Minus className="h-2.5 w-2.5" />
+                                    </button>
+                                    <span className="w-6 text-center text-xs font-semibold text-navy-700">
+                                      {finalQty}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, 1)}
+                                      className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                    >
+                                      <Plus className="h-2.5 w-2.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
                     )}
 
-                    <p className="mt-1.5 text-xs font-black text-navy-600">
-                      {formatCurrency(line.price * line.quantity)}
-                    </p>
+                    {/* Editable price for services with products */}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-navy-300">Price</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className="w-24 px-2 py-1 text-xs font-semibold text-navy-700 bg-white border border-navy-200 rounded-lg focus:outline-none focus:border-navy-400"
+                          value={getLinePrice(line)}
+                          onChange={(e) => updateLinePrice(line.lineId, e.target.value)}
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-navy-600">
+                        × {line.quantity} = {formatCurrency(getLinePrice(line) * line.quantity)}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>

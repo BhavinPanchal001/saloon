@@ -105,21 +105,54 @@ export default function AttendancePage() {
         description="Mark and monitor daily attendance for all staff members."
         action={
           <div className="flex items-center gap-3">
-            {/* Date picker */}
-            <label className="relative cursor-pointer">
-              <input
-                type="date"
-                value={formatDateKey(date)}
-                onChange={(e) => {
-                  if (e.target.value) setDate(new Date(e.target.value));
+            {/* Date picker with prev/next navigation */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const prev = new Date(date);
+                  prev.setDate(prev.getDate() - 1);
+                  setDate(prev);
                 }}
-                className="absolute inset-0 cursor-pointer opacity-0"
-              />
-              <span className="btn-premium-outline flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                {formatDateLabel(date)}
-              </span>
-            </label>
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-navy-900 transition-colors"
+                title="Previous day"
+              >
+                ‹
+              </button>
+              <label className="relative cursor-pointer">
+                <input
+                  type="date"
+                  value={formatDateKey(date)}
+                  max={formatDateKey(new Date())}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const [y, m, d] = e.target.value.split("-").map(Number);
+                      setDate(new Date(y, m - 1, d));
+                    }
+                  }}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                />
+                <span className="btn-premium-outline flex items-center gap-2 whitespace-nowrap">
+                  <Calendar className="h-4 w-4" />
+                  {formatDateLabel(date)}
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = new Date(date);
+                  next.setDate(next.getDate() + 1);
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  if (next <= today) setDate(next);
+                }}
+                disabled={formatDateKey(date) === formatDateKey(new Date())}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-navy-900 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Next day"
+              >
+                ›
+              </button>
+            </div>
             <button
               onClick={() => navigate("/staff/add")}
               className="btn-premium-primary flex items-center gap-2"

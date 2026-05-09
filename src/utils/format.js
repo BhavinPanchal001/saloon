@@ -12,7 +12,7 @@ export const formatRoleLabel = (role) =>
   role === "admin" ? "Super Admin" : "Outlet Manager";
 
 export const getDefaultRouteForRole = (role) =>
-  role === "admin" ? "/dashboard/global" : "/dashboard/outlet";
+  "/dashboard";
 
 export const slugFromName = (value) =>
   value

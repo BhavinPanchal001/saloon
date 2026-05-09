@@ -49,6 +49,34 @@ let monthlyBudgets = [
   { outletId: "outlet_banjara", monthKey: currentMonth, amount: 165000 },
 ];
 
+// Budget history to track changes over time
+let budgetHistory = [
+  {
+    id: "bh_001",
+    outletId: "outlet_hsr",
+    monthKey: "2026-03",
+    previousAmount: 140000,
+    newAmount: 150000,
+    changeAmount: 10000,
+    changeType: "increase",
+    changedAt: "2026-03-25T10:30:00.000Z",
+    changedBy: "admin",
+    reason: "Additional marketing budget allocation",
+  },
+  {
+    id: "bh_002",
+    outletId: "outlet_indiranagar",
+    monthKey: "2026-03",
+    previousAmount: 130000,
+    newAmount: 135000,
+    changeAmount: 5000,
+    changeType: "increase",
+    changedAt: "2026-03-20T14:15:00.000Z",
+    changedBy: "admin",
+    reason: "Equipment maintenance buffer",
+  },
+];
+
 let purchaseOrders = [
   {
     id: "po_001",
@@ -974,12 +1002,14 @@ export const resetStaffPassword = async (staffId) => {
   };
 };
 
-export const fetchExpenses = async ({ outletId } = {}) => {
+export const fetchExpenses = async ({ outletId, monthKey } = {}) => {
   await delay();
+
+  const targetMonth = monthKey || currentMonth;
 
   return clone(
     filterByOutlet(expenses, outletId)
-      .filter((expense) => expense.monthKey === currentMonth)
+      .filter((expense) => expense.monthKey === targetMonth)
       .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt)),
   );
 };
@@ -987,15 +1017,40 @@ export const fetchExpenses = async ({ outletId } = {}) => {
 export const createExpense = async (payload) => {
   await delay();
 
+  const outletId = payload.outletId;
+  const expenseMonth = payload.monthKey || currentMonth;
+  const expenseAmount = Number(payload.totalAmount);
+
+  // Calculate current expenses for this outlet/month
+  const currentExpenses = expenses
+    .filter((e) => e.monthKey === expenseMonth && e.outletId === outletId)
+    .reduce((sum, e) => sum + e.totalAmount, 0);
+
+  // Get budget for this outlet/month
+  const budgetRecord = monthlyBudgets.find(
+    (b) => b.outletId === outletId && b.monthKey === expenseMonth,
+  );
+  const monthlyBudget = budgetRecord?.amount || 0;
+
+  // Validate against budget
+  if (monthlyBudget > 0) {
+    const remainingBudget = monthlyBudget - currentExpenses;
+    if (expenseAmount > remainingBudget) {
+      throw new Error(
+        `Expense amount (${expenseAmount}) exceeds remaining budget (${remainingBudget}) for this outlet in ${expenseMonth}. Please increase the budget or reduce the expense amount.`
+      );
+    }
+  }
+
   const expense = {
     id: createId("exp"),
     itemName: payload.itemName,
     qty: Number(payload.qty),
     price: Number(payload.price),
-    totalAmount: Number(payload.totalAmount),
+    totalAmount: expenseAmount,
     billNo: payload.billNo,
-    outletId: payload.outletId,
-    monthKey: currentMonth,
+    outletId: outletId,
+    monthKey: expenseMonth,
     createdAt: new Date().toISOString(),
   };
 
@@ -1009,22 +1064,23 @@ export const deleteExpense = async (expenseId) => {
   return { success: true };
 };
 
-export const fetchBudgetSummary = async ({ outletId } = {}) => {
+export const fetchBudgetSummary = async ({ outletId, monthKey } = {}) => {
   await delay();
 
+  const targetMonth = monthKey || currentMonth;
   const selectedOutlets = outletId
     ? outlets.filter((outlet) => outlet.id === outletId)
     : outlets;
 
   const totalMonthlyBudget = selectedOutlets.reduce((sum, outlet) => {
     const budgetRecord = monthlyBudgets.find(
-      (b) => b.outletId === outlet.id && b.monthKey === currentMonth,
+      (b) => b.outletId === outlet.id && b.monthKey === targetMonth,
     );
     return sum + (budgetRecord?.amount || 0);
   }, 0);
 
   const totalExpensesSoFar = expenses
-    .filter((expense) => expense.monthKey === currentMonth)
+    .filter((expense) => expense.monthKey === targetMonth)
     .filter((expense) => !outletId || expense.outletId === outletId)
     .reduce((sum, expense) => sum + expense.totalAmount, 0);
 
@@ -1038,14 +1094,14 @@ export const fetchBudgetSummary = async ({ outletId } = {}) => {
     totalExpensesSoFar,
     remainingBalance: totalMonthlyBudget - totalExpensesSoFar,
     spendPercentage,
-    monthKey: currentMonth,
+    monthKey: targetMonth,
     budgets: selectedOutlets.map(outlet => {
       const budgetRecord = monthlyBudgets.find(
-        (b) => b.outletId === outlet.id && b.monthKey === currentMonth,
+        (b) => b.outletId === outlet.id && b.monthKey === targetMonth,
       );
       // Calculate per-outlet spend percentage
       const outletExpenses = expenses
-        .filter((e) => e.monthKey === currentMonth && e.outletId === outlet.id)
+        .filter((e) => e.monthKey === targetMonth && e.outletId === outlet.id)
         .reduce((sum, e) => sum + e.totalAmount, 0);
       const outletBudget = budgetRecord?.amount || 0;
       const outletSpendPercentage = outletBudget > 0
@@ -1057,28 +1113,113 @@ export const fetchBudgetSummary = async ({ outletId } = {}) => {
         outletName: outlet.name,
         amount: outletBudget,
         spendPercentage: outletSpendPercentage,
+        currentExpenses: outletExpenses,
+        remainingBudget: outletBudget - outletExpenses,
       };
     })
   });
 };
 
-export const updateMonthlyBudget = async ({ outletId, amount }) => {
+export const updateMonthlyBudget = async ({ outletId, amount, monthKey, reason }) => {
   await delay();
+  const targetMonth = monthKey || currentMonth;
+  const newAmount = Number(amount);
+
   const existingIndex = monthlyBudgets.findIndex(
-    (b) => b.outletId === outletId && b.monthKey === currentMonth,
+    (b) => b.outletId === outletId && b.monthKey === targetMonth,
   );
 
+  let previousAmount = 0;
+
   if (existingIndex >= 0) {
-    monthlyBudgets[existingIndex].amount = Number(amount);
+    previousAmount = monthlyBudgets[existingIndex].amount;
+    monthlyBudgets[existingIndex].amount = newAmount;
   } else {
     monthlyBudgets.push({
       outletId,
-      monthKey: currentMonth,
-      amount: Number(amount),
+      monthKey: targetMonth,
+      amount: newAmount,
     });
   }
 
-  return fetchBudgetSummary({ outletId });
+  // Log budget change to history if amount changed
+  if (previousAmount !== newAmount) {
+    const changeAmount = Math.abs(newAmount - previousAmount);
+    const changeType = newAmount > previousAmount ? "increase" : "decrease";
+
+    budgetHistory.push({
+      id: createId("bh"),
+      outletId,
+      monthKey: targetMonth,
+      previousAmount,
+      newAmount,
+      changeAmount,
+      changeType,
+      changedAt: new Date().toISOString(),
+      changedBy: "admin", // In real app, this would come from auth context
+      reason: reason || `Budget ${changeType}d`,
+    });
+  }
+
+  return fetchBudgetSummary({ outletId, monthKey: targetMonth });
+};
+
+// Fetch budget history for an outlet or all outlets
+export const fetchBudgetHistory = async ({ outletId, monthKey, limit = 50 } = {}) => {
+  await delay();
+
+  let history = [...budgetHistory];
+
+  // Filter by outlet if specified
+  if (outletId) {
+    history = history.filter((h) => h.outletId === outletId);
+  }
+
+  // Filter by month if specified
+  if (monthKey) {
+    history = history.filter((h) => h.monthKey === monthKey);
+  }
+
+  // Sort by date descending (newest first)
+  history = history.sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt));
+
+  // Add outlet names for display
+  const historyWithNames = history.slice(0, limit).map((record) => {
+    const outlet = outlets.find((o) => o.id === record.outletId);
+    return {
+      ...record,
+      outletName: outlet?.name || record.outletId,
+    };
+  });
+
+  return clone(historyWithNames);
+};
+
+// Helper function to get all available months - generates range from past to future
+export const fetchAvailableMonths = async () => {
+  await delay();
+
+  // Generate months: 3 months ago to 3 months ahead
+  const months = [];
+  const today = new Date();
+
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    months.push(`${year}-${month}`);
+  }
+
+  // Also include any existing budget/expense months that might be outside the range
+  const budgetMonths = monthlyBudgets.map((b) => b.monthKey);
+  const expenseMonths = expenses.map((e) => e.monthKey);
+
+  // Combine, remove duplicates, sort descending (newest first)
+  const allMonths = Array.from(new Set([...months, ...budgetMonths, ...expenseMonths]))
+    .sort()
+    .reverse();
+
+  return allMonths;
 };
 
 export const fetchCatalog = async ({ outletId } = {}) => {
@@ -1101,6 +1242,7 @@ export const fetchCatalog = async ({ outletId } = {}) => {
     name: service.serviceName,
     price: service.price,
     duration: service.duration,
+    productLinkages: clone(service.productLinkages || []),
   }));
 
   const packageCards = packages.map((servicePackage) => ({
@@ -1527,4 +1669,344 @@ export const fetchTodayOrders = async ({ outletId } = {}) => {
     status: b.status,
   }));
   return clone({ todayCount, todayRevenue, recentBills });
+};
+
+// Contract data and APIs
+let contracts = [
+  {
+    id: "contract_001",
+    code: "CON-2026-001",
+    title: "Senior Stylist Agreement",
+    employeeId: "staff_naina",
+    employeeName: "Naina Shah",
+    groupId: "grp-001",
+    groupName: "Senior Stylists",
+    typeId: "type_fulltime",
+    typeName: "Full-time Employment",
+    templateId: "template_senior",
+    templateName: "Senior Staff Template",
+    startDate: "2026-01-01",
+    endDate: "2026-12-31",
+    status: "active",
+    notes: "Annual contract with performance review",
+    salaryComponents: [
+      { id: "sal_basic", name: "Basic Salary", type: "earning", calculationType: "fixed", amount: 32000 },
+    ],
+    overtime: { enabled: true, type: "1.5x", rateCalculation: "fixed_hourly", rateValue: 200 },
+    holidayGroupIds: ["hol_default"],
+    leaveAllocations: [],
+    shiftId: "shift_day",
+    shiftEffectiveDate: "2026-01-01",
+    weeklyOffPattern: ["Sunday"],
+    revisions: [],
+    currentVersion: 1,
+  },
+  {
+    id: "contract_002",
+    code: "CON-2026-002",
+    title: "Color Specialist Agreement",
+    employeeId: "staff_rohan",
+    employeeName: "Rohan Iyer",
+    groupId: "grp-001",
+    groupName: "Senior Stylists",
+    typeId: "type_fulltime",
+    typeName: "Full-time Employment",
+    templateId: "template_senior",
+    templateName: "Senior Staff Template",
+    startDate: "2026-02-01",
+    endDate: "2027-01-31",
+    status: "active",
+    notes: "Specialist role with commission structure",
+    salaryComponents: [
+      { id: "sal_basic", name: "Basic Salary", type: "earning", calculationType: "fixed", amount: 36000 },
+    ],
+    overtime: { enabled: true, type: "1.5x", rateCalculation: "fixed_hourly", rateValue: 225 },
+    holidayGroupIds: ["hol_default"],
+    leaveAllocations: [],
+    shiftId: "shift_day",
+    shiftEffectiveDate: "2026-02-01",
+    weeklyOffPattern: ["Sunday"],
+    revisions: [],
+    currentVersion: 1,
+  },
+  {
+    id: "contract_003",
+    code: "CON-2026-003",
+    title: "Reception Lead Agreement",
+    employeeId: "staff_sia",
+    employeeName: "Sia Fernandes",
+    groupId: "",
+    groupName: "",
+    typeId: "type_fulltime",
+    typeName: "Full-time Employment",
+    templateId: "template_standard",
+    templateName: "Standard Staff Template",
+    startDate: "2026-01-15",
+    endDate: "2026-12-31",
+    status: "active",
+    notes: "Front desk management role",
+    salaryComponents: [
+      { id: "sal_basic", name: "Basic Salary", type: "earning", calculationType: "fixed", amount: 24000 },
+    ],
+    overtime: { enabled: false, type: "none", rateCalculation: "fixed_hourly", rateValue: 0 },
+    holidayGroupIds: ["hol_default"],
+    leaveAllocations: [],
+    shiftId: "shift_day",
+    shiftEffectiveDate: "2026-01-15",
+    weeklyOffPattern: ["Sunday"],
+    revisions: [],
+    currentVersion: 1,
+  },
+];
+
+// Salary Masters Data
+let salaryMasters = [
+  {
+    id: "sal_basic",
+    name: "Basic Salary",
+    code: "BASIC",
+    description: "Base monthly salary component",
+    type: "earning",
+    calculationType: "fixed",
+    defaultAmount: 30000,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "sal_hra",
+    name: "House Rent Allowance (HRA)",
+    code: "HRA",
+    description: "Housing allowance for rented accommodation",
+    type: "earning",
+    calculationType: "percentage",
+    defaultAmount: 40,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "sal_da",
+    name: "Dearness Allowance",
+    code: "DA",
+    description: "Cost of living adjustment allowance",
+    type: "earning",
+    calculationType: "percentage",
+    defaultAmount: 10,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "sal_medical",
+    name: "Medical Allowance",
+    code: "MEDICAL",
+    description: "Medical and health-related expenses",
+    type: "earning",
+    calculationType: "fixed",
+    defaultAmount: 1500,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "sal_travel",
+    name: "Travel Allowance",
+    code: "TRAVEL",
+    description: "Transportation and travel expenses",
+    type: "earning",
+    calculationType: "fixed",
+    defaultAmount: 2000,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "sal_pf_emp",
+    name: "Provident Fund - Employee",
+    code: "PF_EMP",
+    description: "Employee contribution to provident fund",
+    type: "deduction",
+    calculationType: "percentage",
+    defaultAmount: 12,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "sal_pf_employer",
+    name: "Provident Fund - Employer",
+    code: "PF_EMPLOYER",
+    description: "Employer contribution to provident fund",
+    type: "deduction",
+    calculationType: "percentage",
+    defaultAmount: 12,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "sal_professional_tax",
+    name: "Professional Tax",
+    code: "PROF_TAX",
+    description: "State professional tax deduction",
+    type: "deduction",
+    calculationType: "fixed",
+    defaultAmount: 200,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "sal_tds",
+    name: "Tax Deducted at Source (TDS)",
+    code: "TDS",
+    description: "Income tax deduction",
+    type: "deduction",
+    calculationType: "percentage",
+    defaultAmount: 10,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  },
+  {
+    id: "sal_esi",
+    name: "Employee State Insurance",
+    code: "ESI",
+    description: "State insurance contribution",
+    type: "deduction",
+    calculationType: "percentage",
+    defaultAmount: 1.75,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  }
+];
+
+const withContractPresentation = (contract) => {
+  const employee = staffMembers.find((s) => s.id === contract.employeeId);
+  return {
+    ...contract,
+    employeeName: employee?.name || contract.employeeName || "Unknown",
+    employeeRole: employee?.role || "",
+  };
+};
+
+export const fetchContracts = async () => {
+  await delay(300);
+  return clone(contracts.map(withContractPresentation));
+};
+
+export const fetchContractById = async (contractId) => {
+  await delay(300);
+  const contract = contracts.find((c) => c.id === contractId);
+  if (!contract) {
+    throw new Error("Contract not found");
+  }
+  return clone(withContractPresentation(contract));
+};
+
+export const saveContract = async (payload) => {
+  await delay(500);
+
+  const existingContract = contracts.find((c) => c.id === payload.id);
+  const employee = staffMembers.find((s) => s.id === payload.employeeId);
+
+  const contractData = {
+    ...payload,
+    employeeName: employee?.name || payload.employeeName || "",
+  };
+
+  if (existingContract) {
+    // Update existing
+    const index = contracts.findIndex((c) => c.id === payload.id);
+    contracts[index] = { ...existingContract, ...contractData, updatedAt: new Date().toISOString() };
+    return clone(withContractPresentation(contracts[index]));
+  } else {
+    // Create new
+    const newContract = {
+      ...contractData,
+      id: payload.id || createId("contract"),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    contracts = [newContract, ...contracts];
+    return clone(withContractPresentation(newContract));
+  }
+};
+
+export const deleteContract = async (contractId) => {
+  await delay(400);
+  const contractIndex = contracts.findIndex((c) => c.id === contractId);
+  if (contractIndex === -1) {
+    throw new Error("Contract not found");
+  }
+  contracts = contracts.filter((c) => c.id !== contractId);
+  return { success: true, message: "Contract deleted successfully" };
+};
+
+// Salary Masters API Functions
+export const fetchSalaryMasters = async () => {
+  await delay(300);
+  return clone(salaryMasters);
+};
+
+export const fetchSalaryMasterById = async (id) => {
+  await delay(300);
+  const salaryMaster = salaryMasters.find((sm) => sm.id === id);
+  if (!salaryMaster) {
+    throw new Error("Salary master not found");
+  }
+  return clone(salaryMaster);
+};
+
+export const saveSalaryMaster = async (payload) => {
+  await delay(400);
+
+  const salaryMaster = {
+    id: payload.id || createId("sal"),
+    name: payload.name,
+    code: payload.code || payload.name.substring(0, 3).toUpperCase(),
+    description: payload.description || "",
+    type: payload.type,
+    calculationType: payload.calculationType,
+    defaultAmount: Number(payload.defaultAmount),
+    isActive: payload.isActive !== undefined ? payload.isActive : true,
+    createdAt: payload.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const existingIndex = salaryMasters.findIndex((sm) => sm.id === salaryMaster.id);
+
+  if (existingIndex >= 0) {
+    salaryMasters[existingIndex] = { ...salaryMasters[existingIndex], ...salaryMaster };
+  } else {
+    salaryMasters = [salaryMaster, ...salaryMasters];
+  }
+
+  return clone(salaryMaster);
+};
+
+export const deleteSalaryMaster = async (id) => {
+  await delay(400);
+  const index = salaryMasters.findIndex((sm) => sm.id === id);
+  if (index === -1) {
+    throw new Error("Salary master not found");
+  }
+  salaryMasters = salaryMasters.filter((sm) => sm.id !== id);
+  return { success: true, message: "Salary master deleted successfully" };
+};
+
+export const toggleSalaryMasterStatus = async (id) => {
+  await delay(300);
+  const index = salaryMasters.findIndex((sm) => sm.id === id);
+  if (index === -1) {
+    throw new Error("Salary master not found");
+  }
+  salaryMasters[index] = {
+    ...salaryMasters[index],
+    isActive: !salaryMasters[index].isActive,
+    updatedAt: new Date().toISOString(),
+  };
+  return clone(salaryMasters[index]);
 };

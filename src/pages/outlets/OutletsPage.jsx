@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { Plus } from "lucide-react";
+import { Plus, ArrowUpRight } from "lucide-react";
 import { fetchOutlets } from "../../services/mockApi";
 import { formatCurrency } from "../../utils/format";
 import { OutletFormModal } from "./OutletFormModal";
@@ -55,6 +55,7 @@ export function OutletsPage() {
               <th>Code</th>
               <th>City</th>
               <th>Branch Manager</th>
+              <th>Monthly Budget</th>
               <th className="w-20"></th>
             </tr>
           </thead>
@@ -70,12 +71,24 @@ export function OutletsPage() {
                   <span className="font-bold text-navy-600">{outlet.manager}</span>
                 </td>
                 <td>
-                  <button
-                    onClick={() => handleEditClick(outlet.id)}
-                    className="text-xs font-bold uppercase tracking-wider text-navy-400 hover:text-gold-600"
-                  >
-                    Edit
-                  </button>
+                  <span className="font-bold text-emerald-600">{formatCurrency(outlet.monthlyBudget || 0)}</span>
+                </td>
+                <td>
+                  <div className="flex items-center gap-3">
+                    <Link
+                      to={`/budgets?outletId=${outlet.id}`}
+                      className="text-xs font-bold uppercase tracking-wider text-navy-400 hover:text-gold-600 flex items-center gap-1"
+                    >
+                      Show More
+                      <ArrowUpRight size={12} />
+                    </Link>
+                    <button
+                      onClick={() => handleEditClick(outlet.id)}
+                      className="text-xs font-bold uppercase tracking-wider text-navy-400 hover:text-gold-600"
+                    >
+                      Edit
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

@@ -22,7 +22,6 @@ import {
   BarChart2,
   UserCheck,
   BookOpen,
-  Layers,
 } from "lucide-react";
 import { useAuthStore } from "../../stores/authStore";
 
@@ -33,29 +32,15 @@ const adminNav = [
     section: "Dashboard",
     icon: LayoutDashboard,
     links: [
-      { label: "Global Dashboard", to: "/dashboard/global", icon: LayoutDashboard },
-      { label: "Outlet Dashboard", to: "/dashboard/outlet", icon: Store },
-      { label: "Reports", to: "/reports", icon: BarChart2 },
+      { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
     ],
   },
   {
-    section: "Employee",
-    icon: Users,
+    section: "Inventory",
+    icon: Package,
     links: [
-      { label: "Employees", to: "/staff", icon: Users, exact: true },
-      { label: "Attendance", to: "/attendance", icon: CalendarCheck, exact: true },
-      { label: "Attendance Summary", to: "/attendance/summary", icon: UserCheck },
-      { label: "Contracts", to: "/contracts", icon: FileText, exact: true },
-      { label: "Contract Groups", to: "/contracts/groups", icon: Layers },
-      { label: "Contract Masters", to: "/contracts/masters", icon: BookOpen },
-    ],
-  },
-  {
-    section: "HR & Payroll",
-    icon: DollarSign,
-    links: [
-      { label: "Payroll", to: "/payroll", icon: Wallet, exact: true },
-      { label: "Salary Calculation", to: "/payroll/calculate", icon: ClipboardList },
+      { label: "Inventory", to: "/inventory", icon: Package, exact: true },
+      { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
     ],
   },
   {
@@ -68,19 +53,30 @@ const adminNav = [
     ],
   },
   {
-    section: "Inventory",
-    icon: Package,
-    links: [
-      { label: "Inventory", to: "/inventory", icon: Package, exact: true },
-      { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
-    ],
-  },
-  {
     section: "POS & Billing",
     icon: CreditCard,
     links: [
       { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
       { label: "Billing History", to: "/pos/bills", icon: Receipt },
+    ],
+  },
+  {
+    section: "Employee",
+    icon: Users,
+    links: [
+      { label: "Employees", to: "/staff", icon: Users, exact: true },
+      { label: "Attendance", to: "/attendance", icon: CalendarCheck, exact: true },
+      { label: "Attendance Summary", to: "/attendance/summary", icon: UserCheck },
+      { label: "Contracts", to: "/contracts", icon: FileText, exact: true },
+      { label: "Contract Masters", to: "/contracts/masters", icon: BookOpen },
+    ],
+  },
+  {
+    section: "HR & Payroll",
+    icon: DollarSign,
+    links: [
+      { label: "Payroll", to: "/payroll", icon: Wallet, exact: true },
+      { label: "Salary Calculation", to: "/payroll/calculate", icon: ClipboardList },
     ],
   },
   {
@@ -108,27 +104,15 @@ const managerNav = [
     section: "Dashboard",
     icon: LayoutDashboard,
     links: [
-      { label: "Outlet Dashboard", to: "/dashboard/outlet", icon: LayoutDashboard },
+      { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
     ],
   },
   {
-    section: "Employee",
-    icon: Users,
+    section: "Inventory",
+    icon: Package,
     links: [
-      { label: "Employees", to: "/staff", icon: Users, exact: true },
-      { label: "Attendance", to: "/attendance", icon: CalendarCheck, exact: true },
-      { label: "Attendance Summary", to: "/attendance/summary", icon: UserCheck },
-      { label: "Contracts", to: "/contracts", icon: FileText, exact: true },
-      { label: "Contract Groups", to: "/contracts/groups", icon: Layers },
-      { label: "Contract Masters", to: "/contracts/masters", icon: BookOpen },
-    ],
-  },
-  {
-    section: "HR & Payroll",
-    icon: DollarSign,
-    links: [
-      { label: "Payroll", to: "/payroll", icon: Wallet, exact: true },
-      { label: "Salary Calculation", to: "/payroll/calculate", icon: ClipboardList },
+      { label: "Inventory", to: "/inventory", icon: Package, exact: true },
+      { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
     ],
   },
   {
@@ -141,19 +125,30 @@ const managerNav = [
     ],
   },
   {
-    section: "Inventory",
-    icon: Package,
-    links: [
-      { label: "Inventory", to: "/inventory", icon: Package, exact: true },
-      { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
-    ],
-  },
-  {
     section: "POS & Billing",
     icon: CreditCard,
     links: [
       { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
       { label: "Billing History", to: "/pos/bills", icon: Receipt },
+    ],
+  },
+  {
+    section: "Employee",
+    icon: Users,
+    links: [
+      { label: "Employees", to: "/staff", icon: Users, exact: true },
+      { label: "Attendance", to: "/attendance", icon: CalendarCheck, exact: true },
+      { label: "Attendance Summary", to: "/attendance/summary", icon: UserCheck },
+      { label: "Contracts", to: "/contracts", icon: FileText, exact: true },
+      { label: "Contract Masters", to: "/contracts/masters", icon: BookOpen },
+    ],
+  },
+  {
+    section: "HR & Payroll",
+    icon: DollarSign,
+    links: [
+      { label: "Payroll", to: "/payroll", icon: Wallet, exact: true },
+      { label: "Salary Calculation", to: "/payroll/calculate", icon: ClipboardList },
     ],
   },
   {

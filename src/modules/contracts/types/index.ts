@@ -95,14 +95,8 @@ export interface Contract {
 export interface ContractGroup {
   id: string;
   name: string;
-  code: string;
-  category: string;
-  description?: string;
-  status: 'active' | 'inactive';
-  employeeIds: string[];
-  tags: string[];
-  department?: string;
-  location?: string;
+  startDate: string;
+  endDate?: string;
 }
 
 // Master Data Types

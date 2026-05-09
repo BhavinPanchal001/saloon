@@ -2,9 +2,8 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 
 const navItems = [
-  { label: 'Contracts', path: '/contracts/list' },
-  { label: 'Contract Groups', path: '/contracts/groups' },
-  { label: 'Masters', path: '/contracts/masters' },
+  { label: 'Contract Groups', path: '/contracts/list' },
+  { label: 'Contract Masters', path: '/contracts/masters' },
 ];
 
 const ContractModuleLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -14,8 +13,8 @@ const ContractModuleLayout: React.FC<{ children: React.ReactNode }> = ({ childre
       <header className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Contract Management</h1>
-            <p className="text-sm text-slate-500">Manage employee agreements, salary structures, and compliance.</p>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Contract Group</h1>
+            <p className="text-sm text-slate-500">Manage contract groups and their associated contracts.</p>
           </div>
           <div className="flex gap-3">
              {/* Global Module Actions could go here */}

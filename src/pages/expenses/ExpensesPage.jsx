@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  Receipt, 
-  Wallet, 
-  History, 
-  PlusCircle, 
-  Trash2, 
-  Calendar, 
-  ArrowUpRight, 
+import {
+  Receipt,
+  Wallet,
+  History,
+  PlusCircle,
+  Trash2,
+  Calendar,
+  ArrowUpRight,
   PieChart,
   Tag,
   Hash,
-  Coins
+  Coins,
+  AlertTriangle,
+  Ban
 } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import {
@@ -19,7 +21,6 @@ import {
   fetchBudgetSummary,
   fetchExpenses,
   deleteExpense,
-  updateMonthlyBudget,
 } from "../../services/mockApi";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
@@ -42,9 +43,12 @@ export function ExpensesPage({ scope }) {
   const [expenses, setExpenses] = useState([]);
   const [form, setForm] = useState(initialExpenseForm);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const loadExpensesPage = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const [budgetSummary, expenseList] = await Promise.all([
         fetchBudgetSummary({ outletId: scopedOutletId }),
@@ -53,8 +57,9 @@ export function ExpensesPage({ scope }) {
 
       setBudget(budgetSummary);
       setExpenses(expenseList);
-    } catch (error) {
-      console.error("Failed to load expenses:", error);
+    } catch (err) {
+      console.error("Failed to load expenses:", err);
+      setError("Failed to load expenses. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -82,13 +87,22 @@ export function ExpensesPage({ scope }) {
     event.preventDefault();
     if (!form.itemName || !form.totalAmount) return;
 
-    await createExpense({
-      ...form,
-      outletId: scopedOutletId || user?.outlet_id || "outlet_hsr",
-    });
+    setSubmitting(true);
+    setError(null);
 
-    setForm(initialExpenseForm);
-    loadExpensesPage();
+    try {
+      await createExpense({
+        ...form,
+        outletId: scopedOutletId || user?.outlet_id || "outlet_hsr",
+      });
+
+      setForm(initialExpenseForm);
+      await loadExpensesPage();
+    } catch (err) {
+      setError(err.message || "Failed to create expense. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -105,6 +119,50 @@ export function ExpensesPage({ scope }) {
         title={scope === "global" ? "Expense Portfolio" : "Local Expense Control"}
         description="Monitor network-wide liquidity, budget runway, and granular expense logging for real-time spend management."
       />
+
+      {/* Budget Alert */}
+      {budget && budget.spendPercentage >= 90 && (
+        <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+            <AlertTriangle size={20} />
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-rose-900">Budget Alert</p>
+            <p className="text-sm text-rose-700">
+              {budget.spendPercentage >= 100
+                ? `Budget exhausted! Remaining: ${formatCurrency(budget.remainingBalance)}. No new expenses can be added until budget is increased.`
+                : `Budget ${budget.spendPercentage}% utilized. Only ${formatCurrency(budget.remainingBalance)} remaining.`}
+            </p>
+          </div>
+          {user?.role === "admin" && (
+            <button
+              onClick={() => navigate("/budgets")}
+              className="btn-premium-outline text-sm !border-rose-300 !text-rose-700 hover:!bg-rose-100"
+            >
+              Increase Budget
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+            <Ban size={20} />
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-rose-900">Error</p>
+            <p className="text-sm text-rose-700">{error}</p>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-sm text-rose-600 hover:text-rose-800 font-medium"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid gap-6 md:grid-cols-3">
@@ -123,10 +181,10 @@ export function ExpensesPage({ scope }) {
           <div className="mt-6 flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-bold text-navy-400">
               <Calendar size={14} />
-              <span>Fiscal Month: April 2026</span>
+              <span>Fiscal Month: {budget?.monthKey || "April 2026"}</span>
             </div>
             {user?.role === "admin" && (
-              <button 
+              <button
                 onClick={() => navigate("/budgets")}
                 className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700"
               >
@@ -150,12 +208,19 @@ export function ExpensesPage({ scope }) {
           </div>
           <div className="mt-6 flex items-center gap-2">
             <div className="h-1.5 flex-1 rounded-full bg-navy-50 overflow-hidden">
-              <div 
-                className="h-full bg-navy-500 transition-all duration-1000" 
+              <div
+                className={`h-full transition-all duration-1000 ${
+                  budget?.spendPercentage >= 90 ? "bg-rose-500" :
+                  budget?.spendPercentage >= 75 ? "bg-amber-500" :
+                  budget?.spendPercentage >= 50 ? "bg-gold-500" : "bg-navy-500"
+                }`}
                 style={{ width: `${budget ? Math.min((budget.totalExpensesSoFar / budget.totalMonthlyBudget) * 100, 100) : 0}%` }}
               />
             </div>
-            <span className="text-[10px] font-black text-navy-500">
+            <span className={`text-[10px] font-black ${
+              budget?.spendPercentage >= 90 ? "text-rose-500" :
+              budget?.spendPercentage >= 75 ? "text-amber-500" : "text-navy-500"
+            }`}>
               {budget ? Math.round((budget.totalExpensesSoFar / budget.totalMonthlyBudget) * 100) : 0}% used
             </span>
           </div>
@@ -169,13 +234,27 @@ export function ExpensesPage({ scope }) {
                 {budget ? formatCurrency(budget.remainingBalance) : "--"}
               </h3>
             </div>
-            <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-600 transition-colors group-hover:bg-emerald-500 group-hover:text-white">
+            <div className={`rounded-2xl p-3 transition-colors group-hover:text-white ${
+              budget?.remainingBalance <= 0 ? "bg-rose-100 text-rose-600 group-hover:bg-rose-500" :
+              budget?.remainingBalance < budget?.totalMonthlyBudget * 0.1 ? "bg-amber-100 text-amber-600 group-hover:bg-amber-500" :
+              "bg-emerald-100 text-emerald-600 group-hover:bg-emerald-500"
+            }`}>
               <PieChart size={24} />
             </div>
           </div>
-          <div className="mt-6 flex items-center gap-2 text-[10px] font-black uppercase text-emerald-600">
-            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Healthy Runway
+          <div className={`mt-6 flex items-center gap-2 text-[10px] font-black uppercase ${
+            budget?.remainingBalance <= 0 ? "text-rose-600" :
+            budget?.remainingBalance < budget?.totalMonthlyBudget * 0.1 ? "text-amber-600" :
+            "text-emerald-600"
+          }`}>
+            <div className={`h-2 w-2 rounded-full animate-pulse ${
+              budget?.remainingBalance <= 0 ? "bg-rose-500" :
+              budget?.remainingBalance < budget?.totalMonthlyBudget * 0.1 ? "bg-amber-500" :
+              "bg-emerald-500"
+            }`} />
+            {budget?.remainingBalance <= 0 ? "Budget Exhausted" :
+             budget?.remainingBalance < budget?.totalMonthlyBudget * 0.1 ? "Low Balance" :
+             "Healthy Runway"}
           </div>
         </div>
       </div>
@@ -264,8 +343,38 @@ export function ExpensesPage({ scope }) {
                 />
               </div>
 
-              <button type="submit" className="btn-premium-primary w-full mt-2">
-                Log Portfolio Expense
+              {/* Remaining Budget Info */}
+              {budget && (
+                <div className="p-4 rounded-xl bg-navy-50 border border-navy-100">
+                  <p className="text-xs text-navy-500 uppercase font-bold mb-1">Remaining Budget</p>
+                  <p className={`text-lg font-bold ${
+                    budget.remainingBalance <= 0 ? "text-rose-600" :
+                    budget.remainingBalance < budget.totalMonthlyBudget * 0.1 ? "text-amber-600" :
+                    "text-emerald-600"
+                  }`}>
+                    {formatCurrency(budget.remainingBalance)}
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting || (budget && budget.remainingBalance <= 0)}
+                className="btn-premium-primary w-full mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </span>
+                ) : budget?.remainingBalance <= 0 ? (
+                  <span className="flex items-center gap-2">
+                    <Ban size={16} />
+                    Budget Exhausted
+                  </span>
+                ) : (
+                  "Log Portfolio Expense"
+                )}
               </button>
             </form>
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchBills } from "../../services/mockApi";
 import { useAuthStore } from "../../stores/authStore";
@@ -20,9 +21,10 @@ const formatTime = (iso) => {
 
 export default function BillingListPage() {
   const user = useAuthStore((s) => s.user);
+  const [searchParams] = useSearchParams();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [selectedBill, setSelectedBill] = useState(null);
 

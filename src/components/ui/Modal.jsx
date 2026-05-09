@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X, LogOut, AlertTriangle, Info } from "lucide-react";
 
 /**
  * Reusable Modal Component
@@ -91,6 +91,16 @@ export function ConfirmModal({
     danger: "btn-premium bg-rose-500 text-white hover:bg-rose-600",
     warning: "btn-premium bg-amber-500 text-white hover:bg-amber-600",
     info: "btn-premium-primary",
+    neutral: "btn-premium bg-slate-700 text-white hover:bg-slate-800",
+    logout: "btn-premium bg-rose-500 text-white hover:bg-rose-600",
+  };
+
+  const variantIcons = {
+    danger: <AlertTriangle className="h-10 w-10 text-rose-500" />,
+    warning: <AlertTriangle className="h-10 w-10 text-amber-500" />,
+    info: <Info className="h-10 w-10 text-blue-500" />,
+    neutral: <AlertTriangle className="h-10 w-10 text-slate-500" />,
+    logout: <LogOut className="h-10 w-10 text-rose-500" />,
   };
 
   const handleConfirm = async () => {
@@ -100,9 +110,15 @@ export function ConfirmModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
-      <div className="space-y-4">
+      <div className="space-y-5">
+        {variantIcons[variant] && (
+          <div className="flex justify-center">
+            {variantIcons[variant]}
+          </div>
+        )}
+
         {message && (
-          <p className="text-sm leading-relaxed text-navy-600">{message}</p>
+          <p className="text-center text-sm leading-relaxed text-navy-600">{message}</p>
         )}
 
         <div className="flex justify-end gap-3 pt-2">
@@ -115,7 +131,7 @@ export function ConfirmModal({
           </button>
           <button
             onClick={handleConfirm}
-            className={variantStyles[variant]}
+            className={variantStyles[variant] ?? "btn-premium bg-slate-700 text-white hover:bg-slate-800"}
             disabled={isLoading}
           >
             {isLoading ? "Processing..." : confirmText}
