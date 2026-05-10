@@ -1,0 +1,130 @@
+/* Bank Module Styles */
+
+.bank-module {
+  @apply space-y-6;
+}
+
+.bank-module .module-header {
+  @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4;
+}
+
+.bank-module .module-title h1 {
+  @apply text-2xl font-bold text-navy-900;
+}
+
+.bank-module .module-title p {
+  @apply text-sm text-navy-500 mt-1;
+}
+
+/* Bank Card Styles */
+.bank-card {
+  @apply bg-white rounded-xl border border-slate-200 p-6 shadow-sm transition-all hover:shadow-md;
+}
+
+.bank-card.default {
+  @apply border-gold-400 bg-gold-50/30;
+}
+
+.bank-card.inactive {
+  @apply opacity-60 grayscale;
+}
+
+.bank-card-header {
+  @apply flex items-start justify-between mb-4;
+}
+
+.bank-icon {
+  @apply w-12 h-12 rounded-xl bg-navy-100 text-navy-600 flex items-center justify-center;
+}
+
+.bank-icon.default {
+  @apply bg-gold-100 text-gold-600;
+}
+
+.bank-name {
+  @apply text-lg font-semibold text-navy-900;
+}
+
+.bank-account-number {
+  @apply text-sm font-medium text-navy-600 font-mono;
+}
+
+.bank-badge {
+  @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold;
+}
+
+.bank-badge.default {
+  @apply bg-gold-100 text-gold-700;
+}
+
+.bank-badge.active {
+  @apply bg-emerald-100 text-emerald-700;
+}
+
+.bank-badge.inactive {
+  @apply bg-slate-100 text-slate-600;
+}
+
+.bank-details {
+  @apply space-y-2 mt-4 pt-4 border-t border-slate-100;
+}
+
+.bank-detail-row {
+  @apply flex justify-between text-sm;
+}
+
+.bank-detail-label {
+  @apply text-slate-500;
+}
+
+.bank-detail-value {
+  @apply font-medium text-slate-700;
+}
+
+/* Form Styles */
+.bank-form {
+  @apply w-full max-w-5xl mx-auto;
+}
+
+.bank-form-section {
+  @apply bg-white rounded-xl border border-slate-200 p-6 space-y-4;
+}
+
+.bank-form-title {
+  @apply text-lg font-semibold text-navy-900 flex items-center gap-2;
+}
+
+.form-hint {
+  @apply text-xs text-slate-500 mt-1;
+}
+
+/* Checkbox Styles */
+.checkbox-wrapper {
+  @apply flex items-center gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+  @apply w-5 h-5 rounded border-slate-300 text-navy-600 focus:ring-navy-500;
+}
+
+.checkbox-label {
+  @apply text-sm font-medium text-slate-700;
+}
+
+.checkbox-description {
+  @apply text-xs text-slate-500;
+}
+
+/* Responsive Grid */
+.bank-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4;
+}
+
+/* Empty State */
+.bank-empty-state {
+  @apply text-center py-12;
+}
+
+.bank-empty-state-icon {
+  @apply w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center;
+}

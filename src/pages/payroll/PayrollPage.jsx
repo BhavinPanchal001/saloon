@@ -1,301 +1,355 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { generatePayrollPreview, exportPayrollToCSV } from "../../services/mockApi";
-import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
+import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
-import { Download, Printer } from "lucide-react";
+import { 
+  Calculator,
+  ChevronDown,
+  Download,
+  FileText,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  Calendar
+} from "lucide-react";
+
+// Mock month-wise salary data
+const generateMockSalaryData = (year) => {
+  const months = [
+    "Apr", "May", "Jun", "Jul", "Aug", "Sep", 
+    "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"
+  ];
+  
+  return months.map((month, index) => {
+    const totalSalary = 180000 + Math.random() * 50000;
+    const totalTax = totalSalary * 0.05;
+    const totalDeduct = totalSalary * 0.15;
+    const totalPaid = index < 3 ? totalSalary - totalDeduct : 0; // First 3 months paid
+    const totalPayable = totalSalary - totalDeduct;
+    const remaining = totalPayable - totalPaid;
+    
+    return {
+      id: `sal_${year}_${index}`,
+      month: `${month}-${year.substring(2, 4)}`,
+      fullMonth: `${month} ${index < 9 ? year : parseInt(year) + 1}`,
+      totalSalary: Math.round(totalSalary),
+      totalTax: Math.round(totalTax),
+      totalDeductAmount: Math.round(totalDeduct),
+      totalPaidSalary: Math.round(totalPaid),
+      totalPayableSalary: Math.round(totalPayable),
+      remainingSalary: Math.round(remaining),
+      ptPaidDate: index < 3 ? `05-${month}-${index < 9 ? year : parseInt(year) + 1}` : "",
+      status: index < 3 ? "paid" : index === 3 ? "pending" : "calculated",
+      employeeCount: 8 + Math.floor(Math.random() * 5),
+    };
+  });
+};
 
 export function PayrollPage() {
-  const user = useAuthStore((state) => state.user);
+  const navigate = useNavigate();
   const toast = useToastStore();
-  const [rows, setRows] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [printing, setPrinting] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  
+  const [selectedMonth, setSelectedMonth] = useState("2026-04");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [salaryData, setSalaryData] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const loadPayroll = async () => {
-    const preview = await generatePayrollPreview({
-      outletId: user?.role === "admin" ? undefined : user?.outlet_id,
-    });
-    setRows(preview);
-  };
+  const MONTHS = [
+    { value: "2026-04", label: "Apr 2026" },
+    { value: "2026-05", label: "May 2026" },
+    { value: "2026-06", label: "Jun 2026" },
+    { value: "2026-07", label: "Jul 2026" },
+    { value: "2026-08", label: "Aug 2026" },
+    { value: "2026-09", label: "Sep 2026" },
+    { value: "2026-10", label: "Oct 2026" },
+    { value: "2026-11", label: "Nov 2026" },
+    { value: "2026-12", label: "Dec 2026" },
+    { value: "2027-01", label: "Jan 2027" },
+    { value: "2027-02", label: "Feb 2027" },
+    { value: "2027-03", label: "Mar 2027" },
+  ];
 
   useEffect(() => {
-    if (user) {
-      loadPayroll();
-    }
-  }, [user]);
+    loadSalaryData();
+  }, [selectedMonth]);
 
-  const handleGeneratePayroll = async () => {
-    // Simulate API call for payroll generation
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Generate payroll entries for all staff
-    const newPayrollEntries = rows.map((member) => {
-      const baseSalary = member.baseSalary || 3000;
-      const attendanceDays = Math.floor(Math.random() * 5) + 25; // 25-30 days
-      const dailyRate = baseSalary / 30;
-      const earnedSalary = Math.round(dailyRate * attendanceDays);
-      const overtimeHours = Math.floor(Math.random() * 10);
-      const overtimeRate = dailyRate / 8 * 1.5;
-      const overtimePay = Math.round(overtimeHours * overtimeRate);
-      const deductions = Math.round(baseSalary * 0.11); // 11% for EPF/SOCSO
-      const netSalary = earnedSalary + overtimePay - deductions;
-      
-      return {
-        id: `payroll_${Date.now()}_${member.id}`,
-        staffId: member.id,
-        staffName: member.name,
-        period: "selectedMonthYear",
-        baseSalary,
-        attendanceDays,
-        earnedSalary,
-        overtimeHours,
-        overtimePay,
-        deductions,
-        netSalary,
-        status: "pending",
-        generatedAt: new Date().toISOString(),
-      };
-    });
-    
-    setRows(newPayrollEntries);
-    setShowModal(false);
-  };
-
-  const handleExportCSV = async () => {
-    if (rows.length === 0) {
-      toast.error("No payroll data to export");
-      return;
-    }
-    setExporting(true);
+  const loadSalaryData = async () => {
+    setIsLoading(true);
     try {
-      const csvData = exportPayrollToCSV(rows);
-      const csvContent = csvData.map(row => row.join(",")).join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", `payroll_${new Date().toISOString().split("T")[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success("Payroll exported to CSV successfully");
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const year = selectedMonth.split("-")[0];
+      const data = generateMockSalaryData(year);
+      setSalaryData(data);
     } catch (err) {
-      toast.error("Failed to export payroll");
+      toast.error("Failed to load salary data");
     } finally {
-      setExporting(false);
+      setIsLoading(false);
     }
   };
 
-  const handlePrint = () => {
-    if (rows.length === 0) {
-      toast.error("No payroll data to print");
-      return;
-    }
-    setPrinting(true);
-    setTimeout(() => {
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) {
-        toast.error("Please allow popups to print");
-        setPrinting(false);
-        return;
+  const totals = useMemo(() => {
+    return salaryData.reduce((acc, row) => ({
+      totalSalary: acc.totalSalary + row.totalSalary,
+      totalTax: acc.totalTax + row.totalTax,
+      totalDeduct: acc.totalDeduct + row.totalDeductAmount,
+      totalPaid: acc.totalPaid + row.totalPaidSalary,
+      totalPayable: acc.totalPayable + row.totalPayableSalary,
+      totalRemaining: acc.totalRemaining + row.remainingSalary,
+    }), { totalSalary: 0, totalTax: 0, totalDeduct: 0, totalPaid: 0, totalPayable: 0, totalRemaining: 0 });
+  }, [salaryData]);
+
+  const handleCalculateSalary = (monthData) => {
+    navigate("/salary/add", { 
+      state: { 
+        month: monthData.fullMonth,
+        year: selectedMonth.split("-")[0],
+        salaryData: monthData 
       }
+    });
+  };
 
-      const printContent = `
-        <html>
-          <head>
-            <title>Payroll Report</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; }
-              h1 { color: #1e293b; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; }
-              th { background: #f1f5f9; font-weight: bold; }
-              .text-right { text-align: right; }
-              .summary { margin-top: 30px; padding: 20px; background: #f8fafc; border-radius: 8px; }
-            </style>
-          </head>
-          <body>
-            <h1>Payroll Report - ${new Date().toLocaleDateString()}</h1>
-            <table>
-              <thead>
-                <tr>
-                  <th>Staff Name</th>
-                  <th>Role</th>
-                  <th>Outlet</th>
-                  <th class="text-right">Base Salary</th>
-                  <th class="text-right">Commissions</th>
-                  <th class="text-right">Taxes</th>
-                  <th class="text-right">PF</th>
-                  <th class="text-right">Advance EMI</th>
-                  <th class="text-right">Net Pay</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rows.map(row => `
-                  <tr>
-                    <td>${row.name}</td>
-                    <td>${row.role}</td>
-                    <td>${row.assignedOutletName}</td>
-                    <td class="text-right">${formatCurrency(row.baseSalary)}</td>
-                    <td class="text-right">${formatCurrency(row.commissions)}</td>
-                    <td class="text-right">${formatCurrency(row.taxes)}</td>
-                    <td class="text-right">${formatCurrency(row.pfDeduction)}</td>
-                    <td class="text-right">${formatCurrency(row.advanceEmi)}</td>
-                    <td class="text-right"><strong>${formatCurrency(row.netPay)}</strong></td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-            <div class="summary">
-              <h3>Summary</h3>
-              <p><strong>Total Employees:</strong> ${rows.length}</p>
-              <p><strong>Total Net Pay:</strong> ${formatCurrency(rows.reduce((sum, r) => sum + r.netPay, 0))}</p>
-              <p><strong>Total Base Salary:</strong> ${formatCurrency(rows.reduce((sum, r) => sum + r.baseSalary, 0))}</p>
-            </div>
-          </body>
-        </html>
-      `;
+  const handlePaySalary = (monthData) => {
+    navigate("/salary/pay", { 
+      state: { 
+        month: monthData.fullMonth,
+        monthKey: monthData.id,
+        month: selectedMonth,
+        salaryData: monthData 
+      }
+    });
+  };
 
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      toast.success("Payroll sent to printer");
-      setPrinting(false);
-    }, 500);
+  const handleViewDetails = (monthData) => {
+    navigate(`/salary/view/${monthData.id}`, { state: { salaryData: monthData } });
   };
 
   return (
-    <div>
+    <div className="min-h-screen bg-cream">
+      {/* Page Header */}
       <PageHeader
         eyebrow="Payroll"
-        title="Payroll Generation"
-        description="Preview payroll-ready records with commission, taxes, PF, and advance EMI all represented before backend export logic is introduced."
+        title="Salary List"
         action={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
+            {/* Month Selector */}
+            <div className="relative">
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="premium-input !py-2.5 !pr-10 !pl-4 w-36 text-sm font-bold text-navy-900"
+              >
+                {MONTHS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-navy-400 pointer-events-none" />
+            </div>
+
             <button
-              type="button"
-              className="btn-ghost flex items-center gap-2"
-              onClick={handleExportCSV}
-              disabled={exporting || rows.length === 0}
+              onClick={() => navigate("/salary/add")}
+              className="btn-premium-primary flex items-center gap-2"
             >
-              <Download className="h-4 w-4" />
-              {exporting ? "Exporting..." : "Export CSV"}
+              <Calculator size={18} />
+              Calculate Salary
             </button>
             <button
-              type="button"
-              className="btn-ghost flex items-center gap-2"
-              onClick={handlePrint}
-              disabled={printing || rows.length === 0}
+              className="btn-premium-outline flex items-center gap-2"
             >
-              <Printer className="h-4 w-4" />
-              {printing ? "Preparing..." : "Print"}
-            </button>
-            <button type="button" className="btn-primary" onClick={() => setShowModal(true)}>
-              Generate Payroll
+              <Download size={16} />
+              Export
             </button>
           </div>
         }
       />
 
-      <div className="table-shell">
-        <table className="min-w-full">
-          <thead className="table-head">
-            <tr>
-              <th className="px-4 py-4">Staff</th>
-              <th className="px-4 py-4">Role</th>
-              <th className="px-4 py-4">Outlet</th>
-              <th className="px-4 py-4">Base Salary</th>
-              <th className="px-4 py-4">Net Pay</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white/90">
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td className="table-cell font-semibold text-slate-900">{row.name}</td>
-                <td className="table-cell">{row.role}</td>
-                <td className="table-cell">{row.assignedOutletName}</td>
-                <td className="table-cell">{formatCurrency(row.baseSalary)}</td>
-                <td className="table-cell">{formatCurrency(row.netPay)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Main Table */}
+      <div className="mx-6 mt-6">
+        <div className="table-container">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-600"></div>
+            </div>
+          ) : (
+            <table className="premium-table text-sm">
+              <thead>
+                <tr>
+                  <th className="w-12 text-center">#</th>
+                  <th>MONTH</th>
+                  <th className="text-right">TOTAL<br/>SALARY</th>
+                  <th className="text-right">TOTAL<br/>TAX</th>
+                  <th className="text-right">TOTAL DEDUCT<br/>AMOUNT</th>
+                  <th className="text-right">TOTAL PAID<br/>SALARY</th>
+                  <th className="text-right">TOTAL PAYABLE<br/>SALARY</th>
+                  <th className="text-right">REMAINING<br/>SALARY</th>
+                  <th className="text-center">PT PAID<br/>DATE</th>
+                  <th className="text-center w-32">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {salaryData.map((row, index) => (
+                  <tr key={row.id}>
+                    <td className="text-center font-medium text-navy-500">
+                      {index + 1}
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2.5 h-2.5 rounded-full ${
+                          row.status === "paid" ? "bg-emerald-500" : 
+                          row.status === "pending" ? "bg-amber-500" : "bg-blue-500"
+                        }`}></div>
+                        <div>
+                          <div className="font-bold text-navy-900">{row.month}</div>
+                          <div className="text-xs text-navy-400">{row.employeeCount} employees</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="text-right font-semibold text-navy-800">
+                      {formatCurrency(row.totalSalary)}
+                    </td>
+                    <td className="text-right text-navy-600">
+                      {formatCurrency(row.totalTax)}
+                    </td>
+                    <td className="text-right font-medium text-rose-600">
+                      {formatCurrency(row.totalDeductAmount)}
+                    </td>
+                    <td className="text-right font-medium text-emerald-600">
+                      {formatCurrency(row.totalPaidSalary)}
+                    </td>
+                    <td className="text-right font-bold text-navy-900">
+                      {formatCurrency(row.totalPayableSalary)}
+                    </td>
+                    <td className="text-right font-bold text-amber-600">
+                      {formatCurrency(row.remainingSalary)}
+                    </td>
+                    <td className="text-center">
+                      {row.ptPaidDate ? (
+                        <span className="text-sm text-navy-600">{row.ptPaidDate}</span>
+                      ) : (
+                        <span className="text-xs text-navy-400">-</span>
+                      )}
+                    </td>
+                    <td className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button 
+                          onClick={() => handleViewDetails(row)}
+                          className="p-1.5 rounded-lg hover:bg-navy-50 text-navy-400 hover:text-navy-600"
+                          title="View Details"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button 
+                          className="p-1.5 rounded-lg hover:bg-navy-50 text-navy-400 hover:text-navy-600"
+                          title="Edit"
+                        >
+                          <FileText size={16} />
+                        </button>
+                        <button 
+                          className="p-1.5 rounded-lg hover:bg-navy-50 text-navy-400 hover:text-navy-600"
+                          title="Print"
+                        >
+                          <FileText size={16} />
+                        </button>
+                        <button 
+                          className="p-1.5 rounded-lg hover:bg-navy-50 text-navy-400 hover:text-navy-600"
+                          title="Download"
+                        >
+                          <Download size={16} />
+                        </button>
+                        {row.status !== "paid" && (
+                          <button 
+                            onClick={() => handlePaySalary(row)}
+                            className="ml-1 px-3 py-1.5 bg-navy-600 text-white text-xs font-bold rounded-lg hover:bg-navy-700"
+                          >
+                            Pay
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Empty State */}
+        {!isLoading && salaryData.length === 0 && (
+          <div className="glass-card !p-12 text-center mt-6">
+            <div className="w-16 h-16 rounded-full bg-navy-50 flex items-center justify-center mx-auto mb-4">
+              <Calendar size={32} className="text-navy-300" />
+            </div>
+            <h3 className="text-lg font-bold text-navy-900 mb-2">No salary records found</h3>
+            <button 
+              onClick={() => loadSalaryData()}
+              className="btn-premium-outline"
+            >
+              Reload
+            </button>
+          </div>
+        )}
       </div>
 
-      {showModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8">
-          <div className="glass-panel max-h-[90vh] w-full max-w-4xl overflow-y-auto p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-700">
-                  Mocked Payslips
-                </p>
-                <h2 className="mt-2 text-3xl text-slate-900">Payroll breakdown</h2>
-              </div>
-              <button type="button" className="btn-ghost" onClick={() => setShowModal(false)}>
-                Close
-              </button>
-            </div>
-
-            <div className="mt-6 grid gap-4">
-              {rows.map((row) => (
-                <div key={row.id} className="rounded-3xl border border-slate-100 bg-white/90 p-5">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <h3 className="text-2xl text-slate-900">{row.name}</h3>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {row.role} • {row.assignedOutletName}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-brand-50 px-4 py-3">
-                      <p className="text-xs uppercase tracking-[0.22em] text-brand-700">Net Pay</p>
-                      <p className="mt-2 text-lg font-semibold text-brand-800">
-                        {formatCurrency(row.netPay)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-5 grid gap-3 md:grid-cols-5">
-                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-                      Base Salary
-                      <div className="mt-2 font-semibold text-slate-900">
-                        {formatCurrency(row.baseSalary)}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-                      Commissions
-                      <div className="mt-2 font-semibold text-slate-900">
-                        {formatCurrency(row.commissions)}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-                      Taxes
-                      <div className="mt-2 font-semibold text-slate-900">
-                        {formatCurrency(row.taxes)}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-                      PF
-                      <div className="mt-2 font-semibold text-slate-900">
-                        {formatCurrency(row.pfDeduction)}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
-                      Advance EMI
-                      <div className="mt-2 font-semibold text-slate-900">
-                        {formatCurrency(row.advanceEmi)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+      {/* Bottom Summary Section */}
+      <div className="glass-card !p-5 mx-6 mt-6 mb-8">
+        <div className="grid grid-cols-6 gap-6">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-1">Total Salary</p>
+            <p className="text-lg font-bold text-navy-900">{formatCurrency(totals.totalSalary)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-1">Total Tax</p>
+            <p className="text-lg font-bold text-amber-600">{formatCurrency(totals.totalTax)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-1">Total Deduct</p>
+            <p className="text-lg font-bold text-rose-600">{formatCurrency(totals.totalDeduct)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-1">Total Payable</p>
+            <p className="text-lg font-bold text-emerald-600">{formatCurrency(totals.totalPayable)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-1">Total Paid</p>
+            <p className="text-lg font-bold text-blue-600">{formatCurrency(totals.totalPaid)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-1">Remaining</p>
+            <p className="text-lg font-bold text-violet-600">{formatCurrency(totals.totalRemaining)}</p>
           </div>
         </div>
-      ) : null}
+
+        {/* Pagination */}
+        <div className="flex items-center justify-between mt-6 pt-4 border-t border-navy-100">
+          <div className="text-sm text-navy-500">
+            SHOWING 1-{salaryData.length} OF {salaryData.length} ITEM(S)
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              className="p-2 rounded-lg border border-navy-200 hover:bg-navy-50 disabled:opacity-50"
+              disabled
+            >
+              <ChevronLeft size={16} className="text-navy-600" />
+            </button>
+            <button className="w-8 h-8 rounded-lg bg-navy-600 text-white text-sm font-bold">
+              1
+            </button>
+            <button className="w-8 h-8 rounded-lg border border-navy-200 text-navy-600 text-sm font-bold hover:bg-navy-50">
+              2
+            </button>
+            <button className="w-8 h-8 rounded-lg border border-navy-200 text-navy-600 text-sm font-bold hover:bg-navy-50">
+              3
+            </button>
+            <button className="p-2 rounded-lg border border-navy-200 hover:bg-navy-50">
+              <ChevronRight size={16} className="text-navy-600" />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

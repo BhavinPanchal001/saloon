@@ -7,12 +7,16 @@ import { BudgetsPage } from "../pages/expenses/BudgetsPage";
 import { InventoryPage } from "../pages/inventory/InventoryPage";
 import { PurchaseOrderHistoryPage } from "../pages/inventory/PurchaseOrderHistoryPage";
 import { UnitMasterPage } from "../pages/inventory/UnitMasterPage";
+import PurchaseOrderPage from "../pages/inventory/PurchaseOrderPage";
 import { LoginPage } from "../pages/auth/LoginPage";
 import { ForgotPasswordPage } from "../pages/auth/ForgotPasswordPage";
 import { RegisterPage } from "../pages/auth/RegisterPage";
 import { OTPVerificationPage } from "../pages/auth/OTPVerificationPage";
 import { OutletsPage } from "../pages/outlets/OutletsPage";
 import { PayrollPage } from "../pages/payroll/PayrollPage";
+import { SalaryAddPage } from "../pages/payroll/SalaryAddPage";
+import { SalaryViewPage } from "../pages/payroll/SalaryViewPage";
+import { SalaryPayPage } from "../pages/payroll/SalaryPayPage";
 import { POSPage } from "../pages/pos/POSPage";
 import BillingListPage from "../pages/pos/BillingListPage";
 import PackageListPage from "../modules/packages/pages/PackageListPage";
@@ -30,7 +34,10 @@ import AttendanceSummaryPage from "../modules/employees/pages/AttendanceSummaryP
 import ContractListPage from "../modules/contracts/pages/management/ContractListPage";
 import ContractFormPage from "../modules/contracts/pages/management/ContractFormPage";
 import ContractMastersPage from "../modules/contracts/pages/management/ContractMastersPage";
-import SalaryCalculationPage from "../modules/employees/pages/SalaryCalculationPage";
+import SalaryCalculationPage from '../modules/employees/pages/SalaryCalculationPage';
+import CommissionMastersPage from '../modules/employees/pages/CommissionMastersPage';
+import BankListPage from "../modules/bank/pages/BankListPage";
+import BankFormPage from "../modules/bank/pages/BankFormPage";
 import { SettingsPage } from "../pages/settings/SettingsPage";
 import { NotificationsPage } from "../pages/notifications/NotificationsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
@@ -112,6 +119,8 @@ export const router = createBrowserRouter([
           {
             path: "/inventory/units",
             element: <UnitMasterPage />,
+            path: "/inventory/purchase-order",
+            element: <PurchaseOrderPage />,
           },
           {
             path: "/services",
@@ -218,8 +227,36 @@ export const router = createBrowserRouter([
             element: <PayrollPage />,
           },
           {
+            path: "/salary/add",
+            element: <SalaryAddPage />,
+          },
+          {
+            path: "/salary/view/:id",
+            element: <SalaryViewPage />,
+          },
+          {
+            path: "/salary/pay",
+            element: <SalaryPayPage />,
+          },
+          {
             path: "/payroll/calculate",
             element: <SalaryCalculationPage />,
+          },
+          {
+            path: "/payroll/commission-masters",
+            element: <CommissionMastersPage />,
+          },
+          {
+            path: "/bank",
+            element: <BankListPage />,
+          },
+          {
+            path: "/bank/new",
+            element: <BankFormPage />,
+          },
+          {
+            path: "/bank/edit/:id",
+            element: <BankFormPage />,
           },
           {
             path: "/settings",

@@ -13,12 +13,31 @@ import {
   FileText,
   Clock,
   CheckCircle2,
+  Medal,
+  Settings,
   type LucideIcon,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../../utils/format';
-import { calculateAllSalaries } from '../../../services/mockApi';
+import { calculateAllSalaries, fetchPayrollWithCommission, fetchCommissionBadgeConfig } from '../../../services/mockApi';
 import { useToastStore } from '../../../stores/toastStore';
 import { PageHeader } from '../../../components/ui/PageHeader';
+
+interface CommissionBadge {
+  name: string;
+  minSales: number;
+  maxSales: number;
+  commissionPercent: number;
+  color: string;
+  icon: string;
+}
+
+interface CommissionInfo {
+  amount: number;
+  badge: CommissionBadge | null;
+  saleCount: number;
+  totalSales: number;
+}
 
 interface StatCard {
   label: string;
@@ -45,9 +64,11 @@ interface SalaryRecord {
     absent: number;
     leaves: number;
   };
+  commissionInfo?: CommissionInfo;
 }
 
 const SalaryCalculationPage: React.FC = () => {
+  const navigate = useNavigate();
   const toast = useToastStore();
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,69 +76,22 @@ const SalaryCalculationPage: React.FC = () => {
   const [isCalculating, setIsCalculating] = useState(false);
   const [salaryRecords, setSalaryRecords] = useState<SalaryRecord[]>([]);
 
-  // Mock data generation
+  // Fetch payroll data with commission calculation
   useEffect(() => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      const mockRecords: SalaryRecord[] = [
-        {
-          id: '1',
-          employeeId: 'EMP001',
-          name: 'Alex Rivera',
-          role: 'Senior Stylist',
-          baseSalary: 45000,
-          allowances: 5000,
-          commissions: 12450,
-          deductions: 2100,
-          netPay: 60350,
-          status: 'calculated',
-          attendance: { present: 24, absent: 1, leaves: 1 }
-        },
-        {
-          id: '2',
-          employeeId: 'EMP002',
-          name: 'Sarah Chen',
-          role: 'Master Colorist',
-          baseSalary: 52000,
-          allowances: 6000,
-          commissions: 18900,
-          deductions: 2450,
-          netPay: 74450,
-          status: 'calculated',
-          attendance: { present: 26, absent: 0, leaves: 0 }
-        },
-        {
-          id: '3',
-          employeeId: 'EMP003',
-          name: 'Michael Ross',
-          role: 'Junior Barber',
-          baseSalary: 28000,
-          allowances: 2000,
-          commissions: 4500,
-          deductions: 1200,
-          netPay: 33300,
-          status: 'pending',
-          attendance: { present: 22, absent: 3, leaves: 1 }
-        },
-        {
-          id: '4',
-          employeeId: 'EMP004',
-          name: 'Elena Rodriguez',
-          role: 'Receptionist',
-          baseSalary: 25000,
-          allowances: 1500,
-          commissions: 0,
-          deductions: 1000,
-          netPay: 25500,
-          status: 'paid',
-          attendance: { present: 25, absent: 1, leaves: 0 }
-        }
-      ];
-      setSalaryRecords(mockRecords);
-      setIsLoading(false);
-    }, 800);
-  }, [selectedMonth]);
+    const loadPayroll = async () => {
+      setIsLoading(true);
+      try {
+        const records = await fetchPayrollWithCommission(selectedMonth);
+        setSalaryRecords(records);
+      } catch (err) {
+        toast.error('Failed to load payroll data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPayroll();
+  }, [selectedMonth, toast]);
 
   const filteredRecords = salaryRecords.filter(record => 
     record.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -186,6 +160,14 @@ const SalaryCalculationPage: React.FC = () => {
         title="Salary Calculation"
         action={
           <div className="flex items-center gap-3">
+            <button
+              className="btn-premium-outline flex items-center gap-2"
+              onClick={() => navigate('/payroll/commission-masters')}
+              title="Configure Commission Badges"
+            >
+              <Settings size={15} />
+              Commission Rules
+            </button>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-400" size={15} />
               <input
@@ -300,6 +282,19 @@ const SalaryCalculationPage: React.FC = () => {
                         <ArrowUpRight size={11} />
                         <span>Commission: {formatCurrency(record.commissions)}</span>
                       </div>
+                      {record.commissionInfo?.badge && (
+                        <div className="flex items-center gap-1 text-xs mt-1">
+                          <span 
+                            className="px-2 py-0.5 rounded-full text-white font-semibold"
+                            style={{ backgroundColor: record.commissionInfo.badge.color }}
+                          >
+                            {record.commissionInfo.badge.icon} {record.commissionInfo.badge.name}
+                          </span>
+                          <span className="text-slate-500">
+                            {record.commissionInfo.saleCount} sales · {record.commissionInfo.badge.commissionPercent}% of ₹{formatCurrency(record.commissionInfo.totalSales)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td>

@@ -20,9 +20,11 @@ import {
   X,
   Bell,
   ClipboardList,
+  ShoppingCart,
   BarChart2,
   UserCheck,
   BookOpen,
+  Building2,
 } from "lucide-react";
 import { useAuthStore } from "../../stores/authStore";
 
@@ -41,6 +43,7 @@ const adminNav = [
     icon: Package,
     links: [
       { label: "Inventory", to: "/inventory", icon: Package, exact: true },
+      { label: "New Purchase Order", to: "/inventory/purchase-order", icon: ShoppingCart },
       { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
       { label: "Unit Master", to: "/inventory/units", icon: Ruler },
     ],
@@ -78,7 +81,7 @@ const adminNav = [
     icon: DollarSign,
     links: [
       { label: "Payroll", to: "/payroll", icon: Wallet, exact: true },
-      { label: "Salary Calculation", to: "/payroll/calculate", icon: ClipboardList },
+      { label: "Commission Rules", to: "/payroll/commission-masters", icon: Briefcase },
     ],
   },
   {
@@ -89,6 +92,7 @@ const adminNav = [
       { label: "Local Expenses", to: "/expenses/local", icon: Receipt },
       { label: "Budgets", to: "/budgets", icon: Wallet },
       { label: "Outlets", to: "/outlets", icon: Store },
+      { label: "Bank Accounts", to: "/bank", icon: Building2, exact: true },
     ],
   },
   {
@@ -114,6 +118,7 @@ const managerNav = [
     icon: Package,
     links: [
       { label: "Inventory", to: "/inventory", icon: Package, exact: true },
+      { label: "New Purchase Order", to: "/inventory/purchase-order", icon: ShoppingCart },
       { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
       { label: "Unit Master", to: "/inventory/units", icon: Ruler },
     ],
@@ -151,7 +156,7 @@ const managerNav = [
     icon: DollarSign,
     links: [
       { label: "Payroll", to: "/payroll", icon: Wallet, exact: true },
-      { label: "Salary Calculation", to: "/payroll/calculate", icon: ClipboardList },
+      { label: "Commission Rules", to: "/payroll/commission-masters", icon: Briefcase },
     ],
   },
   {
@@ -160,6 +165,7 @@ const managerNav = [
     links: [
       { label: "Local Expenses", to: "/expenses/local", icon: Receipt },
       { label: "Budgets", to: "/budgets", icon: Wallet },
+      { label: "Bank Accounts", to: "/bank", icon: Building2, exact: true },
     ],
   },
   {

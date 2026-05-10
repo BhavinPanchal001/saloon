@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, ArrowLeftRight } from "lucide-react";
+import { X, Pencil, Trash2, Tag } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import {
   createProduct,
@@ -8,6 +9,11 @@ import {
   fetchOutlets,
   fetchProductMasters,
   fetchUnitMasters,
+  fetchServices,
+  fetchPackages,
+  fetchOutletPrices,
+  saveOutletItemPrice,
+  deleteOutletItemPrice,
   issueProductToOutlet,
 } from "../../services/mockApi";
 import { useAuthStore } from "../../stores/authStore";
@@ -36,6 +42,16 @@ const initialIssueForm = {
   productId: "",
   outletId: "",
   qty: 1,
+  sellingPrice: "",
+};
+
+const initialOutletPriceForm = {
+  type: "service",
+  outletId: "",
+  serviceId: "",
+  packageId: "",
+  productId: "",
+  price: "",
 };
 
 export function InventoryPage() {
@@ -49,15 +65,22 @@ export function InventoryPage() {
   const [inventory, setInventory] = useState([]);
   const [outlets, setOutlets] = useState([]);
   const [unitMasterList, setUnitMasterList] = useState([]);
+  const [servicesList, setServicesList] = useState([]);
+  const [packagesList, setPackagesList] = useState([]);
+  const [outletPrices, setOutletPrices] = useState([]);
+  const [outletPriceFilter, setOutletPriceFilter] = useState("");
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isPoModalOpen, setIsPoModalOpen] = useState(false);
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
+  const [isOutletPriceModalOpen, setIsOutletPriceModalOpen] = useState(false);
+  const [editingOutletPrice, setEditingOutletPrice] = useState(null);
   const [productForm, setProductForm] = useState(initialProductForm);
   const [poForm, setPoForm] = useState(initialPoForm);
   const [issueForm, setIssueForm] = useState({
     ...initialIssueForm,
     outletId: scopedOutletId,
   });
+  const [outletPriceForm, setOutletPriceForm] = useState(initialOutletPriceForm);
   const [feedback, setFeedback] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -67,12 +90,22 @@ export function InventoryPage() {
       fetchInventory({ outletId: isAdmin ? undefined : user?.outlet_id }),
       fetchOutlets(),
       fetchUnitMasters(),
-    ]);
+    const [productList, inventoryItems, outletList, serviceList, packageList, priceList] = await Promise.all([
+        fetchProductMasters(),
+        fetchInventory({ outletId: isAdmin ? undefined : user?.outlet_id }),
+        fetchOutlets(),
+        fetchServices(),
+        fetchPackages(),
+        fetchOutletPrices(),
+      ]);
 
     setProductMasters(productList);
     setInventory(inventoryItems);
     setOutlets(outletList);
     setUnitMasterList(unitList.filter((u) => u.status === "active"));
+    setServicesList(serviceList);
+    setPackagesList(packageList);
+    setOutletPrices(priceList);
   };
 
   useEffect(() => {
@@ -178,6 +211,30 @@ export function InventoryPage() {
     return inventory.filter((item) => item.outletId === outletFilter);
   }, [inventory, outletFilter]);
 
+  const filteredOutletPrices = useMemo(() => {
+    if (!outletPriceFilter) return outletPrices;
+    return outletPrices.filter((r) => r.outletId === outletPriceFilter);
+  }, [outletPrices, outletPriceFilter]);
+
+  const outletPriceFormItemId = outletPriceForm.type === "service"
+    ? outletPriceForm.serviceId
+    : outletPriceForm.type === "package"
+      ? outletPriceForm.packageId
+      : outletPriceForm.productId;
+
+  const outletPriceFormBasePrice = useMemo(() => {
+    if (outletPriceForm.type === "service") {
+      return servicesList.find((s) => s.id === outletPriceForm.serviceId)?.price || 0;
+    }
+    if (outletPriceForm.type === "package") {
+      return packagesList.find((p) => p.id === outletPriceForm.packageId)?.price || 0;
+    }
+    if (outletPriceForm.type === "product") {
+      return productMasters.find((p) => p.id === outletPriceForm.productId)?.unitPrice || 0;
+    }
+    return 0;
+  }, [outletPriceForm.type, outletPriceFormItemId, servicesList, packagesList, productMasters]);
+
   const handleIssueSubmit = async (event) => {
     event.preventDefault();
     resetMessages();
@@ -195,6 +252,51 @@ export function InventoryPage() {
       await loadInventoryPage();
     } catch (error) {
       setErrorMessage(error.message || "Unable to issue stock to outlet.");
+    }
+  };
+
+  const openAddOutletPrice = () => {
+    setEditingOutletPrice(null);
+    setOutletPriceForm(initialOutletPriceForm);
+    setIsOutletPriceModalOpen(true);
+  };
+
+  const openEditOutletPrice = (record) => {
+    setEditingOutletPrice(record);
+    setOutletPriceForm({
+      type: record.type,
+      outletId: record.outletId,
+      serviceId: record.serviceId || "",
+      packageId: record.packageId || "",
+      productId: record.productId || "",
+      price: String(record.price),
+    });
+    setIsOutletPriceModalOpen(true);
+  };
+
+  const handleOutletPriceSubmit = async (event) => {
+    event.preventDefault();
+    resetMessages();
+    try {
+      await saveOutletItemPrice(outletPriceForm);
+      setIsOutletPriceModalOpen(false);
+      setOutletPriceForm(initialOutletPriceForm);
+      setEditingOutletPrice(null);
+      setFeedback("Outlet price saved successfully.");
+      await loadInventoryPage();
+    } catch (error) {
+      setErrorMessage(error.message || "Unable to save outlet price.");
+    }
+  };
+
+  const handleDeleteOutletPrice = async (record) => {
+    resetMessages();
+    try {
+      await deleteOutletItemPrice(record);
+      setFeedback("Outlet price removed. Base price will be used.");
+      await loadInventoryPage();
+    } catch (error) {
+      setErrorMessage(error.message || "Unable to remove outlet price.");
     }
   };
 
@@ -252,10 +354,96 @@ export function InventoryPage() {
                 >
                   Outlet Stock
                 </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className={activeTab === "outlet_prices" ? "btn-premium-primary" : "btn-premium-outline"}
+                    onClick={() => setActiveTab("outlet_prices")}
+                  >
+                    Outlet Prices
+                  </button>
+                )}
               </div>
             </div>
 
-            {activeTab === "product_master" ? (
+            {activeTab === "outlet_prices" ? (
+              <>
+                <div className="px-8 pb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-slate-500">Filter by Outlet:</label>
+                    <select
+                      className="premium-input !py-2 !text-sm appearance-none min-w-[200px]"
+                      value={outletPriceFilter}
+                      onChange={(e) => setOutletPriceFilter(e.target.value)}
+                    >
+                      <option value="">All Outlets</option>
+                      {outlets.map((outlet) => (
+                        <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-premium-primary !py-2 !text-sm"
+                    onClick={openAddOutletPrice}
+                  >
+                    + Set Outlet Price
+                  </button>
+                </div>
+                {filteredOutletPrices.length === 0 ? (
+                  <div className="px-8 pb-8 text-sm text-slate-400 italic">
+                    No outlet-specific prices set. Items use their base price everywhere.
+                  </div>
+                ) : (
+                  <table className="premium-table">
+                    <thead>
+                      <tr>
+                        <th>Type</th>
+                        <th>Item</th>
+                        <th>Outlet</th>
+                        <th>Base Price</th>
+                        <th>Outlet Price</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredOutletPrices.map((record, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <span className={`rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${record.type === "service" ? "bg-navy-50 text-navy-600"
+                              : record.type === "package" ? "bg-gold-50 text-gold-700"
+                                : "bg-emerald-50 text-emerald-700"
+                              }`}>{record.type}</span>
+                          </td>
+                          <td className="font-bold text-navy-900">{record.itemName}</td>
+                          <td>{outletNameById[record.outletId] || record.outletId}</td>
+                          <td className="text-slate-400 line-through">{formatCurrency(record.basePrice)}</td>
+                          <td className="font-bold text-navy-800">{formatCurrency(record.price)}</td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEditOutletPrice(record)}
+                                className="flex items-center gap-1 rounded-lg border border-navy-200 bg-white px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                              >
+                                <Pencil className="h-3 w-3" /> Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteOutletPrice(record)}
+                                className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                              >
+                                <Trash2 className="h-3 w-3" /> Remove
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            ) : activeTab === "product_master" ? (
               <table className="premium-table">
                 <thead>
                   <tr>
@@ -469,268 +657,442 @@ export function InventoryPage() {
                 </select>
               </div>
 
-              {selectedProductUnitMaster ? (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="premium-label">Product Measure (Capacity)</label>
-                      <input
-                        type="number"
-                        min="0.001"
-                        step="any"
-                        className="premium-input"
-                        value={productForm.productMeasure}
-                        onChange={(e) =>
-                          setProductForm((current) => ({ ...current, productMeasure: e.target.value }))
-                        }
-                      />
+              {
+                selectedProductUnitMaster ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="premium-label">Product Measure (Capacity)</label>
+                        <input
+                          type="number"
+                          min="0.001"
+                          step="any"
+                          className="premium-input"
+                          value={productForm.productMeasure}
+                          onChange={(e) =>
+                            setProductForm((current) => ({ ...current, productMeasure: e.target.value }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="premium-label">Measure Unit</label>
+                        <select
+                          className="premium-input appearance-none"
+                          value={productForm.productMeasureUnit}
+                          onChange={(e) =>
+                            setProductForm((current) => ({ ...current, productMeasureUnit: e.target.value }))
+                          }
+                        >
+                          {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <div>
-                      <label className="premium-label">Measure Unit</label>
-                      <select
-                        className="premium-input appearance-none"
-                        value={productForm.productMeasureUnit}
-                        onChange={(e) =>
-                          setProductForm((current) => ({ ...current, productMeasureUnit: e.target.value }))
-                        }
-                      >
-                        {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="premium-label">Purchase Unit</label>
+                        <select
+                          className="premium-input appearance-none"
+                          value={productForm.purchaseUnit}
+                          onChange={(e) =>
+                            setProductForm((current) => ({ ...current, purchaseUnit: e.target.value }))
+                          }
+                        >
+                          {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="premium-label">Consumption Unit</label>
+                        <select
+                          className="premium-input appearance-none"
+                          value={productForm.consumptionUnit}
+                          onChange={(e) =>
+                            setProductForm((current) => ({ ...current, consumptionUnit: e.target.value }))
+                          }
+                        >
+                          {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="premium-label">Purchase Unit</label>
-                      <select
-                        className="premium-input appearance-none"
-                        value={productForm.purchaseUnit}
-                        onChange={(e) =>
-                          setProductForm((current) => ({ ...current, purchaseUnit: e.target.value }))
-                        }
-                      >
-                        {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
+                    <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-3 text-xs font-semibold text-navy-600">
+                      <ArrowLeftRight size={12} />
+                      <span>
+                        1 {selectedProductUnitMaster.primaryAbbr} = {selectedProductUnitMaster.conversionRatio} {selectedProductUnitMaster.secondaryAbbr}
+                      </span>
                     </div>
-                    <div>
-                      <label className="premium-label">Consumption Unit</label>
-                      <select
-                        className="premium-input appearance-none"
-                        value={productForm.consumptionUnit}
-                        onChange={(e) =>
-                          setProductForm((current) => ({ ...current, consumptionUnit: e.target.value }))
-                        }
-                      >
-                        {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-3 text-xs font-semibold text-navy-600">
-                    <ArrowLeftRight size={12} />
-                    <span>
-                      1 {selectedProductUnitMaster.primaryAbbr} = {selectedProductUnitMaster.conversionRatio} {selectedProductUnitMaster.secondaryAbbr}
-                    </span>
-                  </div>
-                </>
-              ) : null}
+                  </>
+                ) : null
+              }
 
+              <ImageUpload
+                label="Product Images"
+                value={productForm.images}
+                onChange={(images) =>
+                  setProductForm((current) => ({ ...current, images }))
+                }
+                accept="image/*"
+                maxSize={5 * 1024 * 1024}
+                multiple={true}
+                maxImages={5}
+              />
               <button type="submit" className="btn-premium-primary w-full">
                 Save Product Master
               </button>
-            </form>
-          </div>
-        </div>
-      ) : null}
+            </form >
+          </div >
+        </div >
+      ) : null
+      }
 
-      {isPoModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
-          <div className="card-solid w-full max-w-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-3xl text-navy-900">Create purchase order</h2>
-              </div>
-              <button type="button" className="btn-premium-outline !p-2 rounded-full" onClick={() => setIsPoModalOpen(false)}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <form className="mt-8 space-y-6" onSubmit={handlePoSubmit}>
-              <div>
-                <label className="premium-label">Supplier Name</label>
-                <input
-                  name="supplierName"
-                  className="premium-input"
-                  value={poForm.supplierName}
-                  onChange={handlePoChange}
-                  placeholder="Supplier or brand partner"
-                />
-              </div>
-              <div>
-                <label className="premium-label">Select Product Master</label>
-                <select
-                  name="productId"
-                  className="premium-input appearance-none"
-                  value={poForm.productId}
-                  onChange={(e) => {
-                    handlePoChange(e);
-                    // Reset unit to product's default purchase unit
-                    const prod = productMasters.find((p) => p.id === e.target.value);
-                    setPoForm((current) => ({ ...current, unit: prod?.purchaseUnit || "primary" }));
-                  }}
-                >
-                  <option value="">Choose a product</option>
-                  {productMasters.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.itemName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
+      {
+        isPoModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
+            <div className="card-solid w-full max-w-lg">
+              <div className="flex items-center justify-between">
                 <div>
-                  <label className="premium-label">Qty</label>
+                  <h2 className="text-3xl text-navy-900">Create purchase order</h2>
+                </div>
+                <button type="button" className="btn-premium-outline !p-2 rounded-full" onClick={() => setIsPoModalOpen(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form className="mt-8 space-y-6" onSubmit={handlePoSubmit}>
+                <div>
+                  <label className="premium-label">Supplier Name</label>
                   <input
-                    name="qty"
-                    type="number"
-                    min="0.001"
-                    step="any"
+                    name="supplierName"
                     className="premium-input"
-                    value={poForm.qty}
+                    value={poForm.supplierName}
                     onChange={handlePoChange}
+                    placeholder="Supplier or brand partner"
                   />
                 </div>
                 <div>
-                  <label className="premium-label">Unit</label>
+                  <label className="premium-label">Select Product Master</label>
                   <select
-                    name="unit"
+                    name="productId"
                     className="premium-input appearance-none"
-                    value={poForm.unit}
-                    onChange={(e) => setPoForm((current) => ({ ...current, unit: e.target.value }))}
+                    value={poForm.productId}
+                    onChange={(e) => {
+                      handlePoChange(e);
+                      // Reset unit to product's default purchase unit
+                      const prod = productMasters.find((p) => p.id === e.target.value);
+                      setPoForm((current) => ({ ...current, unit: prod?.purchaseUnit || "primary" }));
+                    }}
                   >
-                    {selectedPoUnitMaster
-                      ? getAvailableUnits(selectedPoUnitMaster).map((opt) => (
+                    <option value="">Choose a product</option>
+                    {productMasters.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.itemName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="premium-label">Qty</label>
+                    <input
+                      name="qty"
+                      type="number"
+                      min="0.001"
+                      step="any"
+                      className="premium-input"
+                      value={poForm.qty}
+                      onChange={handlePoChange}
+                    />
+                  </div>
+                  <div>
+                    <label className="premium-label">Unit</label>
+                    <select
+                      name="unit"
+                      className="premium-input appearance-none"
+                      value={poForm.unit}
+                      onChange={(e) => setPoForm((current) => ({ ...current, unit: e.target.value }))}
+                    >
+                      {selectedPoUnitMaster
+                        ? getAvailableUnits(selectedPoUnitMaster).map((opt) => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))
-                      : <option value="primary">Unit</option>
+                        : <option value="primary">Unit</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label className="premium-label">Total Cost</label>
+                    <input
+                      name="totalCost"
+                      type="number"
+                      className="premium-input"
+                      value={poForm.totalCost}
+                      onChange={handlePoChange}
+                    />
+                  </div>
+                </div>
+                {selectedPoProduct && selectedPoUnitMaster ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-4 text-xs font-semibold text-navy-600">
+                      <span className="h-2 w-2 rounded-full bg-navy-400"></span>
+                      Current central stock: {selectedPoProduct.centralStock} {selectedPoUnitMaster.primaryAbbr}
+                    </div>
+                    {poForm.unit === "secondary" && poForm.qty ? (
+                      <div className="flex items-center gap-2 rounded-2xl bg-gold-50/50 p-3 text-xs font-semibold text-gold-700">
+                        <ArrowLeftRight size={12} />
+                        {poForm.qty} {selectedPoUnitMaster.secondaryAbbr} = {convertToBase(poForm.qty, selectedPoUnitMaster.conversionRatio, "secondary").toFixed(4).replace(/\.?0+$/, "")} {selectedPoUnitMaster.primaryAbbr} (base unit)
+                      </div>
+                    ) : null}
+                  </div>
+                ) : selectedPoProduct ? (
+                  <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-4 text-xs font-semibold text-navy-600">
+                    <span className="h-2 w-2 rounded-full bg-navy-400"></span>
+                    Current central stock: {selectedPoProduct.centralStock}
+                  </div>
+                ) : null}
+                <button type="submit" className="btn-premium-primary w-full">
+                  Record PO
+                </button>
+              </form>
+            </div>
+          </div>
+        ) : null
+      }
+
+      {
+        isIssueModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
+            <div className="card-solid w-full max-w-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl text-navy-900">Issue product to outlet</h2>
+                </div>
+                <button type="button" className="btn-premium-outline !p-2 rounded-full" onClick={() => setIsIssueModalOpen(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form className="mt-8 space-y-6" onSubmit={handleIssueSubmit}>
+                <div>
+                  <label className="premium-label">Product Master</label>
+                  <select
+                    className="premium-input appearance-none"
+                    value={issueForm.productId}
+                    onChange={(event) =>
+                      setIssueForm((current) => ({ ...current, productId: event.target.value }))
                     }
+                  >
+                    <option value="">Choose a product</option>
+                    {productMasters.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.itemName}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="premium-label">Total Cost</label>
+                  <label className="premium-label">Target Outlet</label>
+                  <select
+                    className="premium-input appearance-none"
+                    value={issueForm.outletId}
+                    onChange={(event) =>
+                      setIssueForm((current) => ({ ...current, outletId: event.target.value }))
+                    }
+                  >
+                    <option value="">Select outlet</option>
+                    {outlets.map((outlet) => (
+                      <option key={outlet.id} value={outlet.id}>
+                        {outlet.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="premium-label">Qty to Issue</label>
                   <input
-                    name="totalCost"
                     type="number"
+                    min="1"
                     className="premium-input"
-                    value={poForm.totalCost}
-                    onChange={handlePoChange}
+                    value={issueForm.qty}
+                    onChange={(event) =>
+                      setIssueForm((current) => ({ ...current, qty: event.target.value }))
+                    }
                   />
                 </div>
-              </div>
-              {selectedPoProduct && selectedPoUnitMaster ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-4 text-xs font-semibold text-navy-600">
-                    <span className="h-2 w-2 rounded-full bg-navy-400"></span>
-                    Current central stock: {selectedPoProduct.centralStock} {selectedPoUnitMaster.primaryAbbr}
+                <div>
+                  <label className="premium-label">Outlet Selling Price (optional)</label>
+                  <div className="relative">
+                    <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="premium-input !pl-9"
+                      placeholder={selectedIssueProduct ? `Base: ${formatCurrency(selectedIssueProduct.unitPrice)}` : "Leave blank to use base price"}
+                      value={issueForm.sellingPrice}
+                      onChange={(event) =>
+                        setIssueForm((current) => ({ ...current, sellingPrice: event.target.value }))
+                      }
+                    />
                   </div>
-                  {poForm.unit === "secondary" && poForm.qty ? (
-                    <div className="flex items-center gap-2 rounded-2xl bg-gold-50/50 p-3 text-xs font-semibold text-gold-700">
-                      <ArrowLeftRight size={12} />
-                      {poForm.qty} {selectedPoUnitMaster.secondaryAbbr} = {convertToBase(poForm.qty, selectedPoUnitMaster.conversionRatio, "secondary").toFixed(4).replace(/\.?0+$/, "")} {selectedPoUnitMaster.primaryAbbr} (base unit)
-                    </div>
-                  ) : null}
+                  <p className="mt-1.5 text-xs text-slate-400">Set a custom price for this product at the selected outlet. Leave blank to use the default unit price.</p>
                 </div>
-              ) : selectedPoProduct ? (
-                <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-4 text-xs font-semibold text-navy-600">
-                  <span className="h-2 w-2 rounded-full bg-navy-400"></span>
-                  Current central stock: {selectedPoProduct.centralStock}
-                </div>
-              ) : null}
-              <button type="submit" className="btn-premium-primary w-full">
-                Record PO
-              </button>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {isIssueModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
-          <div className="card-solid w-full max-w-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-3xl text-navy-900">Issue product to outlet</h2>
-              </div>
-              <button type="button" className="btn-premium-outline !p-2 rounded-full" onClick={() => setIsIssueModalOpen(false)}>
-                <X size={20} />
-              </button>
+                {selectedIssueProduct ? (
+                  <div className="flex items-center gap-2 rounded-2xl bg-gold-50/50 p-4 text-xs font-semibold text-gold-700">
+                    <span className="h-2 w-2 rounded-full bg-gold-400"></span>
+                    Available central stock: {selectedIssueProduct.centralStock}
+                  </div>
+                ) : null}
+                <button type="submit" className="btn-premium-primary w-full shadow-gold-500/20">
+                  Confirm Issue
+                </button>
+              </form>
             </div>
-
-            <form className="mt-8 space-y-6" onSubmit={handleIssueSubmit}>
-              <div>
-                <label className="premium-label">Product Master</label>
-                <select
-                  className="premium-input appearance-none"
-                  value={issueForm.productId}
-                  onChange={(event) =>
-                    setIssueForm((current) => ({ ...current, productId: event.target.value }))
-                  }
-                >
-                  <option value="">Choose a product</option>
-                  {productMasters.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.itemName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="premium-label">Target Outlet</label>
-                <select
-                  className="premium-input appearance-none"
-                  value={issueForm.outletId}
-                  onChange={(event) =>
-                    setIssueForm((current) => ({ ...current, outletId: event.target.value }))
-                  }
-                >
-                  <option value="">Select outlet</option>
-                  {outlets.map((outlet) => (
-                    <option key={outlet.id} value={outlet.id}>
-                      {outlet.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="premium-label">Qty to Issue</label>
-                <input
-                  type="number"
-                  min="1"
-                  className="premium-input"
-                  value={issueForm.qty}
-                  onChange={(event) =>
-                    setIssueForm((current) => ({ ...current, qty: event.target.value }))
-                  }
-                />
-              </div>
-              {selectedIssueProduct ? (
-                <div className="flex items-center gap-2 rounded-2xl bg-gold-50/50 p-4 text-xs font-semibold text-gold-700">
-                  <span className="h-2 w-2 rounded-full bg-gold-400"></span>
-                  Available central stock: {selectedIssueProduct.centralStock}
-                </div>
-              ) : null}
-              <button type="submit" className="btn-premium-primary w-full shadow-gold-500/20">
-                Confirm Issue
-              </button>
-            </form>
           </div>
-        </div>
-      ) : null}
+        ) : null
+      }
 
-    </div>
+      {
+        isOutletPriceModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
+            <div className="card-solid w-full max-w-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl text-navy-900">
+                    {editingOutletPrice ? "Edit outlet price" : "Set outlet price"}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">Override the default price for a service, package, or product at a specific outlet.</p>
+                </div>
+                <button type="button" className="btn-premium-outline !p-2 rounded-full" onClick={() => setIsOutletPriceModalOpen(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form className="mt-6 space-y-5" onSubmit={handleOutletPriceSubmit}>
+                <div>
+                  <label className="premium-label">Item Type</label>
+                  <div className="flex gap-2">
+                    {["service", "package", "product"].map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        disabled={Boolean(editingOutletPrice)}
+                        onClick={() => setOutletPriceForm((f) => ({ ...f, type: t, serviceId: "", packageId: "", productId: "" }))}
+                        className={`flex-1 rounded-xl border py-2 text-xs font-black uppercase tracking-widest transition ${outletPriceForm.type === t
+                          ? "bg-navy-900 text-white border-navy-900"
+                          : "bg-white text-navy-600 border-navy-200 hover:bg-navy-50"
+                          } disabled:opacity-50`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="premium-label">Outlet</label>
+                  <select
+                    required
+                    disabled={Boolean(editingOutletPrice)}
+                    className="premium-input appearance-none disabled:opacity-60"
+                    value={outletPriceForm.outletId}
+                    onChange={(e) => setOutletPriceForm((f) => ({ ...f, outletId: e.target.value }))}
+                  >
+                    <option value="">Select outlet</option>
+                    {outlets.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {outletPriceForm.type === "service" && (
+                  <div>
+                    <label className="premium-label">Service</label>
+                    <select
+                      required
+                      disabled={Boolean(editingOutletPrice)}
+                      className="premium-input appearance-none disabled:opacity-60"
+                      value={outletPriceForm.serviceId}
+                      onChange={(e) => setOutletPriceForm((f) => ({ ...f, serviceId: e.target.value }))}
+                    >
+                      <option value="">Choose a service</option>
+                      {servicesList.map((s) => (
+                        <option key={s.id} value={s.id}>{s.serviceName}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {outletPriceForm.type === "package" && (
+                  <div>
+                    <label className="premium-label">Package</label>
+                    <select
+                      required
+                      disabled={Boolean(editingOutletPrice)}
+                      className="premium-input appearance-none disabled:opacity-60"
+                      value={outletPriceForm.packageId}
+                      onChange={(e) => setOutletPriceForm((f) => ({ ...f, packageId: e.target.value }))}
+                    >
+                      <option value="">Choose a package</option>
+                      {packagesList.map((p) => (
+                        <option key={p.id} value={p.id}>{p.packageName}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {outletPriceForm.type === "product" && (
+                  <div>
+                    <label className="premium-label">Product</label>
+                    <select
+                      required
+                      disabled={Boolean(editingOutletPrice)}
+                      className="premium-input appearance-none disabled:opacity-60"
+                      value={outletPriceForm.productId}
+                      onChange={(e) => setOutletPriceForm((f) => ({ ...f, productId: e.target.value }))}
+                    >
+                      <option value="">Choose a product</option>
+                      {productMasters.map((p) => (
+                        <option key={p.id} value={p.id}>{p.itemName}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="premium-label">Outlet Price</label>
+                  <div className="relative">
+                    <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      className="premium-input !pl-9"
+                      placeholder="Enter outlet-specific price"
+                      value={outletPriceForm.price}
+                      onChange={(e) => setOutletPriceForm((f) => ({ ...f, price: e.target.value }))}
+                    />
+                  </div>
+                  {outletPriceFormBasePrice > 0 && (
+                    <p className="mt-1.5 text-xs text-slate-400">
+                      Base price: <span className="font-semibold text-slate-600">{formatCurrency(outletPriceFormBasePrice)}</span>
+                    </p>
+                  )}
+                </div>
+
+                <button type="submit" className="btn-premium-primary w-full">
+                  Save Outlet Price
+                </button>
+              </form>
+            </div>
+          </div>
+        ) : null
+      }
+
+    </div >
   );
 }

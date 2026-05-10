@@ -2,19 +2,35 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createService, fetchProductMasters, fetchServices, fetchServiceCategories } from '../../../services/mockApi';
 import { getAvailableUnits, getUnitAbbr, convertToBase } from '../../../utils/unitConversion';
+import { ImageUpload } from '../../../components/ui/ImageUpload';
 import '../styles/services.css';
 
-const createInitialLinkage = () => ({
+interface ProductLinkage {
+  inventoryId: string;
+  quantityUsed: number;
+}
+
+interface ServiceForm {
+  serviceName: string;
+  category: string;
+  price: string;
+  duration: string;
+  images: string[];
+  productLinkages: ProductLinkage[];
+}
+
+const createInitialLinkage = (): ProductLinkage => ({
   inventoryId: "",
   quantityUsed: 1,
   consumptionUnit: "primary",
 });
 
-const createInitialServiceForm = () => ({
+const createInitialServiceForm = (): ServiceForm => ({
   serviceName: "",
   category: "hair",
   price: "",
   duration: "",
+  images: [],
   productLinkages: [createInitialLinkage()],
 });
 
@@ -24,7 +40,7 @@ const ServiceFormPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
-  const [form, setForm] = useState(createInitialServiceForm());
+  const [form, setForm] = useState<ServiceForm>(createInitialServiceForm());
 
   useEffect(() => {
     const loadData = async () => {
@@ -77,12 +93,12 @@ const ServiceFormPage: React.FC = () => {
     <div className="services-module">
       <header className="module-header">
         <div className="module-title">
-          <button 
+          <button
             onClick={() => navigate('/services')}
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              color: 'var(--svc-primary)', 
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--svc-primary)',
               cursor: 'pointer',
               marginBottom: '0.5rem',
               display: 'flex',
@@ -127,7 +143,7 @@ const ServiceFormPage: React.FC = () => {
                   </select>
                 </div>
                 <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                   <div className="form-field">
+                  <div className="form-field">
                     <label>Price (RM)</label>
                     <input
                       type="number"
@@ -148,6 +164,15 @@ const ServiceFormPage: React.FC = () => {
                     />
                   </div>
                 </div>
+                <ImageUpload
+                  label="Service Images"
+                  value={form.images}
+                  onChange={(images: string[]) => setForm({ ...form, images })}
+                  accept="image/*"
+                  maxSize={5 * 1024 * 1024}
+                  multiple={true}
+                  maxImages={5}
+                />
               </div>
             </div>
 
@@ -229,19 +254,19 @@ const ServiceFormPage: React.FC = () => {
                         >
                           {unitOptions.length > 0
                             ? unitOptions.map((opt) => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                              ))
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))
                             : <option value="primary">Unit</option>
                           }
                         </select>
                       </div>
                       <button
                         type="button"
-                        style={{ 
-                          height: '42px', 
-                          width: '42px', 
-                          display: 'flex', 
-                          alignItems: 'center', 
+                        style={{
+                          height: '42px',
+                          width: '42px',
+                          display: 'flex',
+                          alignItems: 'center',
                           justifyContent: 'center',
                           background: '#fee2e2',
                           color: '#ef4444',
@@ -279,15 +304,15 @@ const ServiceFormPage: React.FC = () => {
               <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1.5rem' }}>
                 Ready to make this service available in your catalog?
               </p>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="btn-premium-primary w-full"
                 disabled={loading}
               >
                 {loading ? 'Saving...' : id ? 'Update Service' : 'Create Service'}
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn-premium-outline w-full mt-3"
                 onClick={() => navigate('/services')}
               >

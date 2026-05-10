@@ -7,6 +7,8 @@ import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase } from "../../utils/unitConversion";
 import { InvoiceModal } from "./InvoiceModal";
 import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight } from "lucide-react";
+import { Search, Minus, Plus, Trash2, ShoppingCart } from "lucide-react";
+import BankSelector from "../../modules/bank/components/BankSelector";
 
 const paymentMethods = ["Cash", "Card", "UPI"];
 
@@ -21,6 +23,7 @@ export function POSPage() {
   const [customer, setCustomer] = useState({ name: "", phone: "" });
   const [cart, setCart] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [selectedBankId, setSelectedBankId] = useState("");
   const [payloadPreview, setPayloadPreview] = useState(null);
   const [showInvoice, setShowInvoice] = useState(false);
   const [currentBill, setCurrentBill] = useState(null);
@@ -192,6 +195,7 @@ export function POSPage() {
     if (cart.length === 0) return;
     setCart([]);
     setPaymentMethod("");
+    setSelectedBankId("");
     toast.success("Cart cleared");
   };
 
@@ -239,12 +243,15 @@ export function POSPage() {
   const hasUnassignedService = cart.some(
     (line) => line.type === "service" && !line.staffId,
   );
-  const canCheckout = cart.length > 0 && paymentMethod && !hasUnassignedService;
+  // Bank required for Card and UPI payments, optional for Cash
+  const isBankRequired = paymentMethod === "Card" || paymentMethod === "UPI";
+  const canCheckout = cart.length > 0 && paymentMethod && !hasUnassignedService && (!isBankRequired || selectedBankId);
 
   const handleCheckout = async () => {
     const payload = {
       customer,
       paymentMethod,
+      bankId: selectedBankId || null,
       outletId: selectedOutlet || user?.outlet_id || "all_outlets",
       subtotal,
       tax,
@@ -259,20 +266,20 @@ export function POSPage() {
         productConsumption:
           line.type === "service" && line.productLinkages?.length > 0
             ? line.productLinkages
-                .filter((link) => link.inventoryId)
-                .map((link) => ({
-                  productId: link.inventoryId,
-                  qty: (Number(link.currentQty) || 0) * line.quantity,
-                  unit: link.currentUnit || "primary",
-                }))
+              .filter((link) => link.inventoryId)
+              .map((link) => ({
+                productId: link.inventoryId,
+                qty: (Number(link.currentQty) || 0) * line.quantity,
+                unit: link.currentUnit || "primary",
+              }))
             : undefined,
         includedServices:
           line.type === "package"
             ? line.serviceItems.map((service) => ({
-                serviceId: service.serviceId,
-                serviceName: service.serviceName,
-                sessions: service.sessions,
-              }))
+              serviceId: service.serviceId,
+              serviceName: service.serviceName,
+              sessions: service.sessions,
+            }))
             : undefined,
       })),
     };
@@ -286,6 +293,7 @@ export function POSPage() {
     });
     setCart([]);
     setPaymentMethod("");
+    setSelectedBankId("");
     setCustomer({ name: "", phone: "" });
     toast.success(`Bill ${result.billNumber} created successfully!`);
   };
@@ -338,11 +346,10 @@ export function POSPage() {
                 <button
                   key={category}
                   onClick={() => setActiveCategory(category)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                    activeCategory === category
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${activeCategory === category
                       ? "bg-navy-900 text-white"
                       : "bg-white/60 text-slate-600 hover:bg-white border border-navy-50"
-                  }`}
+                    }`}
                 >
                   {category}
                 </button>
@@ -371,13 +378,12 @@ export function POSPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span
-                    className={`rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${
-                      item.type === "service"
+                    className={`rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${item.type === "service"
                         ? "bg-navy-50 text-navy-600"
                         : item.type === "package"
                           ? "bg-gold-50 text-gold-700"
                           : "bg-emerald-50 text-emerald-700"
-                    }`}
+                      }`}
                   >
                     {item.type}
                   </span>
@@ -654,12 +660,31 @@ export function POSPage() {
                       ? "rounded-xl bg-navy-900 py-3 text-[10px] font-black uppercase tracking-widest text-white ring-2 ring-navy-300"
                       : "rounded-xl border border-navy-100 bg-white py-3 text-[10px] font-black uppercase tracking-widest text-navy-600 transition hover:bg-navy-50"
                   }
-                  onClick={() => setPaymentMethod(method)}
+                  onClick={() => {
+                    setPaymentMethod(method);
+                    // Clear bank selection when switching to Cash
+                    if (method === "Cash") {
+                      setSelectedBankId("");
+                    }
+                  }}
                 >
                   {method}
                 </button>
               ))}
             </div>
+
+            {/* Bank Selection - Show for Card and UPI payments */}
+            {paymentMethod && paymentMethod !== "Cash" && (
+              <div className="mt-3">
+                <BankSelector
+                  value={selectedBankId}
+                  onChange={setSelectedBankId}
+                  label="Deposit Bank Account"
+                  required={isBankRequired}
+                  placeholder="Select bank for deposit"
+                />
+              </div>
+            )}
 
             {cart.length === 0 && (
               <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
@@ -676,6 +701,15 @@ export function POSPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <span>Select a payment method to continue</span>
+              </div>
+            )}
+
+            {cart.length > 0 && isBankRequired && !selectedBankId && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
+                <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>Select a bank account for {paymentMethod} deposit</span>
               </div>
             )}
 

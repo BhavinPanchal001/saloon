@@ -13,6 +13,81 @@ const commissionMap = {
   "Tier 3": 6500,
 };
 
+// Commission Badge Configuration - Sales Volume Based
+// Bronze: 100-499 sales, Silver: 500-999 sales, Gold: 1000+ sales
+const commissionBadgeConfig = {
+  bronze: {
+    name: "Bronze",
+    minSales: 100,
+    maxSales: 499,
+    commissionPercent: 1, // 1% of total sales
+    color: "#CD7F32",
+    icon: "🥉",
+  },
+  silver: {
+    name: "Silver",
+    minSales: 500,
+    maxSales: 999,
+    commissionPercent: 2, // 2% of total sales
+    color: "#C0C0C0",
+    icon: "🥈",
+  },
+  gold: {
+    name: "Gold",
+    minSales: 1000,
+    maxSales: Infinity,
+    commissionPercent: 3, // 3% of total sales
+    color: "#FFD700",
+    icon: "🥇",
+  },
+};
+
+// Helper: Calculate employee sales for a given month from bills
+const calculateEmployeeMonthlySales = (staffId, monthKey) => {
+  const [year, month] = monthKey.split("-");
+  const startOfMonth = new Date(Number(year), Number(month) - 1, 1);
+  const endOfMonth = new Date(Number(year), Number(month), 0, 23, 59, 59);
+
+  let totalSales = 0;
+  let saleCount = 0;
+
+  bills.forEach((bill) => {
+    const billDate = new Date(bill.createdAt);
+    if (billDate >= startOfMonth && billDate <= endOfMonth && bill.status === "paid") {
+      bill.lineItems.forEach((item) => {
+        if (item.staffAssigned === staffId) {
+          totalSales += item.price * item.qty;
+          saleCount += 1;
+        }
+      });
+    }
+  });
+
+  return { totalSales, saleCount };
+};
+
+// Helper: Determine commission badge based on sale count
+const determineCommissionBadge = (saleCount) => {
+  if (saleCount >= commissionBadgeConfig.gold.minSales) {
+    return commissionBadgeConfig.gold;
+  } else if (saleCount >= commissionBadgeConfig.silver.minSales) {
+    return commissionBadgeConfig.silver;
+  } else if (saleCount >= commissionBadgeConfig.bronze.minSales) {
+    return commissionBadgeConfig.bronze;
+  }
+  return null;
+};
+
+// Helper: Calculate commission based on badge and total sales
+const calculateCommission = (totalSales, saleCount) => {
+  const badge = determineCommissionBadge(saleCount);
+  if (!badge) {
+    return { amount: 0, badge: null, saleCount, totalSales };
+  }
+  const amount = Math.round((totalSales * badge.commissionPercent) / 100);
+  return { amount, badge, saleCount, totalSales };
+};
+
 let outlets = [
   {
     id: "outlet_hsr",
@@ -234,6 +309,12 @@ let outletInventory = [
   },
 ];
 
+let outletProductPrices = [];
+
+let outletServicePrices = [];
+
+let outletPackagePrices = [];
+
 let stockIssues = [
   {
     id: "issue_001",
@@ -393,8 +474,8 @@ const cloneLinkages = (linkages = []) =>
 const resolvePackageOutletNames = (assignedOutletIds = []) =>
   assignedOutletIds.length
     ? assignedOutletIds.map(
-        (outletId) => outlets.find((outlet) => outlet.id === outletId)?.name || outletId,
-      )
+      (outletId) => outlets.find((outlet) => outlet.id === outletId)?.name || outletId,
+    )
     : ["All outlets"];
 
 const normalizePackageServices = (selectedServices = []) => {
@@ -645,10 +726,10 @@ const getIssuedStock = (productId) =>
 
 const withProductPresentation = (product) => {
   const unitMaster = _findUnitMaster(product.unitMasterId);
-  const measureLabel = unitMaster 
+  const measureLabel = unitMaster
     ? (product.productMeasureUnit === "secondary" ? `${product.productMeasure} ${unitMaster.secondaryAbbr}` : `${product.productMeasure} ${unitMaster.primaryAbbr}`)
     : "";
-    
+
   return {
     ...product,
     issuedStock: getIssuedStock(product.id),
@@ -877,6 +958,20 @@ export const issueProductToOutlet = async (payload) => {
 
   stockIssues = [stockIssue, ...stockIssues];
 
+  if (payload.sellingPrice !== undefined && payload.sellingPrice !== "") {
+    const sellingPrice = Number(payload.sellingPrice);
+    if (Number.isFinite(sellingPrice) && sellingPrice >= 0) {
+      const existingPriceIdx = outletProductPrices.findIndex(
+        (r) => r.productId === payload.productId && r.outletId === payload.outletId,
+      );
+      if (existingPriceIdx >= 0) {
+        outletProductPrices[existingPriceIdx].price = sellingPrice;
+      } else {
+        outletProductPrices.push({ productId: payload.productId, outletId: payload.outletId, price: sellingPrice });
+      }
+    }
+  }
+
   return clone({
     ...stockIssue,
     itemName: product.itemName,
@@ -993,7 +1088,7 @@ export const createService = async (payload) => {
   } else {
     services = [service, ...services];
   }
-  
+
   return clone(service);
 };
 
@@ -1126,18 +1221,18 @@ export const grantAdvance = async (staffId, payload) => {
   staffMembers = staffMembers.map((member) =>
     member.id === staffId
       ? {
-          ...member,
-          advances: [
-            ...member.advances,
-            {
-              id: createId("adv"),
-              totalAdvanceAmount: Number(payload.totalAdvanceAmount),
-              deductionStartMonth: payload.deductionStartMonth,
-              duration: Number(payload.duration),
-              emi: Number(emi.toFixed(2)),
-            },
-          ],
-        }
+        ...member,
+        advances: [
+          ...member.advances,
+          {
+            id: createId("adv"),
+            totalAdvanceAmount: Number(payload.totalAdvanceAmount),
+            deductionStartMonth: payload.deductionStartMonth,
+            duration: Number(payload.duration),
+            emi: Number(emi.toFixed(2)),
+          },
+        ],
+      }
       : member,
   );
 
@@ -1406,13 +1501,19 @@ export const fetchCatalog = async ({ outletId } = {}) => {
   const products = (outletId
     ? filterByOutlet(outletInventory, outletId).map(withInventoryPresentation)
     : aggregateInventoryAcrossOutlets()
-  ).map((product) => ({
-    id: product.productId,
-    type: "product",
-    name: product.itemName,
-    price: product.unitPrice,
-    stock: product.currentStock,
-  }));
+  ).map((product) => {
+    const outletPriceRecord = outletId
+      ? outletProductPrices.find((r) => r.productId === product.productId && r.outletId === outletId)
+      : null;
+    return {
+      id: product.productId,
+      type: "product",
+      name: product.itemName,
+      price: outletPriceRecord ? outletPriceRecord.price : product.unitPrice,
+      basePrice: product.unitPrice,
+      stock: product.currentStock,
+    };
+  });
 
   const serviceCards = services.map((service) => {
     // Enrich each product linkage with its product's unit master info
@@ -1426,6 +1527,9 @@ export const fetchCatalog = async ({ outletId } = {}) => {
         consumptionUnit: link.consumptionUnit || product?.consumptionUnit || "primary",
       };
     });
+    const outletPriceRecord = outletId
+      ? outletServicePrices.find((r) => r.serviceId === service.id && r.outletId === outletId)
+      : null;
     return {
       id: service.id,
       type: "service",
@@ -1433,24 +1537,34 @@ export const fetchCatalog = async ({ outletId } = {}) => {
       price: service.price,
       duration: service.duration,
       productLinkages: clone(enrichedLinkages),
+      price: outletPriceRecord ? outletPriceRecord.price : service.price,
+      basePrice: service.price,
+      duration: service.duration,
+      productLinkages: clone(service.productLinkages || []),
     };
   });
 
-  const packageCards = packages.map((servicePackage) => ({
-    id: servicePackage.id,
-    type: "package",
-    name: servicePackage.packageName,
-    price: servicePackage.price,
-    duration: servicePackage.totalDuration,
-    offerLabel: servicePackage.offerLabel,
-    serviceCount: servicePackage.serviceCount,
-    serviceItems: clone(servicePackage.serviceItems),
-    totalOriginalPrice: servicePackage.totalOriginalPrice,
-    savings: servicePackage.savings,
-    validityDays: servicePackage.validityDays,
-    status: servicePackage.status,
-    assignedOutletIds: servicePackage.assignedOutletIds,
-  }))
+  const packageCards = packages.map((servicePackage) => {
+    const outletPriceRecord = outletId
+      ? outletPackagePrices.find((r) => r.packageId === servicePackage.id && r.outletId === outletId)
+      : null;
+    return {
+      id: servicePackage.id,
+      type: "package",
+      name: servicePackage.packageName,
+      price: outletPriceRecord ? outletPriceRecord.price : servicePackage.price,
+      basePrice: servicePackage.price,
+      duration: servicePackage.totalDuration,
+      offerLabel: servicePackage.offerLabel,
+      serviceCount: servicePackage.serviceCount,
+      serviceItems: clone(servicePackage.serviceItems),
+      totalOriginalPrice: servicePackage.totalOriginalPrice,
+      savings: servicePackage.savings,
+      validityDays: servicePackage.validityDays,
+      status: servicePackage.status,
+      assignedOutletIds: servicePackage.assignedOutletIds,
+    };
+  })
     .filter((servicePackage) => servicePackage.status === "active")
     .filter(
       (servicePackage) =>
@@ -1468,14 +1582,14 @@ let bills = [
     customer: { name: "Priya Sharma", phone: "+91 98765 10001" }, paymentMethod: "Card",
     outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 5000, tax: 400, total: 5400,
     lineItems: [
-      { 
+      {
         itemName: "Signature Hair Color", itemType: "service", qty: 1, price: 3200, staffAssigned: "staff_naina",
         productConsumption: [
           { productId: "inv_loreal_tube", qty: 1, unit: "primary" },
           { productId: "inv_bleach", qty: 250, unit: "secondary" }
         ]
       },
-      { 
+      {
         itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia",
         productConsumption: [
           { productId: "inv_hair_spa", qty: 100, unit: "secondary" },
@@ -1489,7 +1603,7 @@ let bills = [
     customer: { name: "Ananya Reddy", phone: "+91 98765 10002" }, paymentMethod: "UPI",
     outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 4300, tax: 344, total: 4644,
     lineItems: [
-      { 
+      {
         itemName: "Color Reset Ritual", itemType: "package", qty: 1, price: 4300, staffAssigned: null,
         productConsumption: [
           { productId: "inv_shampoo", qty: 50, unit: "secondary" },
@@ -1513,7 +1627,7 @@ let bills = [
     customer: { name: "Kavitha Nair", phone: "+91 98765 10004" }, paymentMethod: "Card",
     outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 650, tax: 52, total: 702,
     lineItems: [
-      { 
+      {
         itemName: "Beard Sculpt", itemType: "service", qty: 1, price: 650, staffAssigned: "staff_naina",
         productConsumption: [
           { productId: "inv_hair_spa", qty: 10, unit: "secondary" }
@@ -1526,14 +1640,14 @@ let bills = [
     customer: { name: "Divya Patel", phone: "+91 98765 10005" }, paymentMethod: "UPI",
     outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 5540, tax: 443.2, total: 5983.2,
     lineItems: [
-      { 
+      {
         itemName: "Signature Hair Color", itemType: "service", qty: 1, price: 3200, staffAssigned: "staff_naina",
         productConsumption: [
           { productId: "inv_loreal_tube", qty: 1, unit: "primary" }
         ]
       },
       { itemName: "Spa Cream Jar", itemType: "product", qty: 1, price: 540, staffAssigned: null },
-      { 
+      {
         itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia",
         productConsumption: [
           { productId: "inv_hair_spa", qty: 50, unit: "secondary" }
@@ -1546,7 +1660,7 @@ let bills = [
     customer: { name: "Ritu Kapoor", phone: "+91 98765 10006" }, paymentMethod: "Cash",
     outletId: "outlet_hsr", outletName: "HSR Layout", status: "refunded", subtotal: 1800, tax: 144, total: 1944,
     lineItems: [
-      { 
+      {
         itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia",
         productConsumption: [
           { productId: "inv_hair_spa", qty: 80, unit: "secondary" }
@@ -1712,6 +1826,9 @@ export const fetchAttendanceData = async ({ date, outletId }) => {
       return {
         ...withOutletName(staff),
         attendanceStatus: record?.status || "not_marked",
+        checkIn: record?.checkIn || null,
+        checkOut: record?.checkOut || null,
+        breaks: record?.breaks || [],
       };
     }),
   );
@@ -1723,9 +1840,82 @@ export const markAttendance = async ({ staffId, date, status }) => {
   if (index >= 0) {
     attendanceRecords[index].status = status;
   } else {
-    attendanceRecords.push({ staffId, date, status });
+    attendanceRecords.push({ staffId, date, status, checkIn: null, checkOut: null, breaks: [] });
   }
   return { success: true };
+};
+
+export const checkInStaff = async ({ staffId, date, photoData }) => {
+  await delay();
+  const index = attendanceRecords.findIndex((r) => r.staffId === staffId && r.date === date);
+  const timestamp = new Date().toISOString();
+  if (index >= 0) {
+    attendanceRecords[index].checkIn = { timestamp, photo: photoData };
+    attendanceRecords[index].status = "present";
+  } else {
+    attendanceRecords.push({
+      staffId,
+      date,
+      status: "present",
+      checkIn: { timestamp, photo: photoData },
+      checkOut: null,
+      breaks: [],
+    });
+  }
+  return { success: true, timestamp };
+};
+
+export const checkOutStaff = async ({ staffId, date, photoData }) => {
+  await delay();
+  const index = attendanceRecords.findIndex((r) => r.staffId === staffId && r.date === date);
+  const timestamp = new Date().toISOString();
+  if (index >= 0) {
+    attendanceRecords[index].checkOut = { timestamp, photo: photoData };
+  } else {
+    attendanceRecords.push({
+      staffId,
+      date,
+      status: "present",
+      checkIn: null,
+      checkOut: { timestamp, photo: photoData },
+      breaks: [],
+    });
+  }
+  return { success: true, timestamp };
+};
+
+export const breakInStaff = async ({ staffId, date, photoData }) => {
+  await delay();
+  const index = attendanceRecords.findIndex((r) => r.staffId === staffId && r.date === date);
+  const timestamp = new Date().toISOString();
+  if (index >= 0) {
+    attendanceRecords[index].breaks = [...(attendanceRecords[index].breaks || []), { in: timestamp, out: null, photo: photoData }];
+  } else {
+    attendanceRecords.push({
+      staffId,
+      date,
+      status: "present",
+      checkIn: null,
+      checkOut: null,
+      breaks: [{ in: timestamp, out: null, photo: photoData }],
+    });
+  }
+  return { success: true, timestamp };
+};
+
+export const breakOutStaff = async ({ staffId, date, photoData }) => {
+  await delay();
+  const index = attendanceRecords.findIndex((r) => r.staffId === staffId && r.date === date);
+  const timestamp = new Date().toISOString();
+  if (index >= 0) {
+    const breaks = attendanceRecords[index].breaks || [];
+    const lastBreak = breaks[breaks.length - 1];
+    if (lastBreak && !lastBreak.out) {
+      lastBreak.out = timestamp;
+      lastBreak.outPhoto = photoData;
+    }
+  }
+  return { success: true, timestamp };
 };
 
 export const fetchOutletProfile = async (outletId) => {
@@ -1737,52 +1927,52 @@ export const fetchOutletProfile = async (outletId) => {
 
 export const fetchPurchaseOrders = async ({ outletId } = {}) => {
   await delay();
-  
+
   let result = purchaseOrders.map(po => ({
     ...po,
     supplierName: po.supplierName || "Unknown Supplier",
   }));
-  
+
   if (outletId) {
     result = result.filter(po => po.outletId === outletId);
   }
-  
+
   return clone(result);
 };
 
 export const approvePurchaseOrder = async (orderId) => {
   await delay(400);
-  
+
   const orderIndex = purchaseOrders.findIndex((order) => order.id === orderId);
-  
+
   if (orderIndex === -1) {
     throw new Error("Purchase order not found.");
   }
-  
+
   purchaseOrders[orderIndex] = {
     ...purchaseOrders[orderIndex],
     status: "approved",
     approvedAt: new Date().toISOString(),
   };
-  
+
   return clone(purchaseOrders[orderIndex]);
 };
 
 export const receivePurchaseOrder = async (orderId) => {
   await delay(400);
-  
+
   const orderIndex = purchaseOrders.findIndex((order) => order.id === orderId);
-  
+
   if (orderIndex === -1) {
     throw new Error("Purchase order not found.");
   }
-  
+
   purchaseOrders[orderIndex] = {
     ...purchaseOrders[orderIndex],
     status: "received",
     receivedAt: new Date().toISOString(),
   };
-  
+
   return clone(purchaseOrders[orderIndex]);
 };
 
@@ -1827,6 +2017,74 @@ export const saveSettings = async (newSettings) => {
     ...newSettings,
   };
   return clone(settings);
+};
+
+export const fetchOutletPrices = async ({ outletId } = {}) => {
+  await delay();
+  const productPrices = (outletId
+    ? outletProductPrices.filter((r) => r.outletId === outletId)
+    : outletProductPrices
+  ).map((r) => {
+    const product = findProductMaster(r.productId);
+    return { ...r, itemName: product?.itemName || r.productId, type: "product", basePrice: product?.unitPrice || 0 };
+  });
+  const servicePrices = (outletId
+    ? outletServicePrices.filter((r) => r.outletId === outletId)
+    : outletServicePrices
+  ).map((r) => {
+    const service = services.find((s) => s.id === r.serviceId);
+    return { ...r, itemName: service?.serviceName || r.serviceId, type: "service", basePrice: service?.price || 0 };
+  });
+  const packagePrices = (outletId
+    ? outletPackagePrices.filter((r) => r.outletId === outletId)
+    : outletPackagePrices
+  ).map((r) => {
+    const pkg = packages.find((p) => p.id === r.packageId);
+    return { ...r, itemName: pkg?.packageName || r.packageId, type: "package", basePrice: pkg?.price || 0 };
+  });
+  return clone([...productPrices, ...servicePrices, ...packagePrices]);
+};
+
+export const saveOutletItemPrice = async (payload) => {
+  await delay();
+  const { type, outletId, price } = payload;
+  const parsedPrice = Number(price);
+  if (!Number.isFinite(parsedPrice) || parsedPrice < 0) throw new Error("Invalid price value.");
+  if (type === "product") {
+    const idx = outletProductPrices.findIndex((r) => r.productId === payload.productId && r.outletId === outletId);
+    if (idx >= 0) outletProductPrices[idx].price = parsedPrice;
+    else outletProductPrices.push({ productId: payload.productId, outletId, price: parsedPrice });
+  } else if (type === "service") {
+    const idx = outletServicePrices.findIndex((r) => r.serviceId === payload.serviceId && r.outletId === outletId);
+    if (idx >= 0) outletServicePrices[idx].price = parsedPrice;
+    else outletServicePrices.push({ serviceId: payload.serviceId, outletId, price: parsedPrice });
+  } else if (type === "package") {
+    const idx = outletPackagePrices.findIndex((r) => r.packageId === payload.packageId && r.outletId === outletId);
+    if (idx >= 0) outletPackagePrices[idx].price = parsedPrice;
+    else outletPackagePrices.push({ packageId: payload.packageId, outletId, price: parsedPrice });
+  } else {
+    throw new Error("Unknown item type.");
+  }
+  return { success: true };
+};
+
+export const deleteOutletItemPrice = async (payload) => {
+  await delay();
+  const { type, outletId } = payload;
+  if (type === "product") {
+    outletProductPrices = outletProductPrices.filter(
+      (r) => !(r.productId === payload.productId && r.outletId === outletId),
+    );
+  } else if (type === "service") {
+    outletServicePrices = outletServicePrices.filter(
+      (r) => !(r.serviceId === payload.serviceId && r.outletId === outletId),
+    );
+  } else if (type === "package") {
+    outletPackagePrices = outletPackagePrices.filter(
+      (r) => !(r.packageId === payload.packageId && r.outletId === outletId),
+    );
+  }
+  return { success: true };
 };
 
 export const deleteService = async (serviceId) => {
@@ -1904,6 +2162,76 @@ export const calculateAllSalaries = async (month) => {
     message: `Salaries calculated for ${month}`,
     calculatedCount: staffMembers.length,
   };
+};
+
+// Calculate commission for a specific employee
+export const fetchEmployeeCommission = async (staffId, month) => {
+  await delay(300);
+  const staff = staffMembers.find((s) => s.id === staffId);
+  if (!staff) {
+    throw new Error("Employee not found.");
+  }
+
+  const { totalSales, saleCount } = calculateEmployeeMonthlySales(staffId, month);
+  const commissionData = calculateCommission(totalSales, saleCount);
+
+  return clone({
+    employeeId: staffId,
+    employeeName: staff.name,
+    month,
+    ...commissionData,
+  });
+};
+
+// Fetch payroll records with commission calculation for all employees
+export const fetchPayrollWithCommission = async (month) => {
+  await delay(800);
+
+  const payrollRecords = staffMembers.map((staff) => {
+    const { totalSales, saleCount } = calculateEmployeeMonthlySales(staff.id, month);
+    const commissionData = calculateCommission(totalSales, saleCount);
+
+    // Calculate base salary components
+    const baseSalary = staff.baseSalary || 30000;
+    const pfDeduction = staff.pfDeduction || Math.round(baseSalary * 0.12);
+    const taxDeduction = staff.taxType === "percentage"
+      ? Math.round((baseSalary * staff.taxValue) / 100)
+      : staff.taxValue || 0;
+
+    // Fixed allowances
+    const allowances = 3500; // HRA + Medical + Travel
+
+    // Total commission from badge system
+    const commissionAmount = commissionData.amount;
+
+    // Calculate net pay
+    const grossPay = baseSalary + allowances + commissionAmount;
+    const totalDeductions = pfDeduction + taxDeduction;
+    const netPay = grossPay - totalDeductions;
+
+    return {
+      id: staff.id,
+      employeeId: staff.id,
+      name: staff.name,
+      role: staff.role,
+      baseSalary,
+      allowances,
+      commissions: commissionAmount,
+      deductions: totalDeductions,
+      netPay,
+      status: 'calculated',
+      attendance: { present: 24, absent: 1, leaves: 1 }, // Mock attendance
+      commissionInfo: commissionData,
+    };
+  });
+
+  return clone(payrollRecords);
+};
+
+// Get commission badge configuration
+export const fetchCommissionBadgeConfig = async () => {
+  await delay(200);
+  return clone(commissionBadgeConfig);
 };
 
 export const fetchRevenueChart = async ({ outletId } = {}) => {
@@ -2267,4 +2595,64 @@ export const toggleSalaryMasterStatus = async (id) => {
     updatedAt: new Date().toISOString(),
   };
   return clone(salaryMasters[index]);
+};
+
+// ─── Multi-product Purchase Order ────────────────────────────────────────────
+
+export const createMultiProductPurchaseOrder = async (payload) => {
+  await delay();
+
+  const { supplierName, items, taxRate, notes } = payload;
+
+  if (!items || items.length === 0) {
+    throw new Error("At least one product is required.");
+  }
+
+  const orderItems = items.map((item) => {
+    const product = productMasters.find((p) => p.id === item.productId);
+    if (!product) throw new Error(`Product not found: ${item.productId}`);
+    const qty = Math.max(1, Number(item.qty) || 0);
+    return {
+      productId: product.id,
+      productName: product.itemName,
+      qty,
+      unitPrice: Number(item.unitPrice) || product.unitPrice,
+    };
+  });
+
+  const subtotal = orderItems.reduce((sum, i) => sum + i.qty * i.unitPrice, 0);
+  const tax = Math.round(subtotal * ((Number(taxRate) || 0) / 100) * 100) / 100;
+  const totalCost = subtotal + tax;
+
+  // Update central stock for each item
+  orderItems.forEach((item) => {
+    productMasters = productMasters.map((p) =>
+      p.id === item.productId
+        ? { ...p, centralStock: p.centralStock + item.qty }
+        : p,
+    );
+  });
+
+  const poNumber = `PO-${new Date().getFullYear()}-${String(purchaseOrders.length + 1).padStart(3, "0")}`;
+
+  const purchaseOrder = {
+    id: createId("po"),
+    poNumber,
+    supplierName: supplierName || "Direct Purchase",
+    supplierContact: "",
+    supplierEmail: "",
+    status: "pending",
+    orderDate: new Date().toISOString().slice(0, 10),
+    expectedDate: "",
+    totalCost,
+    subtotal,
+    taxRate: Number(taxRate) || 0,
+    taxAmount: tax,
+    notes: notes || "",
+    items: orderItems,
+  };
+
+  purchaseOrders = [purchaseOrder, ...purchaseOrders];
+
+  return clone(purchaseOrder);
 };
