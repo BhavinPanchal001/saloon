@@ -4,8 +4,9 @@ import { checkoutBill, fetchCatalog, fetchStaff, fetchOutlets, fetchProductMaste
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
+import { getAvailableUnits, getUnitAbbr, convertToBase } from "../../utils/unitConversion";
 import { InvoiceModal } from "./InvoiceModal";
-import { Search, Minus, Plus, Trash2, ShoppingCart } from "lucide-react";
+import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight } from "lucide-react";
 
 const paymentMethods = ["Cash", "Card", "UPI"];
 
@@ -62,8 +63,18 @@ export function POSPage() {
         fetchProductMasters(),
       ]);
 
-      setCatalog(catalogItems);
-      setFilteredCatalog(catalogItems);
+      const productMeasureMap = Object.fromEntries(
+        products.map((p) => [p.id, p.productMeasureLabel])
+      );
+
+      setCatalog(catalogItems.map(item => ({
+        ...item,
+        measureLabel: item.type === "product" ? productMeasureMap[item.id] : ""
+      })));
+      setFilteredCatalog(catalogItems.map(item => ({
+        ...item,
+        measureLabel: item.type === "product" ? productMeasureMap[item.id] : ""
+      })));
       setStaffMembers(staffList);
       setProductMasters(products);
     };
@@ -98,11 +109,14 @@ export function POSPage() {
           serviceItems: item.serviceItems || [],
           productLinkages: (item.productLinkages || []).map((link) => ({
             ...link,
-            qtyAdjustment: 0, // User adjustment on top of base quantity
+            currentQty: link.quantityUsed, // editable quantity
+            currentUnit: link.consumptionUnit || "primary", // editable unit
+            unitMaster: link.unitMaster || null,
+            unitMasterId: link.unitMasterId || null,
           })),
           quantity: 1,
           staffId: "",
-          customPrice: null, // For editing service price when products change
+          customPrice: null,
         },
       ];
     });
@@ -122,9 +136,39 @@ export function POSPage() {
           ...line,
           productLinkages: line.productLinkages.map((link) =>
             link.inventoryId === inventoryId
-              ? { ...link, qtyAdjustment: (link.qtyAdjustment || 0) + delta }
+              ? { ...link, currentQty: Math.max(0, (Number(link.currentQty) || 0) + delta) }
               : link
           ),
+        };
+      })
+    );
+  };
+
+  const updateProductLinkageField = (lineId, inventoryId, field, value) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          productLinkages: line.productLinkages.map((link) => {
+            if (link.inventoryId !== inventoryId) return link;
+            // If switching unit, auto-convert the quantity
+            if (field === "currentUnit" && link.unitMaster) {
+              const oldUnit = link.currentUnit;
+              const newUnit = value;
+              if (oldUnit !== newUnit) {
+                const ratio = link.unitMaster.conversionRatio;
+                let newQty = link.currentQty;
+                if (oldUnit === "primary" && newUnit === "secondary") {
+                  newQty = (Number(link.currentQty) || 0) * ratio;
+                } else if (oldUnit === "secondary" && newUnit === "primary") {
+                  newQty = (Number(link.currentQty) || 0) / ratio;
+                }
+                return { ...link, currentUnit: newUnit, currentQty: Number(newQty.toFixed(4)) };
+              }
+            }
+            return { ...link, [field]: value };
+          }),
         };
       })
     );
@@ -212,6 +256,16 @@ export function POSPage() {
         qty: line.quantity,
         price: getLinePrice(line),
         staffAssigned: line.type === "service" ? line.staffId : null,
+        productConsumption:
+          line.type === "service" && line.productLinkages?.length > 0
+            ? line.productLinkages
+                .filter((link) => link.inventoryId)
+                .map((link) => ({
+                  productId: link.inventoryId,
+                  qty: (Number(link.currentQty) || 0) * line.quantity,
+                  unit: link.currentUnit || "primary",
+                }))
+            : undefined,
         includedServices:
           line.type === "package"
             ? line.serviceItems.map((service) => ({
@@ -332,7 +386,9 @@ export function POSPage() {
                   </div>
                 </div>
 
-                <p className="text-sm font-bold text-navy-900 leading-snug">{item.name}</p>
+                <p className="text-sm font-bold text-navy-900 leading-snug">
+                  {item.name} {item.measureLabel && <span className="text-navy-400 font-normal ml-1">({item.measureLabel})</span>}
+                </p>
 
                 <p className="mt-1 text-[11px] text-slate-400 font-medium">
                   {item.type === "service"
@@ -471,40 +527,69 @@ export function POSPage() {
                           )}
                         </div>
 
-                        {/* Products used in service */}
+                        {/* Products used in service — editable measurements */}
                         {line.productLinkages && line.productLinkages.length > 0 && (
                           <div className="mt-3 space-y-2 rounded-lg bg-navy-50 p-3 border border-navy-100">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-navy-500">Products Used</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-navy-500">Product Consumption</p>
                             {line.productLinkages.map((link) => {
-                              // Calculate actual quantity: base from service × service quantity + user adjustment
-                              const baseQty = link.quantityUsed * line.quantity;
-                              const adjustment = link.qtyAdjustment || 0;
-                              const finalQty = Math.max(0, baseQty + adjustment);
+                              const finalQty = Math.max(0, Number(link.currentQty) || 0);
+                              const um = link.unitMaster;
+                              const unitAbbr = um ? getUnitAbbr(um, link.currentUnit || 'primary') : '';
+                              const unitOptions = um ? getAvailableUnits(um) : [];
+                              const showConversion = um && link.currentUnit === 'secondary' && finalQty > 0;
+                              const baseEquiv = showConversion
+                                ? convertToBase(finalQty, um.conversionRatio, 'secondary')
+                                : null;
+
                               return (
-                                <div key={link.inventoryId} className="flex items-center justify-between gap-2">
-                                  <span className="text-xs text-navy-700 truncate flex-1">
-                                    {productNameById[link.inventoryId] || link.inventoryId}
-                                  </span>
-                                  <div className="flex items-center gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, -1)}
-                                      className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
-                                      disabled={finalQty <= 0}
-                                    >
-                                      <Minus className="h-2.5 w-2.5" />
-                                    </button>
-                                    <span className="w-6 text-center text-xs font-semibold text-navy-700">
-                                      {finalQty}
+                                <div key={link.inventoryId} className="space-y-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-navy-700 truncate flex-1">
+                                      {productNameById[link.inventoryId] || link.inventoryId}
                                     </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, 1)}
-                                      className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
-                                    >
-                                      <Plus className="h-2.5 w-2.5" />
-                                    </button>
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, link.currentUnit === 'secondary' ? -1 : -0.1)}
+                                        className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                        disabled={finalQty <= 0}
+                                      >
+                                        <Minus className="h-2.5 w-2.5" />
+                                      </button>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="any"
+                                        value={finalQty}
+                                        onChange={(e) => updateProductLinkageField(line.lineId, link.inventoryId, 'currentQty', Number(e.target.value) || 0)}
+                                        className="w-16 text-center text-xs font-semibold text-navy-700 border border-navy-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:border-navy-400"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, link.currentUnit === 'secondary' ? 1 : 0.1)}
+                                        className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                      >
+                                        <Plus className="h-2.5 w-2.5" />
+                                      </button>
+                                      {unitOptions.length > 0 ? (
+                                        <select
+                                          className="text-[10px] font-semibold text-navy-600 bg-white border border-navy-200 rounded px-1 py-0.5 appearance-none"
+                                          value={link.currentUnit || 'primary'}
+                                          onChange={(e) => updateProductLinkageField(line.lineId, link.inventoryId, 'currentUnit', e.target.value)}
+                                        >
+                                          {unitOptions.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                          ))}
+                                        </select>
+                                      ) : null}
+                                    </div>
                                   </div>
+                                  {showConversion && baseEquiv !== null ? (
+                                    <div className="flex items-center gap-1 text-[10px] text-slate-400 pl-1">
+                                      <ArrowLeftRight className="h-2.5 w-2.5" />
+                                      <span>= {baseEquiv.toFixed(4).replace(/\.?0+$/, '')} {um.primaryAbbr}</span>
+                                    </div>
+                                  ) : null}
                                 </div>
                               );
                             })}

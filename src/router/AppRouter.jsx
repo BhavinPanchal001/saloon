@@ -6,6 +6,7 @@ import { ExpensesPage } from "../pages/expenses/ExpensesPage";
 import { BudgetsPage } from "../pages/expenses/BudgetsPage";
 import { InventoryPage } from "../pages/inventory/InventoryPage";
 import { PurchaseOrderHistoryPage } from "../pages/inventory/PurchaseOrderHistoryPage";
+import { UnitMasterPage } from "../pages/inventory/UnitMasterPage";
 import { LoginPage } from "../pages/auth/LoginPage";
 import { ForgotPasswordPage } from "../pages/auth/ForgotPasswordPage";
 import { RegisterPage } from "../pages/auth/RegisterPage";
@@ -107,6 +108,10 @@ export const router = createBrowserRouter([
           {
             path: "/inventory/po-history",
             element: <PurchaseOrderHistoryPage />,
+          },
+          {
+            path: "/inventory/units",
+            element: <UnitMasterPage />,
           },
           {
             path: "/services",

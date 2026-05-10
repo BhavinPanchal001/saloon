@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Package,
   Receipt,
+  Ruler,
   Scissors,
   Settings,
   Store,
@@ -41,6 +42,7 @@ const adminNav = [
     links: [
       { label: "Inventory", to: "/inventory", icon: Package, exact: true },
       { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
+      { label: "Unit Master", to: "/inventory/units", icon: Ruler },
     ],
   },
   {
@@ -113,6 +115,7 @@ const managerNav = [
     links: [
       { label: "Inventory", to: "/inventory", icon: Package, exact: true },
       { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
+      { label: "Unit Master", to: "/inventory/units", icon: Ruler },
     ],
   },
   {

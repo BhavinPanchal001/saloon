@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchBills } from "../../services/mockApi";
+import { fetchBills, fetchProductMasters } from "../../services/mockApi";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 import { InvoiceModal } from "./InvoiceModal";
-import { Search, Download, Filter, FileText } from "lucide-react";
+import { BillDetailModal } from "./BillDetailModal";
+import { Search, Download, Filter, FileText, Eye } from "lucide-react";
 
 const paymentFilters = ["All", "Cash", "Card", "UPI"];
 
@@ -27,14 +28,20 @@ export default function BillingListPage() {
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [selectedBill, setSelectedBill] = useState(null);
+  const [viewBill, setViewBill] = useState(null);
+  const [productMasters, setProductMasters] = useState([]);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const data = await fetchBills({
-        outletId: user?.role === "admin" ? undefined : user?.outlet_id,
-      });
-      setBills(data);
+      const [billsData, productsData] = await Promise.all([
+        fetchBills({
+          outletId: user?.role === "admin" ? undefined : user?.outlet_id,
+        }),
+        fetchProductMasters(),
+      ]);
+      setBills(billsData);
+      setProductMasters(productsData);
       setLoading(false);
     };
     if (user) load();
@@ -156,7 +163,7 @@ export default function BillingListPage() {
                 <th>Payment</th>
                 <th>Status</th>
                 <th className="text-right">Total</th>
-                <th className="text-center">Invoice</th>
+                <th className="text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -200,13 +207,24 @@ export default function BillingListPage() {
                     <span className="text-sm font-black text-navy-900">{formatCurrency(bill.total)}</span>
                   </td>
                   <td className="text-center">
-                    <button
-                      onClick={() => handleDownload(bill)}
-                      className="group inline-flex items-center gap-1.5 rounded-2xl border border-gold-300/50 bg-gold-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gold-700 transition-all hover:bg-gold-400 hover:text-navy-900 hover:shadow-gold"
-                    >
-                      <Download size={13} />
-                      Invoice
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => setViewBill(bill)}
+                        className="group inline-flex items-center gap-1.5 rounded-2xl border border-navy-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-widest text-navy-600 transition-all hover:bg-navy-900 hover:text-white hover:border-navy-900"
+                        title="View Details"
+                      >
+                        <Eye size={13} />
+                        View
+                      </button>
+                      <button
+                        onClick={() => handleDownload(bill)}
+                        className="group inline-flex items-center gap-1.5 rounded-2xl border border-gold-300/50 bg-gold-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gold-700 transition-all hover:bg-gold-400 hover:text-navy-900 hover:shadow-gold"
+                        title="Print Invoice"
+                      >
+                        <Download size={13} />
+                        Invoice
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -218,6 +236,15 @@ export default function BillingListPage() {
       {/* Invoice Modal */}
       {selectedBill && (
         <InvoiceModal bill={selectedBill} onClose={() => setSelectedBill(null)} />
+      )}
+
+      {/* View Bill Details Modal */}
+      {viewBill && (
+        <BillDetailModal 
+          bill={viewBill} 
+          productMasters={productMasters}
+          onClose={() => setViewBill(null)} 
+        />
       )}
     </div>
   );

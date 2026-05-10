@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { X, ArrowLeftRight } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import {
   createProduct,
@@ -7,20 +7,28 @@ import {
   fetchInventory,
   fetchOutlets,
   fetchProductMasters,
+  fetchUnitMasters,
   issueProductToOutlet,
 } from "../../services/mockApi";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
+import { getAvailableUnits, getUnitAbbr, convertToBase, convertFromBase } from "../../utils/unitConversion";
 
 const initialProductForm = {
   itemName: "",
   unitPrice: "",
+  unitMasterId: "",
+  purchaseUnit: "primary",
+  consumptionUnit: "primary",
+  productMeasure: 1,
+  productMeasureUnit: "primary",
 };
 
 const initialPoForm = {
   supplierName: "",
   productId: "",
   qty: 1,
+  unit: "primary",
   totalCost: "",
 };
 
@@ -40,6 +48,7 @@ export function InventoryPage() {
   const [productMasters, setProductMasters] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [outlets, setOutlets] = useState([]);
+  const [unitMasterList, setUnitMasterList] = useState([]);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isPoModalOpen, setIsPoModalOpen] = useState(false);
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
@@ -53,15 +62,17 @@ export function InventoryPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const loadInventoryPage = async () => {
-    const [productList, inventoryItems, outletList] = await Promise.all([
+    const [productList, inventoryItems, outletList, unitList] = await Promise.all([
       fetchProductMasters(),
       fetchInventory({ outletId: isAdmin ? undefined : user?.outlet_id }),
       fetchOutlets(),
+      fetchUnitMasters(),
     ]);
 
     setProductMasters(productList);
     setInventory(inventoryItems);
     setOutlets(outletList);
+    setUnitMasterList(unitList.filter((u) => u.status === "active"));
   };
 
   useEffect(() => {
@@ -84,6 +95,16 @@ export function InventoryPage() {
     [poForm.productId, productMasters],
   );
 
+  const selectedPoUnitMaster = useMemo(
+    () => selectedPoProduct?.unitMaster || null,
+    [selectedPoProduct],
+  );
+
+  const selectedProductUnitMaster = useMemo(
+    () => unitMasterList.find((u) => u.id === productForm.unitMasterId) || null,
+    [productForm.unitMasterId, unitMasterList],
+  );
+
   const selectedIssueProduct = useMemo(
     () => productMasters.find((item) => item.id === issueForm.productId),
     [issueForm.productId, productMasters],
@@ -99,7 +120,10 @@ export function InventoryPage() {
     resetMessages();
 
     try {
-      await createProduct(productForm);
+      await createProduct({
+        ...productForm,
+        unitMasterId: productForm.unitMasterId || "unit_piece",
+      });
       setProductForm(initialProductForm);
       setIsProductModalOpen(false);
       setFeedback("Product master created. You can now raise a purchase order against it.");
@@ -136,7 +160,10 @@ export function InventoryPage() {
     resetMessages();
 
     try {
-      await createPurchaseOrder(poForm);
+      await createPurchaseOrder({
+        ...poForm,
+        unit: poForm.unit || "primary",
+      });
       setPoForm(initialPoForm);
       setIsPoModalOpen(false);
       setFeedback("Purchase order recorded and stock moved into central inventory.");
@@ -233,6 +260,8 @@ export function InventoryPage() {
                 <thead>
                   <tr>
                     <th>Item Name</th>
+                    <th>Measure</th>
+                    <th>Unit Group</th>
                     <th>Unit Price</th>
                     <th>Central Stock</th>
                     <th>Issued to Outlets</th>
@@ -243,10 +272,30 @@ export function InventoryPage() {
                   {productMasters.map((item) => (
                     <tr key={item.id}>
                       <td className="font-bold text-navy-900">{item.itemName}</td>
+                      <td>
+                        <span className="text-xs font-bold text-navy-600">
+                          {item.productMeasureLabel || "—"}
+                        </span>
+                      </td>
+                      <td>
+                        {item.unitMaster ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-navy-50 px-2.5 py-1 text-[11px] font-semibold text-navy-600">
+                            <ArrowLeftRight size={10} />
+                            {item.unitMaster.primaryAbbr} ↔ {item.unitMaster.secondaryAbbr}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
                       <td>{formatCurrency(item.unitPrice)}</td>
-                      <td>{item.centralStock}</td>
-                      <td>{item.issuedStock}</td>
-                      <td>{item.totalNetworkStock}</td>
+                      <td>
+                        {item.centralStock}
+                        {item.unitMaster ? (
+                          <span className="ml-1 text-xs text-slate-400">{item.unitMaster.primaryAbbr}</span>
+                        ) : null}
+                      </td>
+                      <td>{item.issuedStock}{item.unitMaster ? <span className="ml-1 text-xs text-slate-400">{item.unitMaster.primaryAbbr}</span> : null}</td>
+                      <td>{item.totalNetworkStock}{item.unitMaster ? <span className="ml-1 text-xs text-slate-400">{item.unitMaster.primaryAbbr}</span> : null}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -395,6 +444,101 @@ export function InventoryPage() {
                   }
                 />
               </div>
+
+              {/* Unit Master Selection */}
+              <div>
+                <label className="premium-label">Unit Master</label>
+                <select
+                  className="premium-input appearance-none"
+                  value={productForm.unitMasterId}
+                  onChange={(event) =>
+                    setProductForm((current) => ({
+                      ...current,
+                      unitMasterId: event.target.value,
+                      purchaseUnit: "primary",
+                      consumptionUnit: "primary",
+                    }))
+                  }
+                >
+                  <option value="">Select Unit Group</option>
+                  {unitMasterList.map((um) => (
+                    <option key={um.id} value={um.id}>
+                      {um.groupName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedProductUnitMaster ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="premium-label">Product Measure (Capacity)</label>
+                      <input
+                        type="number"
+                        min="0.001"
+                        step="any"
+                        className="premium-input"
+                        value={productForm.productMeasure}
+                        onChange={(e) =>
+                          setProductForm((current) => ({ ...current, productMeasure: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="premium-label">Measure Unit</label>
+                      <select
+                        className="premium-input appearance-none"
+                        value={productForm.productMeasureUnit}
+                        onChange={(e) =>
+                          setProductForm((current) => ({ ...current, productMeasureUnit: e.target.value }))
+                        }
+                      >
+                        {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="premium-label">Purchase Unit</label>
+                      <select
+                        className="premium-input appearance-none"
+                        value={productForm.purchaseUnit}
+                        onChange={(e) =>
+                          setProductForm((current) => ({ ...current, purchaseUnit: e.target.value }))
+                        }
+                      >
+                        {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="premium-label">Consumption Unit</label>
+                      <select
+                        className="premium-input appearance-none"
+                        value={productForm.consumptionUnit}
+                        onChange={(e) =>
+                          setProductForm((current) => ({ ...current, consumptionUnit: e.target.value }))
+                        }
+                      >
+                        {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-3 text-xs font-semibold text-navy-600">
+                    <ArrowLeftRight size={12} />
+                    <span>
+                      1 {selectedProductUnitMaster.primaryAbbr} = {selectedProductUnitMaster.conversionRatio} {selectedProductUnitMaster.secondaryAbbr}
+                    </span>
+                  </div>
+                </>
+              ) : null}
+
               <button type="submit" className="btn-premium-primary w-full">
                 Save Product Master
               </button>
@@ -432,7 +576,12 @@ export function InventoryPage() {
                   name="productId"
                   className="premium-input appearance-none"
                   value={poForm.productId}
-                  onChange={handlePoChange}
+                  onChange={(e) => {
+                    handlePoChange(e);
+                    // Reset unit to product's default purchase unit
+                    const prod = productMasters.find((p) => p.id === e.target.value);
+                    setPoForm((current) => ({ ...current, unit: prod?.purchaseUnit || "primary" }));
+                  }}
                 >
                   <option value="">Choose a product</option>
                   {productMasters.map((item) => (
@@ -442,17 +591,34 @@ export function InventoryPage() {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="premium-label">Qty</label>
                   <input
                     name="qty"
                     type="number"
-                    min="1"
+                    min="0.001"
+                    step="any"
                     className="premium-input"
                     value={poForm.qty}
                     onChange={handlePoChange}
                   />
+                </div>
+                <div>
+                  <label className="premium-label">Unit</label>
+                  <select
+                    name="unit"
+                    className="premium-input appearance-none"
+                    value={poForm.unit}
+                    onChange={(e) => setPoForm((current) => ({ ...current, unit: e.target.value }))}
+                  >
+                    {selectedPoUnitMaster
+                      ? getAvailableUnits(selectedPoUnitMaster).map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))
+                      : <option value="primary">Unit</option>
+                    }
+                  </select>
                 </div>
                 <div>
                   <label className="premium-label">Total Cost</label>
@@ -465,7 +631,20 @@ export function InventoryPage() {
                   />
                 </div>
               </div>
-              {selectedPoProduct ? (
+              {selectedPoProduct && selectedPoUnitMaster ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-4 text-xs font-semibold text-navy-600">
+                    <span className="h-2 w-2 rounded-full bg-navy-400"></span>
+                    Current central stock: {selectedPoProduct.centralStock} {selectedPoUnitMaster.primaryAbbr}
+                  </div>
+                  {poForm.unit === "secondary" && poForm.qty ? (
+                    <div className="flex items-center gap-2 rounded-2xl bg-gold-50/50 p-3 text-xs font-semibold text-gold-700">
+                      <ArrowLeftRight size={12} />
+                      {poForm.qty} {selectedPoUnitMaster.secondaryAbbr} = {convertToBase(poForm.qty, selectedPoUnitMaster.conversionRatio, "secondary").toFixed(4).replace(/\.?0+$/, "")} {selectedPoUnitMaster.primaryAbbr} (base unit)
+                    </div>
+                  ) : null}
+                </div>
+              ) : selectedPoProduct ? (
                 <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-4 text-xs font-semibold text-navy-600">
                   <span className="h-2 w-2 rounded-full bg-navy-400"></span>
                   Current central stock: {selectedPoProduct.centralStock}

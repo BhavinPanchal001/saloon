@@ -149,30 +149,55 @@ let productMasters = [
     itemName: "L'Oreal Color Tube",
     unitPrice: 580,
     centralStock: 18,
+    unitMasterId: "unit_piece",
+    purchaseUnit: "primary",
+    consumptionUnit: "primary",
+    productMeasure: 1,
+    productMeasureUnit: "primary",
   },
   {
     id: "inv_keratin_serum",
     itemName: "Keratin Repair Serum",
     unitPrice: 740,
     centralStock: 12,
+    unitMasterId: "unit_liter_ml",
+    purchaseUnit: "primary",
+    consumptionUnit: "secondary",
+    productMeasure: 500,
+    productMeasureUnit: "secondary",
   },
   {
     id: "inv_shampoo",
     itemName: "Deep Nourish Shampoo",
     unitPrice: 320,
     centralStock: 25,
+    unitMasterId: "unit_liter_ml",
+    purchaseUnit: "primary",
+    consumptionUnit: "secondary",
+    productMeasure: 1,
+    productMeasureUnit: "primary",
   },
   {
     id: "inv_bleach",
     itemName: "Pro Bleach Powder",
     unitPrice: 890,
     centralStock: 9,
+    unitMasterId: "unit_kg_g",
+    purchaseUnit: "primary",
+    consumptionUnit: "secondary",
+    productMeasure: 500,
+    productMeasureUnit: "secondary",
   },
   {
     id: "inv_hair_spa",
     itemName: "Spa Cream Jar",
     unitPrice: 540,
     centralStock: 14,
+    unitMasterId: "unit_kg_g",
+    purchaseUnit: "primary",
+    consumptionUnit: "secondary",
+    productMeasure: 1,
+    productMeasureUnit: "primary",
   },
 ];
 
@@ -241,7 +266,7 @@ let services = [
     price: 2800,
     duration: 90,
     category: "hair",
-    productLinkages: [{ inventoryId: "inv_loreal_tube", quantityUsed: 1 }],
+    productLinkages: [{ inventoryId: "inv_loreal_tube", quantityUsed: 1, consumptionUnit: "primary" }],
   },
   {
     id: "svc_keratin",
@@ -249,7 +274,7 @@ let services = [
     price: 4800,
     duration: 120,
     category: "hair",
-    productLinkages: [{ inventoryId: "inv_keratin_serum", quantityUsed: 2 }],
+    productLinkages: [{ inventoryId: "inv_keratin_serum", quantityUsed: 50, consumptionUnit: "secondary" }],
   },
   {
     id: "svc_hair_spa",
@@ -257,7 +282,7 @@ let services = [
     price: 1800,
     duration: 60,
     category: "hair",
-    productLinkages: [{ inventoryId: "inv_hair_spa", quantityUsed: 1 }],
+    productLinkages: [{ inventoryId: "inv_hair_spa", quantityUsed: 100, consumptionUnit: "secondary" }],
   },
   {
     id: "svc_beard_trim",
@@ -292,10 +317,77 @@ let serviceCategories = [
   { id: "cat_grooming", name: "Grooming", code: "GROOM", status: "active" },
 ];
 
+// ─── Unit Masters ────────────────────────────────────────────────────────────
+
+let unitMasters = [
+  {
+    id: "unit_liter_ml",
+    groupName: "Volume – Liter / Milliliter",
+    primaryUnit: "Liter",
+    primaryAbbr: "L",
+    secondaryUnit: "Milliliter",
+    secondaryAbbr: "ML",
+    conversionRatio: 1000,
+    status: "active",
+  },
+  {
+    id: "unit_kg_g",
+    groupName: "Weight – Kilogram / Gram",
+    primaryUnit: "Kilogram",
+    primaryAbbr: "KG",
+    secondaryUnit: "Gram",
+    secondaryAbbr: "G",
+    conversionRatio: 1000,
+    status: "active",
+  },
+  {
+    id: "unit_meter_cm",
+    groupName: "Length – Meter / Centimeter",
+    primaryUnit: "Meter",
+    primaryAbbr: "M",
+    secondaryUnit: "Centimeter",
+    secondaryAbbr: "CM",
+    conversionRatio: 100,
+    status: "active",
+  },
+  {
+    id: "unit_piece",
+    groupName: "Count – Piece",
+    primaryUnit: "Piece",
+    primaryAbbr: "PC",
+    secondaryUnit: "Piece",
+    secondaryAbbr: "PC",
+    conversionRatio: 1,
+    status: "active",
+  },
+];
+
+// Internal conversion helpers (used inside mockApi only)
+const _findUnitMaster = (id) => unitMasters.find((u) => u.id === id);
+
+const _convertToBase = (qty, unitMasterId, fromUnit) => {
+  const um = _findUnitMaster(unitMasterId);
+  if (!um) return Number(qty) || 0;
+  if (fromUnit === "secondary" && um.conversionRatio > 0) {
+    return (Number(qty) || 0) / um.conversionRatio;
+  }
+  return Number(qty) || 0;
+};
+
+const _convertFromBase = (baseQty, unitMasterId, toUnit) => {
+  const um = _findUnitMaster(unitMasterId);
+  if (!um) return Number(baseQty) || 0;
+  if (toUnit === "secondary" && um.conversionRatio > 0) {
+    return (Number(baseQty) || 0) * um.conversionRatio;
+  }
+  return Number(baseQty) || 0;
+};
+
 const cloneLinkages = (linkages = []) =>
   linkages.map((linkage) => ({
     inventoryId: linkage.inventoryId,
     quantityUsed: Number(linkage.quantityUsed),
+    consumptionUnit: linkage.consumptionUnit || "primary",
   }));
 
 const resolvePackageOutletNames = (assignedOutletIds = []) =>
@@ -551,11 +643,26 @@ const getIssuedStock = (productId) =>
     .filter((record) => record.productId === productId)
     .reduce((sum, record) => sum + record.currentStock, 0);
 
-const withProductPresentation = (product) => ({
-  ...product,
-  issuedStock: getIssuedStock(product.id),
-  totalNetworkStock: product.centralStock + getIssuedStock(product.id),
-});
+const withProductPresentation = (product) => {
+  const unitMaster = _findUnitMaster(product.unitMasterId);
+  const measureLabel = unitMaster 
+    ? (product.productMeasureUnit === "secondary" ? `${product.productMeasure} ${unitMaster.secondaryAbbr}` : `${product.productMeasure} ${unitMaster.primaryAbbr}`)
+    : "";
+    
+  return {
+    ...product,
+    issuedStock: getIssuedStock(product.id),
+    totalNetworkStock: product.centralStock + getIssuedStock(product.id),
+    unitMaster: unitMaster ? clone(unitMaster) : null,
+    productMeasureLabel: measureLabel,
+    purchaseUnitLabel: unitMaster
+      ? (product.purchaseUnit === "secondary" ? `${unitMaster.secondaryUnit} (${unitMaster.secondaryAbbr})` : `${unitMaster.primaryUnit} (${unitMaster.primaryAbbr})`)
+      : "",
+    consumptionUnitLabel: unitMaster
+      ? (product.consumptionUnit === "secondary" ? `${unitMaster.secondaryUnit} (${unitMaster.secondaryAbbr})` : `${unitMaster.primaryUnit} (${unitMaster.primaryAbbr})`)
+      : "",
+  };
+};
 
 const withInventoryPresentation = (record) => {
   const product = findProductMaster(record.productId);
@@ -656,6 +763,11 @@ export const createProduct = async (payload) => {
     itemName: payload.itemName,
     unitPrice: Number(payload.unitPrice),
     centralStock: 0,
+    unitMasterId: payload.unitMasterId || "unit_piece",
+    purchaseUnit: payload.purchaseUnit || "primary",
+    consumptionUnit: payload.consumptionUnit || "primary",
+    productMeasure: Number(payload.productMeasure) || 1,
+    productMeasureUnit: payload.productMeasureUnit || "primary",
   };
 
   productMasters = [product, ...productMasters];
@@ -672,19 +784,30 @@ export const createPurchaseOrder = async (payload) => {
     throw new Error("Product master not found.");
   }
 
-  const qty = Math.max(1, Number(payload.qty) || 0);
+  const rawQty = Math.max(0.001, Number(payload.qty) || 0);
+  const poUnit = payload.unit || existingProduct.purchaseUnit || "primary";
+
+  // Convert to base (primary) unit for stock storage
+  const baseQty = _convertToBase(rawQty, existingProduct.unitMasterId, poUnit);
 
   productMasters = productMasters.map((item) =>
     item.id === productId
-      ? { ...item, centralStock: item.centralStock + qty }
+      ? { ...item, centralStock: item.centralStock + baseQty }
       : item,
   );
+
+  const unitMaster = _findUnitMaster(existingProduct.unitMasterId);
 
   const purchaseOrder = {
     id: createId("po"),
     supplierName: payload.supplierName,
     productId,
-    qty,
+    qty: rawQty,
+    unit: poUnit,
+    unitAbbr: unitMaster
+      ? (poUnit === "secondary" ? unitMaster.secondaryAbbr : unitMaster.primaryAbbr)
+      : "",
+    baseQty,
     totalCost: Number(payload.totalCost),
     createdAt: new Date().toISOString(),
   };
@@ -790,6 +913,59 @@ export const deleteServiceCategory = async (id) => {
   return { success: true };
 };
 
+// ─── Unit Master CRUD ─────────────────────────────────────────────────────────
+
+export const fetchUnitMasters = async () => {
+  await delay();
+  return clone(unitMasters);
+};
+
+export const saveUnitMaster = async (payload) => {
+  await delay();
+  const unitMaster = {
+    id: payload.id || createId("unit"),
+    groupName: payload.groupName,
+    primaryUnit: payload.primaryUnit,
+    primaryAbbr: payload.primaryAbbr || payload.primaryUnit.substring(0, 2).toUpperCase(),
+    secondaryUnit: payload.secondaryUnit,
+    secondaryAbbr: payload.secondaryAbbr || payload.secondaryUnit.substring(0, 2).toUpperCase(),
+    conversionRatio: Number(payload.conversionRatio) || 1,
+    status: payload.status || "active",
+  };
+
+  const index = unitMasters.findIndex((u) => u.id === unitMaster.id);
+  if (index >= 0) {
+    unitMasters[index] = unitMaster;
+  } else {
+    unitMasters = [unitMaster, ...unitMasters];
+  }
+  return clone(unitMaster);
+};
+
+export const deleteUnitMaster = async (id) => {
+  await delay();
+  // Check if any product uses this unit master
+  const inUse = productMasters.some((p) => p.unitMasterId === id);
+  if (inUse) {
+    throw new Error("Cannot delete: this unit group is used by one or more products.");
+  }
+  unitMasters = unitMasters.filter((u) => u.id !== id);
+  return { success: true };
+};
+
+export const toggleUnitMasterStatus = async (id) => {
+  await delay();
+  const index = unitMasters.findIndex((u) => u.id === id);
+  if (index === -1) {
+    throw new Error("Unit master not found.");
+  }
+  unitMasters[index] = {
+    ...unitMasters[index],
+    status: unitMasters[index].status === "active" ? "inactive" : "active",
+  };
+  return clone(unitMasters[index]);
+};
+
 export const fetchServices = async () => {
   await delay();
   return clone(services);
@@ -803,9 +979,11 @@ export const createService = async (payload) => {
     serviceName: payload.serviceName,
     price: Number(payload.price),
     duration: Number(payload.duration),
-    productLinkages: payload.productLinkages.map((linkage) => ({
+    category: payload.category,
+    productLinkages: (payload.productLinkages || []).map((linkage) => ({
       inventoryId: linkage.inventoryId,
       quantityUsed: Number(linkage.quantityUsed),
+      consumptionUnit: linkage.consumptionUnit || "primary",
     })),
   };
 
@@ -1236,14 +1414,27 @@ export const fetchCatalog = async ({ outletId } = {}) => {
     stock: product.currentStock,
   }));
 
-  const serviceCards = services.map((service) => ({
-    id: service.id,
-    type: "service",
-    name: service.serviceName,
-    price: service.price,
-    duration: service.duration,
-    productLinkages: clone(service.productLinkages || []),
-  }));
+  const serviceCards = services.map((service) => {
+    // Enrich each product linkage with its product's unit master info
+    const enrichedLinkages = (service.productLinkages || []).map((link) => {
+      const product = findProductMaster(link.inventoryId);
+      const unitMaster = product ? _findUnitMaster(product.unitMasterId) : null;
+      return {
+        ...link,
+        unitMasterId: product?.unitMasterId || null,
+        unitMaster: unitMaster ? clone(unitMaster) : null,
+        consumptionUnit: link.consumptionUnit || product?.consumptionUnit || "primary",
+      };
+    });
+    return {
+      id: service.id,
+      type: "service",
+      name: service.serviceName,
+      price: service.price,
+      duration: service.duration,
+      productLinkages: clone(enrichedLinkages),
+    };
+  });
 
   const packageCards = packages.map((servicePackage) => ({
     id: servicePackage.id,
@@ -1277,8 +1468,20 @@ let bills = [
     customer: { name: "Priya Sharma", phone: "+91 98765 10001" }, paymentMethod: "Card",
     outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 5000, tax: 400, total: 5400,
     lineItems: [
-      { itemName: "Signature Hair Color", itemType: "service", qty: 1, price: 3200, staffAssigned: "staff_naina" },
-      { itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia" },
+      { 
+        itemName: "Signature Hair Color", itemType: "service", qty: 1, price: 3200, staffAssigned: "staff_naina",
+        productConsumption: [
+          { productId: "inv_loreal_tube", qty: 1, unit: "primary" },
+          { productId: "inv_bleach", qty: 250, unit: "secondary" }
+        ]
+      },
+      { 
+        itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia",
+        productConsumption: [
+          { productId: "inv_hair_spa", qty: 100, unit: "secondary" },
+          { productId: "inv_keratin_serum", qty: 20, unit: "secondary" }
+        ]
+      },
     ],
   },
   {
@@ -1286,7 +1489,13 @@ let bills = [
     customer: { name: "Ananya Reddy", phone: "+91 98765 10002" }, paymentMethod: "UPI",
     outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 4300, tax: 344, total: 4644,
     lineItems: [
-      { itemName: "Color Reset Ritual", itemType: "package", qty: 1, price: 4300, staffAssigned: null },
+      { 
+        itemName: "Color Reset Ritual", itemType: "package", qty: 1, price: 4300, staffAssigned: null,
+        productConsumption: [
+          { productId: "inv_shampoo", qty: 50, unit: "secondary" },
+          { productId: "inv_bleach", qty: 100, unit: "secondary" }
+        ]
+      },
     ],
   },
   {
@@ -1304,7 +1513,12 @@ let bills = [
     customer: { name: "Kavitha Nair", phone: "+91 98765 10004" }, paymentMethod: "Card",
     outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 650, tax: 52, total: 702,
     lineItems: [
-      { itemName: "Beard Sculpt", itemType: "service", qty: 1, price: 650, staffAssigned: "staff_naina" },
+      { 
+        itemName: "Beard Sculpt", itemType: "service", qty: 1, price: 650, staffAssigned: "staff_naina",
+        productConsumption: [
+          { productId: "inv_hair_spa", qty: 10, unit: "secondary" }
+        ]
+      },
     ],
   },
   {
@@ -1312,9 +1526,19 @@ let bills = [
     customer: { name: "Divya Patel", phone: "+91 98765 10005" }, paymentMethod: "UPI",
     outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 5540, tax: 443.2, total: 5983.2,
     lineItems: [
-      { itemName: "Signature Hair Color", itemType: "service", qty: 1, price: 3200, staffAssigned: "staff_naina" },
+      { 
+        itemName: "Signature Hair Color", itemType: "service", qty: 1, price: 3200, staffAssigned: "staff_naina",
+        productConsumption: [
+          { productId: "inv_loreal_tube", qty: 1, unit: "primary" }
+        ]
+      },
       { itemName: "Spa Cream Jar", itemType: "product", qty: 1, price: 540, staffAssigned: null },
-      { itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia" },
+      { 
+        itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia",
+        productConsumption: [
+          { productId: "inv_hair_spa", qty: 50, unit: "secondary" }
+        ]
+      },
     ],
   },
   {
@@ -1322,7 +1546,12 @@ let bills = [
     customer: { name: "Ritu Kapoor", phone: "+91 98765 10006" }, paymentMethod: "Cash",
     outletId: "outlet_hsr", outletName: "HSR Layout", status: "refunded", subtotal: 1800, tax: 144, total: 1944,
     lineItems: [
-      { itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia" },
+      { 
+        itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia",
+        productConsumption: [
+          { productId: "inv_hair_spa", qty: 80, unit: "secondary" }
+        ]
+      },
     ],
   },
 ];
@@ -1359,6 +1588,35 @@ export const checkoutBill = async (payload) => {
     lineItems: payload.lineItems,
   };
   bills = [newBill, ...bills];
+
+  // Deduct stock for product consumption from services
+  const outletId = payload.outletId;
+  for (const lineItem of (payload.lineItems || [])) {
+    if (lineItem.itemType === "service" && lineItem.productConsumption) {
+      for (const consumption of lineItem.productConsumption) {
+        const product = findProductMaster(consumption.productId);
+        if (!product) continue;
+
+        const consumptionUnit = consumption.unit || "primary";
+        const baseDeduction = _convertToBase(
+          consumption.qty,
+          product.unitMasterId,
+          consumptionUnit,
+        );
+
+        // Deduct from outlet inventory
+        const outletRecord = outletInventory.find(
+          (r) => r.productId === consumption.productId && r.outletId === outletId,
+        );
+        if (outletRecord) {
+          const newStock = Math.max(0, outletRecord.currentStock - baseDeduction);
+          outletInventory = outletInventory.map((r) =>
+            r.id === outletRecord.id ? { ...r, currentStock: newStock } : r,
+          );
+        }
+      }
+    }
+  }
 
   return clone(newBill);
 };

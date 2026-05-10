@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createService, fetchProductMasters, fetchServices, fetchServiceCategories } from '../../../services/mockApi';
+import { getAvailableUnits, getUnitAbbr, convertToBase } from '../../../utils/unitConversion';
 import '../styles/services.css';
 
 const createInitialLinkage = () => ({
   inventoryId: "",
   quantityUsed: 1,
+  consumptionUnit: "primary",
 });
 
 const createInitialServiceForm = () => ({
@@ -170,61 +172,103 @@ const ServiceFormPage: React.FC = () => {
               </p>
 
               <div className="space-y-4">
-                {form.productLinkages.map((linkage, index) => (
-                  <div key={index} className="linkage-row">
-                    <div className="form-field">
-                      <label>Inventory Item</label>
-                      <select
-                        className="premium-input"
-                        value={linkage.inventoryId}
-                        onChange={(e) => updateLinkage(index, "inventoryId", e.target.value)}
+                {form.productLinkages.map((linkage, index) => {
+                  const selectedProduct = inventory.find((p: any) => p.id === linkage.inventoryId);
+                  const unitMaster = selectedProduct?.unitMaster || null;
+                  const unitOptions = unitMaster ? getAvailableUnits(unitMaster) : [];
+                  const currentAbbr = unitMaster
+                    ? getUnitAbbr(unitMaster, linkage.consumptionUnit || 'primary')
+                    : '';
+                  const baseAbbr = unitMaster ? unitMaster.primaryAbbr : '';
+                  const showConversion = unitMaster && linkage.consumptionUnit === 'secondary' && linkage.quantityUsed;
+                  const baseEquiv = showConversion
+                    ? convertToBase(linkage.quantityUsed, unitMaster.conversionRatio, 'secondary')
+                    : null;
+
+                  return (
+                    <div key={index} className="linkage-row" style={{ gridTemplateColumns: '1fr 100px 120px 45px' }}>
+                      <div className="form-field">
+                        <label>Product</label>
+                        <select
+                          className="premium-input"
+                          value={linkage.inventoryId}
+                          onChange={(e) => {
+                            updateLinkage(index, "inventoryId", e.target.value);
+                            // Reset unit to product's default consumption unit
+                            const prod = inventory.find((p: any) => p.id === e.target.value);
+                            if (prod) {
+                              updateLinkage(index, "consumptionUnit", prod.consumptionUnit || "primary");
+                            }
+                          }}
+                        >
+                          <option value="">Select Item</option>
+                          {inventory.map((item: any) => (
+                            <option key={item.id} value={item.id}>
+                              {item.itemName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-field">
+                        <label>Quantity</label>
+                        <input
+                          type="number"
+                          min="0.001"
+                          step="any"
+                          className="premium-input"
+                          value={linkage.quantityUsed}
+                          onChange={(e) => updateLinkage(index, "quantityUsed", e.target.value)}
+                        />
+                      </div>
+                      <div className="form-field">
+                        <label>Unit</label>
+                        <select
+                          className="premium-input"
+                          value={linkage.consumptionUnit || 'primary'}
+                          onChange={(e) => updateLinkage(index, "consumptionUnit", e.target.value)}
+                        >
+                          {unitOptions.length > 0
+                            ? unitOptions.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))
+                            : <option value="primary">Unit</option>
+                          }
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        style={{ 
+                          height: '42px', 
+                          width: '42px', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          background: '#fee2e2',
+                          color: '#ef4444',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            productLinkages:
+                              current.productLinkages.length === 1
+                                ? [createInitialLinkage()]
+                                : current.productLinkages.filter((_, linkageIndex) => linkageIndex !== index),
+                          }))
+                        }
                       >
-                        <option value="">Select Item</option>
-                        {inventory.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.itemName}
-                          </option>
-                        ))}
-                      </select>
+                        ×
+                      </button>
+                      {showConversion && baseEquiv !== null ? (
+                        <div style={{ gridColumn: '1 / -1', fontSize: '0.75rem', color: '#64748b', padding: '0.25rem 0 0' }}>
+                          = {baseEquiv.toFixed(4).replace(/\.?0+$/, '')} {baseAbbr} (base unit)
+                        </div>
+                      ) : null}
                     </div>
-                    <div className="form-field">
-                      <label>Quantity</label>
-                      <input
-                        type="number"
-                        min="1"
-                        className="premium-input"
-                        value={linkage.quantityUsed}
-                        onChange={(e) => updateLinkage(index, "quantityUsed", e.target.value)}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      style={{ 
-                        height: '42px', 
-                        width: '42px', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center',
-                        background: '#fee2e2',
-                        color: '#ef4444',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() =>
-                        setForm((current) => ({
-                          ...current,
-                          productLinkages:
-                            current.productLinkages.length === 1
-                              ? [createInitialLinkage()]
-                              : current.productLinkages.filter((_, linkageIndex) => linkageIndex !== index),
-                        }))
-                      }
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
