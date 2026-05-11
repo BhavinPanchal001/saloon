@@ -7,7 +7,6 @@ import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase } from "../../utils/unitConversion";
 import { InvoiceModal } from "./InvoiceModal";
 import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight } from "lucide-react";
-import { Search, Minus, Plus, Trash2, ShoppingCart } from "lucide-react";
 import BankSelector from "../../modules/bank/components/BankSelector";
 
 const paymentMethods = ["Cash", "Card", "UPI"];

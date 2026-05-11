@@ -43,8 +43,7 @@ const adminNav = [
     icon: Package,
     links: [
       { label: "Inventory", to: "/inventory", icon: Package, exact: true },
-      { label: "New Purchase Order", to: "/inventory/purchase-order", icon: ShoppingCart },
-      { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
+      { label: "Purchase Orders", to: "/inventory/purchase-orders", icon: ClipboardList },
       { label: "Unit Master", to: "/inventory/units", icon: Ruler },
     ],
   },
@@ -89,7 +88,6 @@ const adminNav = [
     icon: Wallet,
     links: [
       { label: "Expenses", to: "/expenses", icon: Receipt, exact: true },
-      { label: "Local Expenses", to: "/expenses/local", icon: Receipt },
       { label: "Budgets", to: "/budgets", icon: Wallet },
       { label: "Outlets", to: "/outlets", icon: Store },
       { label: "Bank Accounts", to: "/bank", icon: Building2, exact: true },
@@ -105,7 +103,7 @@ const adminNav = [
   },
 ];
 
-const managerNav = [
+const staffNav = [
   {
     section: "Dashboard",
     icon: LayoutDashboard,
@@ -118,8 +116,7 @@ const managerNav = [
     icon: Package,
     links: [
       { label: "Inventory", to: "/inventory", icon: Package, exact: true },
-      { label: "New Purchase Order", to: "/inventory/purchase-order", icon: ShoppingCart },
-      { label: "Purchase Orders", to: "/inventory/po-history", icon: ClipboardList },
+      { label: "Purchase Orders", to: "/inventory/purchase-orders", icon: ClipboardList },
       { label: "Unit Master", to: "/inventory/units", icon: Ruler },
     ],
   },
@@ -163,7 +160,7 @@ const managerNav = [
     section: "Finance",
     icon: Wallet,
     links: [
-      { label: "Local Expenses", to: "/expenses/local", icon: Receipt },
+      { label: "Expenses", to: "/expenses", icon: Receipt, exact: true },
       { label: "Budgets", to: "/budgets", icon: Wallet },
       { label: "Bank Accounts", to: "/bank", icon: Building2, exact: true },
     ],
@@ -229,7 +226,7 @@ function NavSection({ section, icon: SectionIcon, links, onClose }) {
 
 export function Sidebar({ isOpen, onClose }) {
   const user = useAuthStore((state) => state.user);
-  const navigation = user?.role === "admin" ? adminNav : managerNav;
+  const navigation = user?.role === "admin" ? adminNav : staffNav;
 
   return (
     <>

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, ArrowLeftRight } from "lucide-react";
-import { X, Pencil, Trash2, Tag } from "lucide-react";
+import { X, ArrowLeftRight, Pencil, Trash2, Tag } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import {
   createProduct,
@@ -85,11 +84,6 @@ export function InventoryPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const loadInventoryPage = async () => {
-    const [productList, inventoryItems, outletList, unitList] = await Promise.all([
-      fetchProductMasters(),
-      fetchInventory({ outletId: isAdmin ? undefined : user?.outlet_id }),
-      fetchOutlets(),
-      fetchUnitMasters(),
     const [productList, inventoryItems, outletList, serviceList, packageList, priceList] = await Promise.all([
         fetchProductMasters(),
         fetchInventory({ outletId: isAdmin ? undefined : user?.outlet_id }),
@@ -559,13 +553,6 @@ export function InventoryPage() {
                   <button
                     type="button"
                     className="btn-premium-primary flex-1"
-                    onClick={() => setIsPoModalOpen(true)}
-                  >
-                    Create PO
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-premium-outline flex-1"
                     onClick={() => setIsIssueModalOpen(true)}
                   >
                     Issue Product

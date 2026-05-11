@@ -78,6 +78,11 @@ export interface Contract {
     maxHoursPerMonth?: number;
   };
 
+  // Pay Rate Multipliers
+  holidayRate: '1x' | '1.5x' | '2x';
+  weekendRate: '1x' | '1.5x' | '2x';
+  overtimeRate: '1x' | '1.5x' | '2x';
+
   // Policy Linking
   holidayGroupIds: string[];
   leaveAllocations: LeaveAllocation[];

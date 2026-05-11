@@ -42,6 +42,9 @@ const ContractFormPage: React.FC = () => {
       rateCalculation: 'fixed_hourly',
       rateValue: 0,
     },
+    holidayRate: '1x',
+    weekendRate: '1x',
+    overtimeRate: '1.5x',
     holidayGroupIds: [],
     leaveAllocations: [],
     shiftId: '',
@@ -381,6 +384,45 @@ const ContractFormPage: React.FC = () => {
                     <option value="deduct">Salary Deduction</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Pay Rate Multipliers */}
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-bold text-navy-900">Pay Rate Multipliers</h3>
+                  <p className="text-xs text-navy-500 mt-0.5">Set the pay multiplier applied when staff work on holidays, weekends, or overtime hours.</p>
+                </div>
+
+                {(
+                  [
+                    { key: 'holidayRate', label: 'Holiday Pay Rate', description: 'Applied when working on a public holiday' },
+                    { key: 'weekendRate', label: 'Weekend Pay Rate', description: 'Applied when working on a weekend day' },
+                    { key: 'overtimeRate', label: 'Overtime Pay Rate', description: 'Applied for hours worked beyond the contracted shift' },
+                  ] as { key: 'holidayRate' | 'weekendRate' | 'overtimeRate'; label: string; description: string }[]
+                ).map(({ key, label, description }) => (
+                  <div key={key} className="p-4 rounded-2xl border border-navy-100 bg-navy-50/30 space-y-3">
+                    <div>
+                      <p className="text-sm font-semibold text-navy-800">{label}</p>
+                      <p className="text-xs text-navy-500">{description}</p>
+                    </div>
+                    <div className="flex gap-3">
+                      {(['1x', '1.5x', '2x'] as const).map((rate) => (
+                        <button
+                          key={rate}
+                          type="button"
+                          onClick={() => handleInputChange(key, rate)}
+                          className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200
+                            ${formData[key] === rate
+                              ? 'bg-navy-600 border-navy-600 text-white shadow-md shadow-navy-200'
+                              : 'bg-white border-navy-200 text-navy-500 hover:border-navy-400 hover:text-navy-700'
+                            }`}
+                        >
+                          {rate}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="space-y-2">

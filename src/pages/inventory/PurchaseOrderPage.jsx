@@ -155,7 +155,7 @@ export default function PurchaseOrderPage() {
         notes: notes.trim(),
       });
       toast.success("Purchase order created successfully!");
-      navigate("/inventory/po-history");
+      navigate("/inventory/purchase-orders");
     } catch (err) {
       toast.error(err.message || "Failed to create purchase order.");
     } finally {
@@ -178,7 +178,7 @@ export default function PurchaseOrderPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <Link
-            to="/inventory"
+            to="/inventory/purchase-orders"
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -557,7 +557,7 @@ export default function PurchaseOrderPage() {
             </button>
 
             <Link
-              to="/inventory"
+              to="/inventory/purchase-orders"
               className="btn-premium-outline mt-3 w-full flex items-center justify-center gap-2 text-sm"
             >
               Cancel

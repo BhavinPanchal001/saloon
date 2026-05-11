@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { PageHeader } from "../../components/ui/PageHeader";
+import { useNavigate } from "react-router-dom";
 import { LoadingState } from "../../components/ui/LoadingState";
+import { PageHeader } from "../../components/ui/PageHeader";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
-import { fetchPurchaseOrders, approvePurchaseOrder, receivePurchaseOrder } from "../../services/mockApi";
 import {
-  ArrowLeft,
+  fetchPurchaseOrders,
+  approvePurchaseOrder,
+  receivePurchaseOrder,
+} from "../../services/mockApi";
+import {
   Package,
   Calendar,
   CheckCircle,
@@ -18,6 +21,7 @@ import {
   Filter,
   ChevronDown,
   FileText,
+  Plus,
 } from "lucide-react";
 
 const statusColors = {
@@ -29,6 +33,7 @@ const statusColors = {
 
 export function PurchaseOrderHistoryPage() {
   const toast = useToastStore();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -105,7 +110,7 @@ export function PurchaseOrderHistoryPage() {
   if (loading) {
     return (
       <div>
-        <PageHeader title="Purchase Order History" />
+        <PageHeader title="Purchase Orders" />
         <LoadingState message="Loading purchase orders..." />
       </div>
     );
@@ -115,29 +120,17 @@ export function PurchaseOrderHistoryPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            to="/inventory"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-navy-900">Purchase Order History</h1>
-            <p className="text-sm text-slate-500">Track and manage all purchase orders</p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold text-navy-900">Purchase Orders</h1>
+          <p className="text-sm text-slate-500">Track, manage and create purchase orders</p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={handleExport}
-            className="btn-premium-outline flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Export
+          <button onClick={handleExport} className="btn-premium-outline flex items-center gap-2">
+            <Download className="h-4 w-4" /> Export
           </button>
-          <Link to="/inventory" className="btn-premium-primary">
-            New PO
-          </Link>
+          <button onClick={() => navigate("/inventory/purchase-orders/new")} className="btn-premium-primary flex items-center gap-2">
+            <Plus className="h-4 w-4" /> New PO
+          </button>
         </div>
       </div>
 

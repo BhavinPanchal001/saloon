@@ -2,12 +2,13 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "../components/auth/ProtectedRoute";
 import { AppLayout } from "../layouts/AppLayout";
 import { GlobalDashboardPage } from "../pages/dashboard/GlobalDashboardPage";
-import { ExpensesPage } from "../pages/expenses/ExpensesPage";
+import { ExpenseListPage } from "../pages/expenses/ExpenseListPage";
+import { ExpenseAddPage } from "../pages/expenses/ExpenseAddPage";
 import { BudgetsPage } from "../pages/expenses/BudgetsPage";
 import { InventoryPage } from "../pages/inventory/InventoryPage";
 import { PurchaseOrderHistoryPage } from "../pages/inventory/PurchaseOrderHistoryPage";
-import { UnitMasterPage } from "../pages/inventory/UnitMasterPage";
 import PurchaseOrderPage from "../pages/inventory/PurchaseOrderPage";
+import { UnitMasterPage } from "../pages/inventory/UnitMasterPage";
 import { LoginPage } from "../pages/auth/LoginPage";
 import { ForgotPasswordPage } from "../pages/auth/ForgotPasswordPage";
 import { RegisterPage } from "../pages/auth/RegisterPage";
@@ -99,28 +100,34 @@ export const router = createBrowserRouter([
                 element: <OutletsPage />,
               },
               {
-                path: "/expenses",
-                element: <ExpensesPage scope="global" />,
-              },
-              {
                 path: "/budgets",
                 element: <BudgetsPage />,
               },
             ],
           },
           {
+            path: "/expenses",
+            element: <ExpenseListPage />,
+          },
+          {
+            path: "/expenses/add",
+            element: <ExpenseAddPage />,
+          },
+          {
             path: "/inventory",
             element: <InventoryPage />,
           },
           {
-            path: "/inventory/po-history",
+            path: "/inventory/purchase-orders",
             element: <PurchaseOrderHistoryPage />,
+          },
+          {
+            path: "/inventory/purchase-orders/new",
+            element: <PurchaseOrderPage />,
           },
           {
             path: "/inventory/units",
             element: <UnitMasterPage />,
-            path: "/inventory/purchase-order",
-            element: <PurchaseOrderPage />,
           },
           {
             path: "/services",
@@ -217,10 +224,6 @@ export const router = createBrowserRouter([
           {
             path: "/pos/bills",
             element: <BillingListPage />,
-          },
-          {
-            path: "/expenses/local",
-            element: <ExpensesPage scope="local" />,
           },
           {
             path: "/payroll",
