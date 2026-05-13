@@ -9,7 +9,7 @@ export const formatCurrency = (value) => {
 };
 
 export const formatRoleLabel = (role) =>
-  role === "admin" ? "Super Admin" : "Outlet Manager";
+  role === "admin" || role === "super_admin" ? "Super Admin" : "Outlet Manager";
 
 export const getDefaultRouteForRole = (role) =>
   "/dashboard";

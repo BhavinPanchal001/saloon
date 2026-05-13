@@ -226,7 +226,8 @@ function NavSection({ section, icon: SectionIcon, links, onClose }) {
 
 export function Sidebar({ isOpen, onClose }) {
   const user = useAuthStore((state) => state.user);
-  const navigation = user?.role === "admin" ? adminNav : staffNav;
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+  const navigation = isAdmin ? adminNav : staffNav;
 
   return (
     <>
@@ -269,7 +270,7 @@ export function Sidebar({ isOpen, onClose }) {
           <p className="mt-3 text-lg font-semibold text-white">{user?.name}</p>
           <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
             <Briefcase size={16} />
-            <span>{user?.role === "admin" ? "Super Admin" : "Outlet Manager"}</span>
+            <span>{isAdmin ? "Super Admin" : "Outlet Manager"}</span>
           </div>
         </div>
 

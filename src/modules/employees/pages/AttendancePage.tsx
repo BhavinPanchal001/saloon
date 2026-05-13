@@ -86,7 +86,7 @@ export default function AttendancePage() {
     try {
       const data = await fetchAttendanceData({
         date: formatDateKey(date),
-        outletId: user?.role === "admin" ? undefined : user?.outlet_id,
+        outletId: (user?.role === "admin" || user?.role === "super_admin") ? undefined : user?.outlet_id,
       });
       setAttendance(data);
       const today = new Date();

@@ -6,7 +6,7 @@ import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase } from "../../utils/unitConversion";
 import { InvoiceModal } from "./InvoiceModal";
-import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight } from "lucide-react";
+import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag } from "lucide-react";
 import BankSelector from "../../modules/bank/components/BankSelector";
 
 const paymentMethods = ["Cash", "Card", "UPI"];
@@ -31,7 +31,9 @@ export function POSPage() {
   const [outlets, setOutlets] = useState([]);
   const [selectedOutlet, setSelectedOutlet] = useState("");
   const [productMasters, setProductMasters] = useState([]);
-  const isAdmin = user?.role === "admin";
+  const [discountType, setDiscountType] = useState("percent");
+  const [discountValue, setDiscountValue] = useState("");
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
   const productNameById = useMemo(() => {
     return Object.fromEntries(productMasters.map((p) => [p.id, p.itemName]));
@@ -195,6 +197,7 @@ export function POSPage() {
     setCart([]);
     setPaymentMethod("");
     setSelectedBankId("");
+    setDiscountValue("");
     toast.success("Cart cleared");
   };
 
@@ -236,8 +239,14 @@ export function POSPage() {
   }, [searchQuery, activeCategory, catalog]);
 
   const subtotal = cart.reduce((sum, line) => sum + getLinePrice(line) * line.quantity, 0);
-  const tax = subtotal * 0.08;
-  const total = subtotal + tax;
+  const discountAmount = discountValue
+    ? discountType === "percent"
+      ? Math.min(subtotal, (subtotal * Math.min(100, Number(discountValue))) / 100)
+      : Math.min(subtotal, Number(discountValue))
+    : 0;
+  const discountedSubtotal = subtotal - discountAmount;
+  const tax = discountedSubtotal * 0.08;
+  const total = discountedSubtotal + tax;
 
   const hasUnassignedService = cart.some(
     (line) => line.type === "service" && !line.staffId,
@@ -253,6 +262,9 @@ export function POSPage() {
       bankId: selectedBankId || null,
       outletId: selectedOutlet || user?.outlet_id || "all_outlets",
       subtotal,
+      discountType: discountAmount > 0 ? discountType : null,
+      discountValue: discountAmount > 0 ? Number(discountValue) : 0,
+      discountAmount,
       tax,
       total,
       lineItems: cart.map((line) => ({
@@ -293,6 +305,7 @@ export function POSPage() {
     setCart([]);
     setPaymentMethod("");
     setSelectedBankId("");
+    setDiscountValue("");
     setCustomer({ name: "", phone: "" });
     toast.success(`Bill ${result.billNumber} created successfully!`);
   };
@@ -634,11 +647,56 @@ export function POSPage() {
 
           {/* Totals + payment */}
           <div className="rounded-2xl border border-navy-100 bg-navy-950/5 p-4">
+            {/* Discount Row */}
+            <div className="mb-3 flex items-center gap-2">
+              <Tag className="h-3.5 w-3.5 text-gold-500 shrink-0" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-navy-400">Discount</span>
+              <div className="flex flex-1 items-center gap-1.5 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => { setDiscountType("percent"); setDiscountValue(""); }}
+                  className={`rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition ${
+                    discountType === "percent"
+                      ? "bg-navy-900 text-white"
+                      : "border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                  }`}
+                >
+                  %
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDiscountType("flat"); setDiscountValue(""); }}
+                  className={`rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition ${
+                    discountType === "flat"
+                      ? "bg-navy-900 text-white"
+                      : "border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                  }`}
+                >
+                  RM
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  max={discountType === "percent" ? 100 : undefined}
+                  placeholder={discountType === "percent" ? "0–100" : "Amount"}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  className="w-20 rounded-lg border border-navy-200 bg-white px-2 py-1 text-xs font-semibold text-navy-700 focus:outline-none focus:border-navy-400"
+                />
+              </div>
+            </div>
+
             <div className="space-y-2 text-sm font-medium text-navy-800">
               <div className="flex items-center justify-between opacity-60">
                 <span>Subtotal</span>
                 <span className="font-bold">{formatCurrency(subtotal)}</span>
               </div>
+              {discountAmount > 0 && (
+                <div className="flex items-center justify-between text-emerald-600">
+                  <span>Discount {discountType === "percent" ? `(${discountValue}%)` : "(Flat)"}</span>
+                  <span className="font-bold">− {formatCurrency(discountAmount)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between opacity-60">
                 <span>Tax (8%)</span>
                 <span className="font-bold">{formatCurrency(tax)}</span>

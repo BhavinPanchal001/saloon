@@ -25,7 +25,7 @@ import { formatCurrency } from "../../utils/format";
 
 export function ExpenseListPage() {
   const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const userOutletId = user?.outlet_id;
 
   const navigate = useNavigate();
@@ -107,7 +107,7 @@ export function ExpenseListPage() {
                 : `Budget ${budget.spendPercentage}% utilized. Only ${formatCurrency(budget.remainingBalance)} remaining.`}
             </p>
           </div>
-          {user?.role === "admin" && (
+          {isAdmin && (
             <button
               onClick={() => navigate("/budgets")}
               className="btn-premium-outline text-sm !border-rose-300 !text-rose-700 hover:!bg-rose-100"
@@ -156,7 +156,7 @@ export function ExpenseListPage() {
               <Calendar size={14} />
               <span>Fiscal Month: {budget?.monthKey || "April 2026"}</span>
             </div>
-            {user?.role === "admin" && (
+            {isAdmin && (
               <button
                 onClick={() => navigate("/budgets")}
                 className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700"

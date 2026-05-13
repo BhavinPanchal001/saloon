@@ -33,7 +33,7 @@ const initialExpenseForm = {
 
 export function ExpenseAddPage() {
   const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const userOutletId = user?.outlet_id;
 
   const navigate = useNavigate();

@@ -89,7 +89,7 @@ export const router = createBrowserRouter([
             element: <RoleHomeRedirect />,
           },
           {
-            element: <ProtectedRoute allowedRoles={["admin"]} />,
+            element: <ProtectedRoute allowedRoles={["admin", "super_admin"]} />,
             children: [
               {
                 path: "/dashboard",

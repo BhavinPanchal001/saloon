@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { loginUser } from "../services/mockApi";
 import { getDefaultRouteForRole } from "../utils/format";
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
 
 export const useAuthStore = create(
   persist(
@@ -14,7 +15,20 @@ export const useAuthStore = create(
         set({ isLoading: true, loginError: null });
 
         try {
-          const user = await loginUser(credentials);
+          const res = await fetch(`${API_BASE}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(credentials),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            throw new Error(data.message || "Unable to sign in.");
+          }
+
+          const user = { ...data.admin, token: data.token };
+
           set({
             user,
             isAuthenticated: true,

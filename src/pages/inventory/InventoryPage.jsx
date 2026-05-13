@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, ArrowLeftRight, Pencil, Trash2, Tag } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { ImageUpload } from "../../components/ui/ImageUpload";
 import {
   createProduct,
   createPurchaseOrder,
   fetchInventory,
   fetchOutlets,
   fetchProductMasters,
-  fetchUnitMasters,
   fetchServices,
   fetchPackages,
   fetchOutletPrices,
@@ -15,6 +15,7 @@ import {
   deleteOutletItemPrice,
   issueProductToOutlet,
 } from "../../services/mockApi";
+import { fetchUnitMastersFromAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase, convertFromBase } from "../../utils/unitConversion";
@@ -22,6 +23,7 @@ import { getAvailableUnits, getUnitAbbr, convertToBase, convertFromBase } from "
 const initialProductForm = {
   itemName: "",
   unitPrice: "",
+  openingStock: "",
   unitMasterId: "",
   purchaseUnit: "primary",
   consumptionUnit: "primary",
@@ -55,7 +57,7 @@ const initialOutletPriceForm = {
 
 export function InventoryPage() {
   const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const scopedOutletId = isAdmin ? "" : user?.outlet_id || "";
 
   const [activeTab, setActiveTab] = useState("product_master");
@@ -84,10 +86,11 @@ export function InventoryPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const loadInventoryPage = async () => {
-    const [productList, inventoryItems, outletList, serviceList, packageList, priceList] = await Promise.all([
+    const [productList, inventoryItems, outletList, unitMasters, serviceList, packageList, priceList] = await Promise.all([
         fetchProductMasters(),
         fetchInventory({ outletId: isAdmin ? undefined : user?.outlet_id }),
         fetchOutlets(),
+        fetchUnitMastersFromAPI({ status: 'active' }),
         fetchServices(),
         fetchPackages(),
         fetchOutletPrices(),
@@ -96,7 +99,16 @@ export function InventoryPage() {
     setProductMasters(productList);
     setInventory(inventoryItems);
     setOutlets(outletList);
-    setUnitMasterList(unitList.filter((u) => u.status === "active"));
+    setUnitMasterList(unitMasters.map((u) => ({
+      id: u.id,
+      groupName: u.group_name,
+      primaryUnit: u.primary_unit,
+      primaryAbbr: u.primary_abbr,
+      secondaryUnit: u.secondary_unit,
+      secondaryAbbr: u.secondary_abbr,
+      conversionRatio: Number(u.conversion_ratio),
+      status: u.status,
+    })));
     setServicesList(serviceList);
     setPackagesList(packageList);
     setOutletPrices(priceList);
@@ -615,6 +627,23 @@ export function InventoryPage() {
                     setProductForm((current) => ({
                       ...current,
                       unitPrice: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="premium-label">Opening Stock</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  className="premium-input"
+                  placeholder="Initial stock quantity"
+                  value={productForm.openingStock}
+                  onChange={(event) =>
+                    setProductForm((current) => ({
+                      ...current,
+                      openingStock: event.target.value,
                     }))
                   }
                 />

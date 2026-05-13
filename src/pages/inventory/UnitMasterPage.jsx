@@ -2,11 +2,23 @@ import { useEffect, useState, useMemo } from "react";
 import { X, Search, Ruler, ArrowLeftRight, ToggleLeft, ToggleRight, Trash2, Edit3, Plus } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import {
-  fetchUnitMasters,
-  saveUnitMaster,
-  deleteUnitMaster,
-  toggleUnitMasterStatus,
-} from "../../services/mockApi";
+  fetchUnitMastersFromAPI,
+  createUnitMaster,
+  updateUnitMaster,
+  toggleUnitMasterStatusAPI,
+  deleteUnitMasterAPI,
+} from "../../services/api";
+
+const toUI = (u) => ({
+  id: u.id,
+  groupName: u.group_name,
+  primaryUnit: u.primary_unit,
+  primaryAbbr: u.primary_abbr,
+  secondaryUnit: u.secondary_unit,
+  secondaryAbbr: u.secondary_abbr,
+  conversionRatio: Number(u.conversion_ratio),
+  status: u.status,
+});
 
 const initialForm = {
   groupName: "",
@@ -29,8 +41,8 @@ export function UnitMasterPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
   const loadUnits = async () => {
-    const data = await fetchUnitMasters();
-    setUnits(data);
+    const data = await fetchUnitMastersFromAPI();
+    setUnits(data.map(toUI));
   };
 
   useEffect(() => {
@@ -92,11 +104,20 @@ export function UnitMasterPage() {
     }
 
     try {
-      await saveUnitMaster({
-        ...(editingId ? { id: editingId } : {}),
-        ...form,
-        conversionRatio: Number(form.conversionRatio),
-      });
+      const payload = {
+        group_name: form.groupName,
+        primary_unit: form.primaryUnit,
+        primary_abbr: form.primaryAbbr,
+        secondary_unit: form.secondaryUnit,
+        secondary_abbr: form.secondaryAbbr,
+        conversion_ratio: Number(form.conversionRatio),
+        status: form.status,
+      };
+      if (editingId) {
+        await updateUnitMaster(editingId, payload);
+      } else {
+        await createUnitMaster(payload);
+      }
       setIsModalOpen(false);
       setForm(initialForm);
       setEditingId(null);
@@ -110,7 +131,7 @@ export function UnitMasterPage() {
   const handleToggleStatus = async (id) => {
     resetMessages();
     try {
-      await toggleUnitMasterStatus(id);
+      await toggleUnitMasterStatusAPI(id);
       setFeedback("Status toggled.");
       await loadUnits();
     } catch (error) {
@@ -121,7 +142,7 @@ export function UnitMasterPage() {
   const handleDelete = async (id) => {
     resetMessages();
     try {
-      await deleteUnitMaster(id);
+      await deleteUnitMasterAPI(id);
       setDeleteConfirmId(null);
       setFeedback("Unit group deleted.");
       await loadUnits();

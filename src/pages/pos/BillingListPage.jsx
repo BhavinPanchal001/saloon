@@ -36,7 +36,7 @@ export default function BillingListPage() {
       setLoading(true);
       const [billsData, productsData] = await Promise.all([
         fetchBills({
-          outletId: user?.role === "admin" ? undefined : user?.outlet_id,
+          outletId: (user?.role === "admin" || user?.role === "super_admin") ? undefined : user?.outlet_id,
         }),
         fetchProductMasters(),
       ]);
