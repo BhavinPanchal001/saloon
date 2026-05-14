@@ -3,19 +3,24 @@ import { X, ArrowLeftRight, Pencil, Trash2, Tag } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { ImageUpload } from "../../components/ui/ImageUpload";
 import {
-  createProduct,
-  createPurchaseOrder,
-  fetchInventory,
-  fetchOutlets,
-  fetchProductMasters,
-  fetchServices,
-  fetchPackages,
-  fetchOutletPrices,
-  saveOutletItemPrice,
-  deleteOutletItemPrice,
-  issueProductToOutlet,
-} from "../../services/mockApi";
-import { fetchUnitMastersFromAPI } from "../../services/api";
+  createProductAPI,
+  fetchProductsFromAPI,
+  updateProductAPI,
+  deleteProductAPI,
+} from "../../services/api";
+import {
+  fetchUnitMastersFromAPI,
+  fetchOutletsFromAPI,
+  fetchServicesFromAPI,
+  fetchPackagesFromAPI,
+  fetchPurchaseOrdersFromAPI,
+  createPurchaseOrderAPI,
+  fetchOutletInventoryFromAPI,
+  issueProductToOutletAPI,
+  fetchOutletProductPricesFromAPI,
+  saveOutletProductPriceAPI,
+  deleteOutletProductPriceAPI,
+} from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase, convertFromBase } from "../../utils/unitConversion";
@@ -74,55 +79,96 @@ export function InventoryPage() {
   const [isPoModalOpen, setIsPoModalOpen] = useState(false);
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
   const [isOutletPriceModalOpen, setIsOutletPriceModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [isEditProductModalOpen, setIsEditProductModalOpen] = useState(false);
+  const [editProductForm, setEditProductForm] = useState(initialProductForm);
   const [editingOutletPrice, setEditingOutletPrice] = useState(null);
   const [productForm, setProductForm] = useState(initialProductForm);
   const [poForm, setPoForm] = useState(initialPoForm);
-  const [issueForm, setIssueForm] = useState({
-    ...initialIssueForm,
-    outletId: scopedOutletId,
-  });
+  const [issueForm, setIssueForm] = useState(initialIssueForm);
   const [outletPriceForm, setOutletPriceForm] = useState(initialOutletPriceForm);
   const [feedback, setFeedback] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const loadInventoryPage = async () => {
-    const [productList, inventoryItems, outletList, unitMasters, serviceList, packageList, priceList] = await Promise.all([
-        fetchProductMasters(),
-        fetchInventory({ outletId: isAdmin ? undefined : user?.outlet_id }),
-        fetchOutlets(),
+    try {
+      const [productList, inventoryItems, outletList, unitMasters, serviceList, packageList, priceList] = await Promise.all([
+        fetchProductsFromAPI(),
+        fetchOutletInventoryFromAPI(isAdmin ? {} : { outletId: user?.outlet_id }),
+        fetchOutletsFromAPI(),
         fetchUnitMastersFromAPI({ status: 'active' }),
-        fetchServices(),
-        fetchPackages(),
-        fetchOutletPrices(),
+        fetchServicesFromAPI(),
+        fetchPackagesFromAPI(),
+        fetchOutletProductPricesFromAPI(),
       ]);
 
-    setProductMasters(productList);
-    setInventory(inventoryItems);
-    setOutlets(outletList);
-    setUnitMasterList(unitMasters.map((u) => ({
-      id: u.id,
-      groupName: u.group_name,
-      primaryUnit: u.primary_unit,
-      primaryAbbr: u.primary_abbr,
-      secondaryUnit: u.secondary_unit,
-      secondaryAbbr: u.secondary_abbr,
-      conversionRatio: Number(u.conversion_ratio),
-      status: u.status,
-    })));
-    setServicesList(serviceList);
-    setPackagesList(packageList);
-    setOutletPrices(priceList);
+      console.log('[Inventory] Loaded outlets:', outletList);
+
+      // Calculate issued stock for each product
+      console.log('[Inventory] Inventory items structure:', inventoryItems);
+      console.log('[Inventory] Products structure:', productList);
+      
+      const productsWithIssuedStock = productList.map(product => {
+        const matchingItems = inventoryItems.filter(item => item.productId === product.id);
+        console.log(`[Inventory] Product ${product.id} (${product.itemName}) - matching inventory items:`, matchingItems);
+        
+        const issuedStock = matchingItems
+          .reduce((total, item) => {
+            console.log(`[Inventory] Item details:`, {
+              productId: item.productId,
+              currentStock: item.currentStock,
+              currentStockType: typeof item.currentStock,
+              parsedValue: parseFloat(item.currentStock)
+            });
+            return total + (parseFloat(item.currentStock) || 0);
+          }, 0);
+        
+        console.log(`[Inventory] Product ${product.id} (${product.itemName}) - calculated issuedStock:`, issuedStock);
+        
+        return {
+          ...product,
+          issuedStock,
+          totalNetworkStock: product.centralStock + issuedStock
+        };
+      });
+
+      setProductMasters(productsWithIssuedStock);
+      setInventory(inventoryItems);
+      setOutlets(outletList || []);
+      setUnitMasterList(unitMasters.map((u) => ({
+        id: u.id,
+        groupName: u.group_name,
+        primaryUnit: u.primary_unit,
+        primaryAbbr: u.primary_abbr,
+        secondaryUnit: u.secondary_unit,
+        secondaryAbbr: u.secondary_abbr,
+        conversionRatio: Number(u.conversion_ratio),
+        status: u.status,
+      })));
+      setServicesList(serviceList);
+      setPackagesList(packageList);
+      setOutletPrices(priceList);
+    } catch (err) {
+      console.error('[Inventory] Failed to load data:', err);
+      setErrorMessage('Failed to load inventory data: ' + (err.message || 'Unknown error'));
+    }
   };
 
   useEffect(() => {
     if (user) {
       loadInventoryPage();
-      setIssueForm((current) => ({
-        ...current,
-        outletId: isAdmin ? "" : user?.outlet_id || "",
-      }));
     }
   }, [isAdmin, user]);
+
+  useEffect(() => {
+    if (outlets.length > 0) {
+      const defaultOutletId = isAdmin ? outlets[0].id : user?.outlet_id || outlets[0].id;
+      setIssueForm((current) => ({
+        ...current,
+        outletId: defaultOutletId,
+      }));
+    }
+  }, [outlets, isAdmin, user?.outlet_id]);
 
   const outletNameById = useMemo(
     () => Object.fromEntries(outlets.map((outlet) => [outlet.id, outlet.name])),
@@ -144,6 +190,59 @@ export function InventoryPage() {
     [productForm.unitMasterId, unitMasterList],
   );
 
+  const selectedEditProductUnitMaster = useMemo(
+    () => unitMasterList.find((u) => u.id === Number(editProductForm.unitMasterId)) || null,
+    [editProductForm.unitMasterId, unitMasterList],
+  );
+
+  const openEditProduct = (item) => {
+    setEditingProduct(item);
+    setEditProductForm({
+      itemName: item.itemName,
+      unitPrice: String(item.unitPrice),
+      openingStock: String(item.centralStock ?? ""),
+      unitMasterId: item.unitMaster?.id ?? item.unit_master_id ?? "",
+      purchaseUnit: item.purchaseUnit || "primary",
+      consumptionUnit: item.consumptionUnit || "primary",
+      productMeasure: item.productMeasure || 1,
+      productMeasureUnit: item.productMeasureUnit || "primary",
+    });
+    setIsEditProductModalOpen(true);
+  };
+
+  const handleEditProductSubmit = async (event) => {
+    event.preventDefault();
+    resetMessages();
+    try {
+      await updateProductAPI(editingProduct.id, {
+        item_name: editProductForm.itemName,
+        unit_price: editProductForm.unitPrice,
+        unit_master_id: editProductForm.unitMasterId || null,
+        purchase_unit: editProductForm.purchaseUnit,
+        consumption_unit: editProductForm.consumptionUnit,
+        product_measure: editProductForm.productMeasure,
+        product_measure_unit: editProductForm.productMeasureUnit,
+      });
+      setIsEditProductModalOpen(false);
+      setFeedback("Product updated successfully.");
+      await loadInventoryPage();
+    } catch (error) {
+      setErrorMessage(error.message || "Unable to update product.");
+    }
+  };
+
+  const handleDeleteProduct = async (item) => {
+    if (!window.confirm(`Delete "${item.itemName}"? This cannot be undone.`)) return;
+    resetMessages();
+    try {
+      await deleteProductAPI(item.id);
+      setFeedback(`"${item.itemName}" deleted.`);
+      await loadInventoryPage();
+    } catch (error) {
+      setErrorMessage(error.message || "Unable to delete product.");
+    }
+  };
+
   const selectedIssueProduct = useMemo(
     () => productMasters.find((item) => item.id === issueForm.productId),
     [issueForm.productId, productMasters],
@@ -159,9 +258,9 @@ export function InventoryPage() {
     resetMessages();
 
     try {
-      await createProduct({
+      await createProductAPI({
         ...productForm,
-        unitMasterId: productForm.unitMasterId || "unit_piece",
+        unitMasterId: productForm.unitMasterId || null,
       });
       setProductForm(initialProductForm);
       setIsProductModalOpen(false);
@@ -199,9 +298,18 @@ export function InventoryPage() {
     resetMessages();
 
     try {
-      await createPurchaseOrder({
-        ...poForm,
-        unit: poForm.unit || "primary",
+      // Transform single-product form data to backend expected format
+      const qty = Number(poForm.qty) || 1;
+      const totalCost = Number(poForm.totalCost) || 0;
+      const unitPrice = qty > 0 ? totalCost / qty : 0;
+      await createPurchaseOrderAPI({
+        supplierName: poForm.supplierName,
+        items: [{
+          productId: poForm.productId,
+          qty: qty,
+          unitPrice: unitPrice,
+        }],
+        taxRate: 0,
       });
       setPoForm(initialPoForm);
       setIsPoModalOpen(false);
@@ -245,8 +353,23 @@ export function InventoryPage() {
     event.preventDefault();
     resetMessages();
 
+    // Frontend validation
+    if (!issueForm.outletId || issueForm.outletId === '') {
+      setErrorMessage("Please select an outlet.");
+      return;
+    }
+    if (!issueForm.productId || issueForm.productId === '') {
+      setErrorMessage("Please select a product.");
+      return;
+    }
+
     try {
-      const issuedStock = await issueProductToOutlet(issueForm);
+      const issuedStock = await issueProductToOutletAPI({
+        outletId: issueForm.outletId,
+        productId: issueForm.productId,
+        qty: Number(issueForm.qty) || 1,
+        sellingPrice: issueForm.sellingPrice,
+      });
       setIssueForm({
         ...initialIssueForm,
         outletId: isAdmin ? "" : user?.outlet_id || "",
@@ -284,7 +407,16 @@ export function InventoryPage() {
     event.preventDefault();
     resetMessages();
     try {
-      await saveOutletItemPrice(outletPriceForm);
+      // Backend currently only supports product prices
+      if (outletPriceForm.type !== 'product') {
+        setErrorMessage("Service and package outlet prices are not yet supported. Only product prices can be saved.");
+        return;
+      }
+      await saveOutletProductPriceAPI({
+        outletId: outletPriceForm.outletId,
+        productId: outletPriceForm.productId,
+        price: outletPriceForm.price,
+      });
       setIsOutletPriceModalOpen(false);
       setOutletPriceForm(initialOutletPriceForm);
       setEditingOutletPrice(null);
@@ -298,7 +430,11 @@ export function InventoryPage() {
   const handleDeleteOutletPrice = async (record) => {
     resetMessages();
     try {
-      await deleteOutletItemPrice(record);
+      if (record.type !== 'product') {
+        setErrorMessage("Service and package outlet prices are not yet supported.");
+        return;
+      }
+      await deleteOutletProductPriceAPI(record.outletId, record.productId, record.type);
       setFeedback("Outlet price removed. Base price will be used.");
       await loadInventoryPage();
     } catch (error) {
@@ -333,7 +469,7 @@ export function InventoryPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-8 xl:grid-cols-[1.3fr_0.7fr]">
+      <div className="grid gap-8">
         <div className="space-y-8">
           <section className="table-container">
             <div className="flex flex-col gap-6 p-8 md:flex-row md:items-center md:justify-between">
@@ -460,6 +596,7 @@ export function InventoryPage() {
                     <th>Central Stock</th>
                     <th>Issued to Outlets</th>
                     <th>Network Stock</th>
+                    {isAdmin && <th>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -488,8 +625,46 @@ export function InventoryPage() {
                           <span className="ml-1 text-xs text-slate-400">{item.unitMaster.primaryAbbr}</span>
                         ) : null}
                       </td>
-                      <td>{item.issuedStock}{item.unitMaster ? <span className="ml-1 text-xs text-slate-400">{item.unitMaster.primaryAbbr}</span> : null}</td>
+                      <td>
+                        {(() => {
+                          console.log(`[UI] Product ${item.id} (${item.itemName}) - issuedStock:`, item.issuedStock);
+                          return item.issuedStock;
+                        })()}{item.unitMaster ? <span className="ml-1 text-xs text-slate-400">{item.unitMaster.primaryAbbr}</span> : null}
+                      </td>
                       <td>{item.totalNetworkStock}{item.unitMaster ? <span className="ml-1 text-xs text-slate-400">{item.unitMaster.primaryAbbr}</span> : null}</td>
+                      {isAdmin && (
+                        <td>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIssueForm((current) => ({ 
+                                  ...current, 
+                                  productId: item.id 
+                                }));
+                                setIsIssueModalOpen(true);
+                              }}
+                              className="flex items-center gap-1 rounded-lg border border-navy-200 bg-white px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                            >
+                              <ArrowLeftRight size={12} /> Issue
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openEditProduct(item)}
+                              className="flex items-center gap-1 rounded-lg border border-navy-200 bg-white px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                            >
+                              <Pencil size={12} /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProduct(item)}
+                              className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                            >
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -551,46 +726,60 @@ export function InventoryPage() {
           </section>
         </div>
 
-        <div className="space-y-8">
-          {isAdmin ? (
-            <section className="glass-card">
-              <div className="flex flex-col gap-6">
-                <div>
-                  <h2 className="text-3xl text-navy-900">Stock movement</h2>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Manage central receipts and outlet transfers from one place.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="btn-premium-primary flex-1"
-                    onClick={() => setIsIssueModalOpen(true)}
-                  >
-                    Issue Product
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-8 rounded-3xl border border-gold-200 bg-gold-50/50 p-6">
-                <p className="text-xs font-black uppercase tracking-widest text-gold-700">Quick reminder</p>
-                <p className="mt-3 text-sm leading-relaxed text-gold-900">
-                  Purchase orders add stock into the central pool. Issue product moves that stock to a specific outlet.
-                </p>
-              </div>
-            </section>
-          ) : (
-            <section className="glass-card">
-              <p className="premium-label">Inventory Access</p>
-              <h2 className="mt-3 text-3xl text-navy-900">Outlet stock only</h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600">
-                Product master creation, purchase orders, and outlet issue are handled from the admin login. This screen stays focused on the stock already assigned to your outlet.
-              </p>
-            </section>
-          )}
-        </div>
       </div>
 
+
+      {isEditProductModalOpen && editingProduct ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
+          <div className="card-solid w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-3xl text-navy-900">Edit product</h2>
+                <p className="mt-1 text-sm text-slate-500">{editingProduct.itemName}</p>
+              </div>
+              <button type="button" className="btn-premium-outline !p-2 rounded-full" onClick={() => setIsEditProductModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <form className="mt-8 space-y-6" onSubmit={handleEditProductSubmit}>
+              <div>
+                <label className="premium-label">Item Name</label>
+                <input
+                  className="premium-input"
+                  value={editProductForm.itemName}
+                  onChange={(e) => setEditProductForm((c) => ({ ...c, itemName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="premium-label">Unit Price (RM)</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="premium-input"
+                  value={editProductForm.unitPrice}
+                  onChange={(e) => setEditProductForm((c) => ({ ...c, unitPrice: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="premium-label">Unit Master</label>
+                <select
+                  className="premium-input appearance-none"
+                  value={editProductForm.unitMasterId ?? ""}
+                  onChange={(e) => setEditProductForm((c) => ({ ...c, unitMasterId: e.target.value }))}
+                >
+                  <option value="">Select Unit Group</option>
+                  {unitMasterList.map((um) => (
+                    <option key={um.id} value={um.id}>{um.groupName}</option>
+                  ))}
+                </select>
+              </div>
+              <button type="submit" className="btn-premium-primary w-full">
+                Save Changes
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {isProductModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
@@ -894,20 +1083,27 @@ export function InventoryPage() {
               <form className="mt-8 space-y-6" onSubmit={handleIssueSubmit}>
                 <div>
                   <label className="premium-label">Product Master</label>
-                  <select
-                    className="premium-input appearance-none"
-                    value={issueForm.productId}
-                    onChange={(event) =>
-                      setIssueForm((current) => ({ ...current, productId: event.target.value }))
-                    }
-                  >
-                    <option value="">Choose a product</option>
-                    {productMasters.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.itemName}
-                      </option>
-                    ))}
-                  </select>
+                  {issueForm.productId && productMasters.find((p) => p.id === issueForm.productId) ? (
+                    <div className="premium-input flex items-center gap-2 bg-navy-50/60 text-navy-800 font-semibold">
+                      <ArrowLeftRight size={14} className="text-navy-400" />
+                      {productMasters.find((p) => p.id === issueForm.productId)?.itemName}
+                    </div>
+                  ) : (
+                    <select
+                      className="premium-input appearance-none"
+                      value={issueForm.productId}
+                      onChange={(event) =>
+                        setIssueForm((current) => ({ ...current, productId: event.target.value }))
+                      }
+                    >
+                      <option value="">Choose a product</option>
+                      {productMasters.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.itemName}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="premium-label">Target Outlet</label>
@@ -917,14 +1113,18 @@ export function InventoryPage() {
                     onChange={(event) =>
                       setIssueForm((current) => ({ ...current, outletId: event.target.value }))
                     }
+                    disabled={outlets.length === 0}
                   >
-                    <option value="">Select outlet</option>
+                    <option value="">{outlets.length === 0 ? 'No outlets available' : 'Select outlet'}</option>
                     {outlets.map((outlet) => (
                       <option key={outlet.id} value={outlet.id}>
                         {outlet.name}
                       </option>
                     ))}
                   </select>
+                  {outlets.length === 0 && (
+                    <p className="mt-1.5 text-xs text-red-500">No outlets found. Please create outlets first.</p>
+                  )}
                 </div>
                 <div>
                   <label className="premium-label">Qty to Issue</label>

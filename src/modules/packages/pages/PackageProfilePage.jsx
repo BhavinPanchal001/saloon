@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import {
-  deletePackage,
-  fetchPackageProfile,
-  togglePackageStatus,
-} from "../../../services/mockApi";
+  fetchPackageProfileFromAPI,
+  deletePackageAPI,
+  togglePackageStatusAPI,
+} from "../../../services/api";
 import { formatCurrency } from "../../../utils/format";
 import { formatPackageValue } from "../utils/packageFormUtils";
 
@@ -20,7 +20,7 @@ export function PackageProfilePage() {
   const [servicePackage, setServicePackage] = useState(null);
 
   const loadPackage = async () => {
-    const packageRecord = await fetchPackageProfile(packageId);
+    const packageRecord = await fetchPackageProfileFromAPI(packageId);
     setServicePackage(packageRecord);
   };
 
@@ -37,12 +37,12 @@ export function PackageProfilePage() {
       return;
     }
 
-    await deletePackage(packageId);
+    await deletePackageAPI(packageId);
     navigate("/packages");
   };
 
   const handleStatusToggle = async () => {
-    await togglePackageStatus(packageId);
+    await togglePackageStatusAPI(packageId);
     loadPackage();
   };
 

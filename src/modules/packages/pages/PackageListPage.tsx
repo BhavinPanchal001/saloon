@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  deletePackage, 
-  fetchOutlets, 
-  fetchPackages, 
-  togglePackageStatus 
-} from '../../../services/mockApi';
+import {
+  fetchPackagesFromAPI,
+  deletePackageAPI,
+  togglePackageStatusAPI,
+  fetchOutletsFromAPI,
+} from '../../../services/api';
 import { formatCurrency } from '../../../utils/format';
 import { formatPackageValue } from '../utils/packageFormUtils';
 import '../styles/packages.css';
@@ -19,7 +19,7 @@ const PackageListPage: React.FC = () => {
   const navigate = useNavigate();
 
   const loadPackagesPage = async () => {
-    const [packageList, outletList] = await Promise.all([fetchPackages(), fetchOutlets()]);
+    const [packageList, outletList] = await Promise.all([fetchPackagesFromAPI(), fetchOutletsFromAPI()]);
     setPackages(packageList);
     setOutlets(outletList);
   };
@@ -68,13 +68,13 @@ const PackageListPage: React.FC = () => {
 
   const handleDelete = async (packageId: string) => {
     if (window.confirm("Delete this package? It will be removed from the catalog.")) {
-      await deletePackage(packageId);
+      await deletePackageAPI(packageId);
       loadPackagesPage();
     }
   };
 
   const handleStatusToggle = async (packageId: string) => {
-    await togglePackageStatus(packageId);
+    await togglePackageStatusAPI(packageId);
     loadPackagesPage();
   };
 

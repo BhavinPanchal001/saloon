@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Plus,
@@ -8,18 +8,20 @@ import {
   Package,
   Receipt,
   Search,
-  ChevronDown,
   Minus,
   FileText,
+  CreditCard,
 } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import {
-  fetchProductMasters,
-  createMultiProductPurchaseOrder,
-} from "../../services/mockApi";
+  fetchProductsFromAPI,
+  createPurchaseOrderAPI,
+  fetchPurchaseOrderByIdFromAPI,
+  updatePurchaseOrderAPI,
+} from "../../services/api";
 
 const TAX_PRESETS = [
   { label: "No Tax", value: 0 },
@@ -31,10 +33,13 @@ const TAX_PRESETS = [
 export default function PurchaseOrderPage() {
   const toast = useToastStore();
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [originalOrder, setOriginalOrder] = useState(null);
 
   // Order form state
   const [supplierName, setSupplierName] = useState("");
@@ -45,17 +50,70 @@ export default function PurchaseOrderPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showProductPicker, setShowProductPicker] = useState(false);
 
+  // Payment state
+  const [enablePayment, setEnablePayment] = useState(false);
+  const [paymentDetails, setPaymentDetails] = useState([
+    { paymentMode: "cash", amount: 0 },
+  ]);
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [transactionReference, setTransactionReference] = useState("");
+
   useEffect(() => {
     loadProducts();
-  }, []);
+    if (isEditMode) {
+      loadOrder();
+    }
+  }, [id]);
 
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const data = await fetchProductMasters();
+      const data = await fetchProductsFromAPI();
       setProducts(data);
     } catch {
       toast.error("Failed to load products");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadOrder = async () => {
+    try {
+      setLoading(true);
+      const order = await fetchPurchaseOrderByIdFromAPI(id);
+      setOriginalOrder(order);
+      // Populate form
+      setSupplierName(order.supplierName || "");
+      setNotes(order.notes || "");
+      setOrderItems(order.items?.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        qty: item.qty,
+        unitPrice: item.unitPrice,
+      })) || []);
+      // Set tax
+      const taxValue = order.taxRate || 0;
+      const preset = TAX_PRESETS.find(p => p.value === taxValue);
+      if (preset) {
+        setTaxPreset(taxValue);
+      } else {
+        setTaxPreset(-1);
+        setCustomTaxRate(String(taxValue));
+      }
+      // Payment section - show if existing payments
+      if (order.payments && order.payments.length > 0) {
+        setEnablePayment(true);
+        const payment = order.payments[0];
+        setTransactionReference(payment.transactionReference || "");
+        setPaymentNotes(payment.notes || "");
+        setPaymentDetails(payment.details?.map(d => ({
+          paymentMode: d.paymentMode,
+          amount: d.amount,
+        })) || [{ paymentMode: "cash", amount: 0 }]);
+      }
+    } catch {
+      toast.error("Failed to load purchase order");
+      navigate("/inventory/purchase-orders");
     } finally {
       setLoading(false);
     }
@@ -135,6 +193,24 @@ export default function PurchaseOrderPage() {
     setOrderItems((prev) => prev.filter((item) => item.productId !== productId));
   };
 
+  // Payment handlers
+  const addPaymentMethod = () => {
+    setPaymentDetails((prev) => [...prev, { paymentMode: "cash", amount: 0 }]);
+  };
+
+  const removePaymentMethod = (index) => {
+    setPaymentDetails((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updatePaymentDetail = (index, field, value) => {
+    setPaymentDetails((prev) =>
+      prev.map((detail, i) => (i === index ? { ...detail, [field]: value } : detail))
+    );
+  };
+
+  const totalPaymentAmount = paymentDetails.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const paymentBalance = grandTotal - totalPaymentAmount;
+
   // Submit order
   const handleSubmit = async () => {
     if (orderItems.length === 0) {
@@ -146,18 +222,47 @@ export default function PurchaseOrderPage() {
       return;
     }
 
+    // Validate payment if enabled
+    if (enablePayment && paymentBalance !== 0) {
+      toast.warning(`Payment amount (${formatCurrency(totalPaymentAmount)}) must equal grand total (${formatCurrency(grandTotal)}).`);
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await createMultiProductPurchaseOrder({
+      const payload = {
         supplierName: supplierName.trim(),
         items: orderItems,
         taxRate: effectiveTaxRate,
         notes: notes.trim(),
-      });
-      toast.success("Purchase order created successfully!");
+      };
+
+      // Add payment if enabled
+      const payment = enablePayment
+        ? {
+            status: "completed",
+            transactionReference: transactionReference.trim(),
+            notes: paymentNotes.trim(),
+            paymentDate: new Date().toISOString().split("T")[0],
+            details: paymentDetails
+              .filter((d) => Number(d.amount) > 0)
+              .map((d) => ({
+                paymentMode: d.paymentMode,
+                amount: Number(d.amount),
+              })),
+          }
+        : null;
+
+      if (isEditMode) {
+        await updatePurchaseOrderAPI(id, payload);
+        toast.success("Purchase order updated successfully!");
+      } else {
+        await createPurchaseOrderAPI(payload, payment);
+        toast.success("Purchase order created successfully!");
+      }
       navigate("/inventory/purchase-orders");
     } catch (err) {
-      toast.error(err.message || "Failed to create purchase order.");
+      toast.error(err.message || `Failed to ${isEditMode ? 'update' : 'create'} purchase order.`);
     } finally {
       setSubmitting(false);
     }
@@ -166,7 +271,7 @@ export default function PurchaseOrderPage() {
   if (loading) {
     return (
       <div>
-        <PageHeader title="New Purchase Order" />
+        <PageHeader title={isEditMode ? "Edit Purchase Order" : "New Purchase Order"} />
         <LoadingState message="Loading products..." />
       </div>
     );
@@ -185,11 +290,12 @@ export default function PurchaseOrderPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold text-navy-900">
-              New Purchase Order
+              {isEditMode ? "Edit Purchase Order" : "New Purchase Order"}
             </h1>
             <p className="text-sm text-slate-500">
-              Select products, set quantities, and review tax before placing the
-              order
+              {isEditMode
+                ? "Modify order details, products, and payment information"
+                : "Select products, set quantities, and review tax before placing the order"}
             </p>
           </div>
         </div>
@@ -547,13 +653,124 @@ export default function PurchaseOrderPage() {
               </div>
             </div>
 
+            {/* Payment Section */}
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <label className="flex cursor-pointer items-center gap-3 mb-4">
+                <input
+                  type="checkbox"
+                  checked={enablePayment}
+                  onChange={(e) => setEnablePayment(e.target.checked)}
+                  className="h-4 w-4 accent-gold-500"
+                />
+                <span className="text-sm font-semibold text-navy-900 flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-gold-500" />
+                  Add Payment Now
+                </span>
+              </label>
+
+              {enablePayment && (
+                <div className="space-y-4">
+                  {paymentDetails.map((detail, index) => (
+                    <div key={index} className="space-y-2 p-3 rounded-xl border border-slate-200 bg-slate-50">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={detail.paymentMode}
+                          onChange={(e) => updatePaymentDetail(index, "paymentMode", e.target.value)}
+                          className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                        >
+                          <option value="cash">Cash</option>
+                          <option value="card">Card</option>
+                          <option value="upi">UPI</option>
+                          <option value="bank_transfer">Bank Transfer</option>
+                          <option value="cheque">Cheque</option>
+                        </select>
+                        {paymentDetails.length > 1 && (
+                          <button
+                            onClick={() => removePaymentMethod(index)}
+                            className="p-1.5 text-rose-400 hover:text-rose-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 text-sm">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={detail.amount || ""}
+                          onChange={(e) => updatePaymentDetail(index, "amount", e.target.value)}
+                          placeholder="Amount"
+                          className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    onClick={addPaymentMethod}
+                    className="text-sm text-gold-600 hover:text-gold-700 font-medium flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Another Payment Method
+                  </button>
+
+                  {/* Payment Summary */}
+                  <div className="pt-2 border-t border-slate-200">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">Total Paid</span>
+                      <span className={`font-semibold ${paymentBalance === 0 ? "text-green-600" : "text-navy-900"}`}>
+                        {formatCurrency(totalPaymentAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-slate-500">Balance</span>
+                      <span className={`font-semibold ${paymentBalance === 0 ? "text-green-600" : "text-rose-500"}`}>
+                        {paymentBalance === 0 ? "Fully Paid" : formatCurrency(paymentBalance)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Transaction Reference */}
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+                      Transaction Ref (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={transactionReference}
+                      onChange={(e) => setTransactionReference(e.target.value)}
+                      placeholder="e.g. TXN123456"
+                      className="premium-input w-full text-sm"
+                    />
+                  </div>
+
+                  {/* Payment Notes */}
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+                      Payment Notes (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentNotes}
+                      onChange={(e) => setPaymentNotes(e.target.value)}
+                      placeholder="Any payment remarks..."
+                      className="premium-input w-full text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={handleSubmit}
               disabled={submitting || orderItems.length === 0}
               className="btn-premium-primary mt-6 w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ShoppingCart className="h-4 w-4" />
-              {submitting ? "Placing Order..." : "Place Purchase Order"}
+              {submitting
+                ? (isEditMode ? "Updating..." : "Placing Order...")
+                : (isEditMode ? "Update Purchase Order" : "Place Purchase Order")}
             </button>
 
             <Link

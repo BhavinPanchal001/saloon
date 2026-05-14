@@ -1,8 +1,26 @@
+const { Op } = require('sequelize');
 const ServiceCategory = require('../models/ServiceCategory');
+const Service = require('../models/Service');
 
 const getAll = async (req, res) => {
   try {
-    const categories = await ServiceCategory.findAll({ order: [['name', 'ASC']] });
+    const { status, search } = req.query;
+    const where = {};
+
+    if (status) {
+      if (!['active', 'inactive'].includes(status)) {
+        return res.status(400).json({ message: 'status must be active or inactive.' });
+      }
+      where.status = status;
+    }
+    if (search) {
+      where[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { code: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    const categories = await ServiceCategory.findAll({ where, order: [['name', 'ASC']] });
     return res.json(categories);
   } catch (err) {
     return res.status(500).json({ message: 'Server error.' });
@@ -63,6 +81,11 @@ const remove = async (req, res) => {
   try {
     const category = await ServiceCategory.findByPk(req.params.id);
     if (!category) return res.status(404).json({ message: 'Category not found.' });
+
+    const inUse = await Service.count({ where: { category_id: req.params.id } });
+    if (inUse > 0) {
+      return res.status(409).json({ message: `Cannot delete: ${inUse} service(s) are assigned to this category.` });
+    }
 
     await category.destroy();
     return res.json({ message: 'Category deleted successfully.' });

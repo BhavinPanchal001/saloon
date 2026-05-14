@@ -2,7 +2,12 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Tags, Search, Plus, Edit, Trash2, Check, X
 } from 'lucide-react';
-import { fetchServiceCategories, saveServiceCategory, deleteServiceCategory } from '../../../services/mockApi';
+import {
+  fetchServiceCategoriesFromAPI,
+  createServiceCategoryAPI,
+  updateServiceCategoryAPI,
+  deleteServiceCategoryAPI,
+} from '../../../services/api';
 import DeleteConfirmationModal from '../../contracts/components/common/DeleteConfirmationModal';
 import '../styles/services.css';
 
@@ -21,7 +26,7 @@ const ServiceCategoryMasterPage: React.FC = () => {
   const loadCategories = async () => {
     setLoading(true);
     try {
-      const data = await fetchServiceCategories();
+      const data = await fetchServiceCategoriesFromAPI();
       setCategories(data);
     } catch (error) {
       console.error('Failed to load categories:', error);
@@ -53,7 +58,7 @@ const ServiceCategoryMasterPage: React.FC = () => {
 
   const handleConfirmDelete = async () => {
     if (itemToDelete) {
-      await deleteServiceCategory(itemToDelete.id);
+      await deleteServiceCategoryAPI(itemToDelete.id);
       loadCategories();
     }
     setIsDeleteOpen(false);
@@ -61,10 +66,11 @@ const ServiceCategoryMasterPage: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    await saveServiceCategory({
-      ...form,
-      id: editingItem?.id
-    });
+    if (editingItem) {
+      await updateServiceCategoryAPI(editingItem.id, form);
+    } else {
+      await createServiceCategoryAPI(form);
+    }
     setIsModalOpen(false);
     loadCategories();
   };

@@ -1,17 +1,51 @@
 require('dotenv').config();
+const { execSync } = require('child_process');
 const app = require('./app');
 const { sequelize } = require('./models');
 
 const PORT = process.env.PORT || 5001;
 
+const killPortIfBusy = (port) => {
+  try {
+    const pid = execSync(`lsof -t -i:${port}`, { stdio: 'pipe' }).toString().trim();
+    if (pid) {
+      console.log(`Port ${port} in use by PID ${pid}. Killing...`);
+      execSync(`kill -9 ${pid}`, { stdio: 'pipe' });
+      console.log(`PID ${pid} killed. Port ${port} is now free.`);
+    }
+  } catch (_) {
+    // Port is already free — nothing to do
+  }
+};
+
 const startServer = async () => {
   try {
+    killPortIfBusy(PORT);
+
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is still in use after kill attempt. Exiting...`);
+        process.exit(1);
+      } else {
+        throw err;
+      }
+    });
+
+    const shutdown = () => {
+      server.close(() => {
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
   } catch (error) {
     console.error('Unable to connect to the database:', error);
     process.exit(1);

@@ -19,12 +19,15 @@ import {
 } from "lucide-react";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import {
-  fetchOutlets,
-  fetchPackageProfile,
   fetchServices,
-  savePackage,
   fetchServiceCategories,
 } from "../../../services/mockApi";
+import {
+  fetchPackageProfileFromAPI,
+  createPackageAPI,
+  updatePackageAPI,
+  fetchOutletsFromAPI,
+} from "../../../services/api";
 import { formatCurrency } from "../../../utils/format";
 import {
   createInitialPackageForm,
@@ -63,9 +66,9 @@ export function PackageFormPage() {
       try {
         const [serviceList, outletList, categoryList, packageRecord] = await Promise.all([
           fetchServices(),
-          fetchOutlets(),
+          fetchOutletsFromAPI(),
           fetchServiceCategories(),
-          isEditing ? fetchPackageProfile(packageId) : Promise.resolve(null),
+          isEditing ? fetchPackageProfileFromAPI(packageId) : Promise.resolve(null),
         ]);
 
         if (!isMounted) return;
@@ -154,17 +157,30 @@ export function PackageFormPage() {
     if (!form.packageName.trim() || cleanedServices.length === 0) return;
     setIsSaving(true);
     try {
-      const savedPackage = await savePackage({
-        id: packageId,
-        ...form,
-        validityDays: Number(form.validityDays) || 30,
-        packagePrice: form.packagePrice || packageSummary.regularPrice,
-        maxRedemptionsPerVisit: Number(form.maxRedemptionsPerVisit) || 1,
+      const payload = {
+        package_code: form.packageCode,
+        package_name: form.packageName,
+        offer_label: form.offerLabel,
+        description: form.description,
+        category: form.category,
+        validity_days: Number(form.validityDays) || 30,
+        price: Number(form.packagePrice) || packageSummary.regularPrice,
+        status: form.status,
+        featured: form.featured,
+        bookable_online: form.bookableOnline,
+        prepaid_only: form.prepaidOnly,
+        max_redemptions_per_visit: Number(form.maxRedemptionsPerVisit) || 1,
+        sale_channels: form.saleChannels,
+        assigned_outlet_ids: form.assignedOutletIds,
+        terms_and_conditions: form.termsAndConditions,
         services: cleanedServices.map((selection) => ({
-          serviceId: selection.serviceId,
+          service_id: selection.serviceId,
           sessions: Number(selection.sessions) || 1,
         })),
-      });
+      };
+      const savedPackage = isEditing
+        ? await updatePackageAPI(packageId, payload)
+        : await createPackageAPI(payload);
       navigate(`/packages/${savedPackage.id}`);
     } finally {
       setIsSaving(false);

@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const { sequelize } = require('./index');
+const { sequelize } = require('./db');
 
 const Product = sequelize.define('Product', {
   id: {
@@ -27,7 +27,7 @@ const Product = sequelize.define('Product', {
     defaultValue: 0,
   },
   unit_master_id: {
-    type: DataTypes.STRING(50),
+    type: DataTypes.INTEGER.UNSIGNED,
     allowNull: true,
   },
   purchase_unit: {

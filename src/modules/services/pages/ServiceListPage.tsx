@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Search } from 'lucide-react';
-import { fetchServices } from '../../../services/mockApi';
+import { fetchServicesFromAPI, fetchServiceCategoriesFromAPI } from '../../../services/api';
 import { formatCurrency } from '../../../utils/format';
 import { useToastStore } from '../../../stores/toastStore';
 import { EmptyTable, NoSearchResults } from '../../../components/ui/EmptyState';
@@ -10,6 +10,7 @@ import '../styles/services.css';
 const ServiceListPage: React.FC = () => {
   const [allServices, setAllServices] = useState<any[]>([]);
   const [filteredServices, setFilteredServices] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -21,9 +22,19 @@ const ServiceListPage: React.FC = () => {
     const loadServices = async () => {
       try {
         setLoading(true);
-        const data = await fetchServices();
-        setAllServices(data);
-        setFilteredServices(data);
+        const [rawServices, catList] = await Promise.all([
+          fetchServicesFromAPI(),
+          fetchServiceCategoriesFromAPI(),
+        ]);
+        const mapped = rawServices.map((s: any) => ({
+          ...s,
+          serviceName: s.service_name,
+          productLinkages: s.product_linkages || [],
+          categoryName: s.category?.name || '',
+        }));
+        setAllServices(mapped);
+        setFilteredServices(mapped);
+        setCategories(catList);
       } catch (err) {
         toast.error('Failed to load services');
       } finally {
@@ -47,7 +58,7 @@ const ServiceListPage: React.FC = () => {
 
     // Apply category filter
     if (categoryFilter) {
-      result = result.filter(s => s.category === categoryFilter);
+      result = result.filter(s => String(s.category_id) === categoryFilter);
     }
 
     setFilteredServices(result);
@@ -141,9 +152,9 @@ const ServiceListPage: React.FC = () => {
           onChange={(e) => setCategoryFilter(e.target.value)}
         >
           <option value="">All Categories</option>
-          <option value="hair">Hair</option>
-          <option value="skin">Skin</option>
-          <option value="nails">Nails</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={String(cat.id)}>{cat.name}</option>
+          ))}
         </select>
       </div>
 
@@ -174,7 +185,7 @@ const ServiceListPage: React.FC = () => {
             <tbody>
               {filteredServices.map((service) => (
                 <tr key={service.id}>
-                  <td className="font-semibold text-navy-900">{service.serviceName}</td>
+                  <td className="font-semibold text-navy-900">{service.serviceName || service.service_name}</td>
                   <td className="font-medium">{formatCurrency(service.price)}</td>
                   <td>{service.duration} min</td>
                   <td className="text-sm">

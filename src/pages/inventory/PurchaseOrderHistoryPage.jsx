@@ -6,29 +6,25 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import {
-  fetchPurchaseOrders,
-  approvePurchaseOrder,
-  receivePurchaseOrder,
-} from "../../services/mockApi";
+  fetchPurchaseOrdersFromAPI,
+  updatePurchaseOrderAPI,
+  deletePurchaseOrderAPI,
+} from "../../services/api";
 import {
   Package,
   Calendar,
   CheckCircle,
-  Clock,
-  AlertCircle,
-  Download,
   Search,
-  Filter,
   ChevronDown,
-  FileText,
   Plus,
+  CreditCard,
+  Banknote,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 
 const statusColors = {
-  pending: { bg: "bg-amber-50", text: "text-amber-700", icon: Clock },
-  approved: { bg: "bg-blue-50", text: "text-blue-700", icon: CheckCircle },
   received: { bg: "bg-emerald-50", text: "text-emerald-700", icon: CheckCircle },
-  cancelled: { bg: "bg-rose-50", text: "text-rose-700", icon: AlertCircle },
 };
 
 export function PurchaseOrderHistoryPage() {
@@ -37,39 +33,10 @@ export function PurchaseOrderHistoryPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [dateRange, setDateRange] = useState("all");
+    const [dateRange, setDateRange] = useState("all");
   const [expandedOrder, setExpandedOrder] = useState(null);
-  const [processingOrderId, setProcessingOrderId] = useState(null);
-
-  const handleApproveOrder = async (orderId) => {
-    setProcessingOrderId(orderId);
-    try {
-      await approvePurchaseOrder(orderId);
-      toast.success("Purchase order approved successfully");
-      const data = await fetchPurchaseOrders();
-      setOrders(data);
-    } catch (err) {
-      toast.error("Failed to approve order");
-    } finally {
-      setProcessingOrderId(null);
-    }
-  };
-
-  const handleReceiveOrder = async (orderId) => {
-    setProcessingOrderId(orderId);
-    try {
-      await receivePurchaseOrder(orderId);
-      toast.success("Purchase order marked as received");
-      const data = await fetchPurchaseOrders();
-      setOrders(data);
-    } catch (err) {
-      toast.error("Failed to update order status");
-    } finally {
-      setProcessingOrderId(null);
-    }
-  };
-
+  
+  
   useEffect(() => {
     loadOrders();
   }, []);
@@ -77,7 +44,7 @@ export function PurchaseOrderHistoryPage() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const data = await fetchPurchaseOrders();
+      const data = await fetchPurchaseOrdersFromAPI();
       setOrders(data);
     } catch (error) {
       toast.error("Failed to load purchase orders");
@@ -86,27 +53,55 @@ export function PurchaseOrderHistoryPage() {
     }
   };
 
+  const handleEdit = (orderId) => {
+    navigate(`/inventory/purchase-orders/${orderId}/edit`);
+  };
+
+  const handleDelete = async (orderId) => {
+    if (!confirm("Are you sure you want to delete this purchase order? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      await deletePurchaseOrderAPI(orderId);
+      toast.success("Purchase order deleted successfully");
+      loadOrders();
+    } catch (err) {
+      toast.error(err.message || "Failed to delete purchase order");
+    }
+  };
+
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
       !searchQuery ||
       order.poNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.supplierName?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
+
+    let matchesDate = true;
+    if (dateRange !== "all" && order.orderDate) {
+      const orderTime = new Date(order.orderDate).getTime();
+      const now = new Date();
+      if (dateRange === "thisMonth") {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        matchesDate = orderTime >= start;
+      } else if (dateRange === "lastMonth") {
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+        const end = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        matchesDate = orderTime >= start && orderTime < end;
+      } else if (dateRange === "thisYear") {
+        const start = new Date(now.getFullYear(), 0, 1).getTime();
+        matchesDate = orderTime >= start;
+      }
+    }
+
+    return matchesSearch && matchesDate;
   });
 
   const stats = {
     total: orders.length,
-    pending: orders.filter((o) => o.status === "pending").length,
-    approved: orders.filter((o) => o.status === "approved").length,
-    received: orders.filter((o) => o.status === "received").length,
     totalValue: orders.reduce((sum, o) => sum + (o.totalCost || 0), 0),
   };
 
-  const handleExport = () => {
-    toast.success("Purchase order history exported");
-  };
-
+  
   if (loading) {
     return (
       <div>
@@ -125,9 +120,6 @@ export function PurchaseOrderHistoryPage() {
           <p className="text-sm text-slate-500">Track, manage and create purchase orders</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={handleExport} className="btn-premium-outline flex items-center gap-2">
-            <Download className="h-4 w-4" /> Export
-          </button>
           <button onClick={() => navigate("/inventory/purchase-orders/new")} className="btn-premium-primary flex items-center gap-2">
             <Plus className="h-4 w-4" /> New PO
           </button>
@@ -135,18 +127,10 @@ export function PurchaseOrderHistoryPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <div className="glass-card p-5">
           <p className="text-xs font-black uppercase tracking-widest text-slate-400">Total Orders</p>
           <p className="mt-2 text-2xl font-black text-navy-900">{stats.total}</p>
-        </div>
-        <div className="glass-card p-5">
-          <p className="text-xs font-black uppercase tracking-widest text-slate-400">Pending</p>
-          <p className="mt-2 text-2xl font-black text-amber-600">{stats.pending}</p>
-        </div>
-        <div className="glass-card p-5">
-          <p className="text-xs font-black uppercase tracking-widest text-slate-400">Received</p>
-          <p className="mt-2 text-2xl font-black text-emerald-600">{stats.received}</p>
         </div>
         <div className="glass-card p-5">
           <p className="text-xs font-black uppercase tracking-widest text-slate-400">Total Value</p>
@@ -167,21 +151,7 @@ export function PurchaseOrderHistoryPage() {
               className="premium-input pl-10 w-full"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-slate-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="premium-input"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="received">Received</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-slate-400" />
             <select
               value={dateRange}
@@ -208,7 +178,7 @@ export function PurchaseOrderHistoryPage() {
       ) : (
         <div className="space-y-4">
           {filteredOrders.map((order) => {
-            const statusStyle = statusColors[order.status] || statusColors.pending;
+            const statusStyle = statusColors[order.status] || statusColors.received;
             const StatusIcon = statusStyle.icon;
             const isExpanded = expandedOrder === order.id;
 
@@ -241,6 +211,25 @@ export function PurchaseOrderHistoryPage() {
                     <div className="text-right">
                       <p className="font-bold text-navy-900">{formatCurrency(order.totalCost)}</p>
                       <p className="text-xs text-slate-500">{order.items?.length || 0} items</p>
+                    </div>
+                    {/* Payment Summary */}
+                    <div className="text-right hidden md:block">
+                      {order.payments && order.payments.length > 0 ? (
+                        <>
+                          <p className="text-sm font-medium text-green-600 flex items-center gap-1 justify-end">
+                            <Banknote className="h-3 w-3" />
+                            Paid
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {order.payments.length} payment{order.payments.length > 1 ? 's' : ''}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-amber-600">Unpaid</p>
+                          <p className="text-xs text-slate-400">No payment</p>
+                        </>
+                      )}
                     </div>
                     <div className="text-right hidden sm:block">
                       <p className="text-sm text-slate-600">{new Date(order.orderDate).toLocaleDateString()}</p>
@@ -339,30 +328,91 @@ export function PurchaseOrderHistoryPage() {
                       </table>
                     </div>
 
+                    {/* Payment Details */}
+                    {order.payments && order.payments.length > 0 && (
+                      <div className="mt-6">
+                        <h4 className="text-sm font-semibold text-navy-900 mb-3 flex items-center gap-2">
+                          <CreditCard className="h-4 w-4 text-gold-500" />
+                          Payment Details
+                        </h4>
+                        <div className="overflow-hidden rounded-xl border border-slate-200">
+                          <table className="w-full">
+                            <thead className="bg-slate-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Date</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Mode</th>
+                                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                              {order.payments.map((payment, idx) => (
+                                payment.details?.map((detail, dIdx) => (
+                                  <tr key={`${idx}-${dIdx}`}>
+                                    <td className="px-4 py-3 text-sm text-slate-600">
+                                      {new Date(payment.paymentDate).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-navy-900 capitalize">
+                                      {detail.paymentMode?.replace('_', ' ')}
+                                    </td>
+                                    <td className="px-4 py-3 text-right text-sm font-medium text-navy-900">
+                                      {formatCurrency(detail.amount)}
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                                        payment.status === 'completed'
+                                          ? 'bg-green-50 text-green-700'
+                                          : payment.status === 'pending'
+                                          ? 'bg-amber-50 text-amber-700'
+                                          : 'bg-rose-50 text-rose-700'
+                                      }`}>
+                                        {payment.status?.charAt(0).toUpperCase() + payment.status?.slice(1)}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))
+                              ))}
+                              <tr className="bg-slate-50 font-semibold">
+                                <td colSpan={2} className="px-4 py-3 text-right text-sm text-navy-900">
+                                  Total Paid
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm text-green-600">
+                                  {formatCurrency(order.payments.reduce((sum, p) => sum + (p.totalAmount || 0), 0))}
+                                </td>
+                                <td></td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        {order.payments[0]?.transactionReference && (
+                          <p className="mt-2 text-xs text-slate-500">
+                            Transaction Ref: {order.payments[0].transactionReference}
+                          </p>
+                        )}
+                        {order.payments[0]?.notes && (
+                          <p className="mt-1 text-xs text-slate-500">
+                            Notes: {order.payments[0].notes}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Action Buttons */}
-                    <div className="mt-6 flex items-center justify-end gap-3">
-                      <button className="btn-premium-outline flex items-center gap-2 text-sm">
-                        <FileText className="h-4 w-4" />
-                        View PDF
+                    <div className="mt-6 flex gap-3">
+                      <button
+                        onClick={() => handleEdit(order.id)}
+                        className="flex-1 btn-premium-outline flex items-center justify-center gap-2 text-sm"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Edit Order
                       </button>
-                      {order.status === "pending" && (
-                        <button
-                          onClick={() => handleApproveOrder(order.id)}
-                          disabled={processingOrderId === order.id}
-                          className="btn-premium-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {processingOrderId === order.id ? "Processing..." : "Approve Order"}
-                        </button>
-                      )}
-                      {order.status === "approved" && (
-                        <button
-                          onClick={() => handleReceiveOrder(order.id)}
-                          disabled={processingOrderId === order.id}
-                          className="btn-premium-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {processingOrderId === order.id ? "Processing..." : "Mark as Received"}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDelete(order.id)}
+                        className="flex-1 btn-danger flex items-center justify-center gap-2 text-sm bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
                     </div>
                   </div>
                 )}

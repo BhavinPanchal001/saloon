@@ -87,6 +87,20 @@ const update = async (req, res) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
 
+    if (updates.price !== undefined) {
+      const parsedPrice = Number(updates.price);
+      if (isNaN(parsedPrice) || parsedPrice < 0) {
+        return res.status(400).json({ message: 'price must be a non-negative number.' });
+      }
+      updates.price = parsedPrice;
+    }
+    if (updates.duration !== undefined) {
+      updates.duration = Math.max(1, Number(updates.duration) || 1);
+    }
+    if (updates.product_linkages !== undefined && !Array.isArray(updates.product_linkages)) {
+      return res.status(400).json({ message: 'product_linkages must be an array.' });
+    }
+
     await service.update(updates);
 
     const result = await Service.findByPk(service.id, {

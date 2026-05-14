@@ -110,7 +110,7 @@ const remove = async (req, res) => {
     const unit = await UnitMaster.findByPk(req.params.id);
     if (!unit) return res.status(404).json({ message: 'Unit master not found.' });
 
-    const inUse = await Product.count({ where: { unit_master_id: String(req.params.id) } });
+    const inUse = await Product.count({ where: { unit_master_id: Number(req.params.id) } });
     if (inUse > 0) {
       return res.status(409).json({ message: 'Cannot delete: this unit group is used by one or more products.' });
     }

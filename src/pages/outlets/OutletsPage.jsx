@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Plus, ArrowUpRight } from "lucide-react";
-import { fetchOutlets } from "../../services/mockApi";
-import { formatCurrency } from "../../utils/format";
+import { fetchOutletsFromAPI } from "../../services/api";
 import { OutletFormModal } from "./OutletFormModal";
 
 export function OutletsPage() {
   const [outlets, setOutlets] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOutletId, setEditingOutletId] = useState(null);
-  const navigate = useNavigate();
+  const [loadError, setLoadError] = useState(null);
 
   const loadOutlets = () => {
-    fetchOutlets().then(setOutlets);
+    setLoadError(null);
+    fetchOutletsFromAPI()
+      .then(setOutlets)
+      .catch(() => setLoadError('Failed to load outlets. Please try again.'));
   };
 
   useEffect(() => {
@@ -47,6 +49,12 @@ export function OutletsPage() {
         }
       />
 
+      {loadError && (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+          {loadError}
+        </div>
+      )}
+
       <div className="table-container">
         <table className="premium-table">
           <thead>
@@ -55,7 +63,7 @@ export function OutletsPage() {
               <th>Code</th>
               <th>City</th>
               <th>Branch Manager</th>
-              <th>Monthly Budget</th>
+              <th>Status</th>
               <th className="w-20"></th>
             </tr>
           </thead>
@@ -68,10 +76,12 @@ export function OutletsPage() {
                 </td>
                 <td className="text-slate-600">{outlet.city}</td>
                 <td>
-                  <span className="font-bold text-navy-600">{outlet.manager}</span>
+                  <span className="font-bold text-navy-600">{outlet.manager || '—'}</span>
                 </td>
                 <td>
-                  <span className="font-bold text-emerald-600">{formatCurrency(outlet.monthlyBudget || 0)}</span>
+                  <span className={`status-badge ${outlet.status === 'active' ? 'status-active' : 'status-inactive'}`}>
+                    {outlet.status}
+                  </span>
                 </td>
                 <td>
                   <div className="flex items-center gap-3">

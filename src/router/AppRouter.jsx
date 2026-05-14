@@ -126,6 +126,10 @@ export const router = createBrowserRouter([
             element: <PurchaseOrderPage />,
           },
           {
+            path: "/inventory/purchase-orders/:id/edit",
+            element: <PurchaseOrderPage />,
+          },
+          {
             path: "/inventory/units",
             element: <UnitMasterPage />,
           },

@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
 
+const ADMIN_ROLES = ['admin', 'super_admin'];
+
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -18,4 +20,11 @@ const authenticate = (req, res, next) => {
   }
 };
 
-module.exports = { authenticate };
+const requireAdmin = (req, res, next) => {
+  if (!req.admin || !ADMIN_ROLES.includes(req.admin.role)) {
+    return res.status(403).json({ message: 'Forbidden. Admin access required.' });
+  }
+  next();
+};
+
+module.exports = { authenticate, requireAdmin };

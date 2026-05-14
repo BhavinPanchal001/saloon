@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { createService, fetchProductMasters, fetchServices, fetchServiceCategories } from '../../../services/mockApi';
+import {
+  fetchServiceByIdFromAPI,
+  createServiceAPI,
+  updateServiceAPI,
+  fetchServiceCategoriesFromAPI,
+} from '../../../services/api';
+import { fetchProductMasters } from '../../../services/mockApi';
 import { getAvailableUnits, getUnitAbbr, convertToBase } from '../../../utils/unitConversion';
 import { ImageUpload } from '../../../components/ui/ImageUpload';
 import '../styles/services.css';
@@ -8,6 +14,7 @@ import '../styles/services.css';
 interface ProductLinkage {
   inventoryId: string;
   quantityUsed: number;
+  consumptionUnit?: string;
 }
 
 interface ServiceForm {
@@ -46,17 +53,27 @@ const ServiceFormPage: React.FC = () => {
     const loadData = async () => {
       const [inventoryList, categoryList] = await Promise.all([
         fetchProductMasters(),
-        fetchServiceCategories()
+        fetchServiceCategoriesFromAPI(),
       ]);
       setInventory(inventoryList);
       setCategories(categoryList);
 
       if (id) {
-        const serviceList = await fetchServices();
-        const service = serviceList.find((s: any) => s.id === id);
-        if (service) {
-          setForm(service);
-        }
+        const service = await fetchServiceByIdFromAPI(id);
+        setForm({
+          serviceName: service.service_name || '',
+          category: service.category_id ? String(service.category_id) : '',
+          price: String(service.price || ''),
+          duration: String(service.duration || ''),
+          images: service.images || [],
+          productLinkages: (service.product_linkages || []).length > 0
+            ? service.product_linkages.map((l: any) => ({
+                inventoryId: String(l.inventoryId || l.inventory_id || ''),
+                quantityUsed: l.quantityUsed ?? l.quantity_used ?? 1,
+                consumptionUnit: l.consumptionUnit || l.consumption_unit || 'primary',
+              }))
+            : [createInitialLinkage()],
+        });
       }
     };
     loadData();
@@ -77,10 +94,22 @@ const ServiceFormPage: React.FC = () => {
 
     try {
       const cleanedLinkages = form.productLinkages.filter((linkage) => linkage.inventoryId);
-      await createService({
-        ...form,
-        productLinkages: cleanedLinkages,
-      });
+      const payload = {
+        service_name: form.serviceName,
+        category_id: form.category ? Number(form.category) : null,
+        price: Number(form.price),
+        duration: Number(form.duration),
+        product_linkages: cleanedLinkages.map((l) => ({
+          inventoryId: l.inventoryId,
+          quantityUsed: Number(l.quantityUsed),
+          consumptionUnit: l.consumptionUnit || 'primary',
+        })),
+      };
+      if (id) {
+        await updateServiceAPI(id, payload);
+      } else {
+        await createServiceAPI(payload);
+      }
       navigate('/services');
     } catch (error) {
       console.error('Error saving service:', error);
@@ -202,7 +231,7 @@ const ServiceFormPage: React.FC = () => {
                   const unitMaster = selectedProduct?.unitMaster || null;
                   const unitOptions = unitMaster ? getAvailableUnits(unitMaster) : [];
                   const currentAbbr = unitMaster
-                    ? getUnitAbbr(unitMaster, linkage.consumptionUnit || 'primary')
+                    ? getUnitAbbr(unitMaster, (linkage.consumptionUnit || 'primary') as 'primary' | 'secondary')
                     : '';
                   const baseAbbr = unitMaster ? unitMaster.primaryAbbr : '';
                   const showConversion = unitMaster && linkage.consumptionUnit === 'secondary' && linkage.quantityUsed;

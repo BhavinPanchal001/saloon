@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
-import { createOutlet, fetchOutletProfile } from "../../services/mockApi";
+import { fetchOutletByIdFromAPI, createOutletAPI, updateOutletAPI } from "../../services/api";
 
 export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
   const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
     if (isOpen) {
       if (outletId) {
         setLoading(true);
-        fetchOutletProfile(outletId).then((data) => {
+        fetchOutletByIdFromAPI(outletId).then((data) => {
           setFormData({
             name: data.name,
             code: data.code || "",
@@ -45,15 +45,24 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
     e.preventDefault();
     setLoading(true);
     try {
-      await createOutlet({
-        ...formData,
-        id: outletId,
-      });
+      const payload = {
+        name: formData.name,
+        code: formData.code,
+        city: formData.city,
+        address: formData.address,
+        invoice_prefix: formData.invoicePrefix,
+        manager: formData.manager,
+      };
+      if (outletId) {
+        await updateOutletAPI(outletId, payload);
+      } else {
+        await createOutletAPI(payload);
+      }
       onSave();
       onClose();
     } catch (error) {
       console.error("Failed to save outlet:", error);
-      alert("Failed to save outlet");
+      alert(error.message || "Failed to save outlet");
     } finally {
       setLoading(false);
     }

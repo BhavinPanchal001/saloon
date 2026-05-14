@@ -4,7 +4,7 @@ import { PageHeader } from '../../../components/ui/PageHeader';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { useToastStore } from '../../../stores/toastStore';
-import { fetchServices, deleteService } from '../../../services/mockApi';
+import { fetchServiceByIdFromAPI, deleteServiceAPI } from '../../../services/api';
 import { formatCurrency } from '../../../utils/format';
 import {
   Scissors,
@@ -63,15 +63,20 @@ const ServiceDetailPage: React.FC = () => {
   const loadService = async () => {
     try {
       setLoading(true);
-      const services = await fetchServices();
-      const found = services.find((s: any) => s.id === id);
-      if (found) {
-        setService(found);
-      } else {
-        toast.error('Service not found');
-      }
+      const found = await fetchServiceByIdFromAPI(id);
+      setService({
+        ...found,
+        serviceName: found.service_name,
+        servicePrice: found.price,
+        serviceDuration: found.duration,
+        serviceDescription: found.description || '',
+        serviceType: found.category?.name || 'Standard Service',
+        category: found.category?.name || '',
+        productLinkages: found.product_linkages || [],
+        active: found.status === 'active',
+      });
     } catch (err) {
-      toast.error('Failed to load service details');
+      toast.error('Service not found');
     } finally {
       setLoading(false);
     }
@@ -84,7 +89,7 @@ const ServiceDetailPage: React.FC = () => {
   const confirmDelete = async () => {
     if (!id) return;
     try {
-      await deleteService(id);
+      await deleteServiceAPI(id);
       toast.success('Service deleted successfully');
       navigate('/services');
     } catch (err) {
