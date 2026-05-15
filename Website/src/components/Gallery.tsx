@@ -7,12 +7,18 @@ import g6 from "@/assets/g6.jpg";
 import { FadeIn, SectionLabel } from "./Section";
 
 const images = [
-  { src: g1, span: "row-span-2" },
-  { src: g2, span: "" },
-  { src: g3, span: "row-span-2" },
+  { src: "/hair_styling.png", span: "row-span-2" },
+  { src: g1, span: "" },
+  { src: "/salon_interior.png", span: "row-span-2" },
+  { src: "/p6.png", span: "" },
+  { src: "/p1.png", span: "row-span-2" },
   { src: g4, span: "" },
-  { src: g5, span: "row-span-2" },
-  { src: g6, span: "" },
+  { src: "/p2.png", span: "" },
+  { src: "/p7.png", span: "row-span-2" },
+  { src: "/p4.png", span: "" },
+  { src: "/p9.png", span: "" },
+  { src: "/p10.png", span: "row-span-2" },
+  { src: "/p3.png", span: "" },
 ];
 
 export default function Gallery() {
@@ -33,7 +39,7 @@ export default function Gallery() {
           </FadeIn>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-3 auto-rows-[180px] md:auto-rows-[240px] gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 grid-flow-dense auto-rows-[180px] md:auto-rows-[240px] gap-4">
           {images.map((im, i) => (
             <FadeIn key={i} delay={i * 0.05} className={im.span}>
               <div className="group relative h-full w-full overflow-hidden rounded-3xl shadow-soft">

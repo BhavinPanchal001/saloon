@@ -1,5 +1,4 @@
 import { Instagram, Facebook, Twitter, MapPin, Phone, Mail, Clock } from "lucide-react";
-import logo from "@/assets/logo.png";
 
 export default function Footer() {
   return (
@@ -8,7 +7,7 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-6 relative">
         <div className="grid lg:grid-cols-12 gap-12">
           <div className="lg:col-span-4">
-            <img src={logo} alt="Glowy" className="h-9 w-auto brightness-0 invert opacity-90" />
+            <img src="/GLOWY LOGO (Without BG).png" alt="Glowy" className="h-10 w-auto" />
             <p className="mt-6 text-primary-foreground/70 leading-relaxed max-w-sm">
               A sanctuary of soft light and considered beauty. Glow to go, with Glowy.
             </p>
@@ -35,9 +34,9 @@ export default function Footer() {
           <div className="lg:col-span-3">
             <h4 className="text-sm uppercase tracking-widest text-gold">Contact</h4>
             <ul className="mt-5 space-y-4 text-sm text-primary-foreground/80">
-              <li className="flex gap-3"><MapPin size={16} className="text-gold mt-0.5 shrink-0" /> 24 Linen Lane, Bandra West, Mumbai 400050</li>
-              <li className="flex gap-3"><Phone size={16} className="text-gold mt-0.5 shrink-0" /> +91 98 765 432 10</li>
-              <li className="flex gap-3"><Mail size={16} className="text-gold mt-0.5 shrink-0" /> hello@glowy.salon</li>
+              <li className="flex gap-3"><MapPin size={16} className="text-gold mt-0.5 shrink-0" /> 15, Jalan Telawi, Bangsar, 59100 Kuala Lumpur, Malaysia</li>
+              <li className="flex gap-3"><Phone size={16} className="text-gold mt-0.5 shrink-0" /> +60 3-2282 1234</li>
+              <li className="flex gap-3"><Mail size={16} className="text-gold mt-0.5 shrink-0" /> hello@glowy.salon.my</li>
               <li className="flex gap-3"><Clock size={16} className="text-gold mt-0.5 shrink-0" /> Tue – Sun · 10am – 8pm</li>
             </ul>
           </div>
@@ -47,7 +46,7 @@ export default function Footer() {
             <div className="mt-5 rounded-2xl overflow-hidden border border-white/10 aspect-[4/3]">
               <iframe
                 title="Glowy Location"
-                src="https://www.openstreetmap.org/export/embed.html?bbox=72.81%2C19.04%2C72.85%2C19.08&layer=mapnik"
+                src="https://www.openstreetmap.org/export/embed.html?bbox=101.65,3.10,101.72,3.18&layer=mapnik"
                 className="w-full h-full grayscale opacity-90"
                 loading="lazy"
               />

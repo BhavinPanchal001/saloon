@@ -118,7 +118,7 @@ export function PayrollPage() {
       state: { 
         month: monthData.fullMonth,
         monthKey: monthData.id,
-        month: selectedMonth,
+        selectedMonth: selectedMonth,
         salaryData: monthData 
       }
     });

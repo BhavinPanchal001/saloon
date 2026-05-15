@@ -84,6 +84,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2ba74760-78a2-45e0-a90b-81c052caac60/id-preview-90874774--89aaecd5-c83c-4413-b7c6-4a74d6af3c9d.lovable.app-1778689544901.png" },
     ],
     links: [
+      { rel: "icon", href: "/GLOWY FAVICON_1.png" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
@@ -113,12 +114,16 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+import SmoothScroll from "@/components/SmoothScroll";
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <SmoothScroll>
+        <Outlet />
+      </SmoothScroll>
     </QueryClientProvider>
   );
 }

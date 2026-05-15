@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import logo from "@/assets/logo.png";
 
 const links = [
-  ["Home", "#home"],
-  ["About", "#about"],
-  ["Services", "#services"],
-  ["Packages", "#pricing"],
-  ["Gallery", "#gallery"],
-  ["Testimonials", "#testimonials"],
-  ["Contact", "#contact"],
+  ["Home", "/#home"],
+  ["About", "/#about"],
+  ["Services", "/#services"],
+  ["Packages", "/#pricing"],
+  ["Products", "/#products"],
+  ["Gallery", "/#gallery"],
+  ["Testimonials", "/#testimonials"],
+  ["Contact", "/#contact"],
 ];
 
 export default function Navbar() {
@@ -29,13 +29,12 @@ export default function Navbar() {
       initial={{ y: -30, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.6 }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled ? "glass border-b border-border/50 py-3" : "py-5"
-      }`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? "glass border-b border-border/50 py-3" : "py-5"
+        }`}
     >
       <div className="mx-auto max-w-7xl px-6 flex items-center justify-between">
-        <a href="#home" className="flex items-center gap-2">
-          <img src={logo} alt="Glowy" className="h-8 w-auto" />
+        <a href="/#home" className="flex items-center gap-2">
+          <img src="/GLOWY LOGO (With BG)1.jpg" alt="Glowy" className="h-10 w-auto" />
         </a>
 
         <nav className="hidden lg:flex items-center gap-9">
@@ -51,7 +50,7 @@ export default function Navbar() {
         </nav>
 
         <a
-          href="#booking"
+          href="/#booking"
           className="hidden lg:inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm text-primary-foreground hover:bg-teal transition-colors shadow-soft"
         >
           Book Appointment
@@ -86,7 +85,7 @@ export default function Navbar() {
                 </a>
               ))}
               <a
-                href="#booking"
+                href="/#booking"
                 onClick={() => setOpen(false)}
                 className="mt-2 rounded-full bg-primary text-primary-foreground text-center py-3 text-sm"
               >

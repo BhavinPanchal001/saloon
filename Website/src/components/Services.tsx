@@ -17,7 +17,7 @@ const services = [
   { icon: Flower2, title: "Facial Treatments", desc: "Lymphatic massage with hand-blended serums.", duration: "75 min", from: "RM 3,200", img: g1 },
   { icon: Sparkles, title: "Skincare Rituals", desc: "Custom regimens for visibly luminous skin.", duration: "60 min", from: "RM 2,800", img: g6 },
   { icon: Hand, title: "Nail Art", desc: "Sculpted nails, minimalist or signature finishes.", duration: "60 min", from: "RM 1,400", img: g4 },
-  { icon: Crown, title: "Bridal Package", desc: "Full-day rituals for your forever moment.", duration: "Half day", from: "RM 19,999", img: g5 },
+  { icon: Crown, title: "Signature Experience", desc: "Our curated salon ritual for a complete transformation.", duration: "Half day", from: "RM 19,999", img: "/salon_interior.png" },
 ];
 
 export default function Services() {
@@ -91,9 +91,17 @@ export default function Services() {
                         </div>
                       </div>
 
-                      <div className="hidden sm:flex flex-col items-end">
+                      <div className="hidden sm:flex flex-col items-end gap-1">
                         <div className="text-[10px] uppercase tracking-widest text-muted-foreground">From</div>
                         <div className="font-display text-lg text-primary">{s.from}</div>
+                        <a
+                          href="#booking"
+                          className={`text-[10px] uppercase tracking-widest transition-all ${
+                            isActive ? "text-gold opacity-100" : "text-gold/60 opacity-0 group-hover:opacity-100"
+                          } hover:text-primary border-b border-gold/30`}
+                        >
+                          Book Now
+                        </a>
                       </div>
 
                       <ArrowUpRight
@@ -141,7 +149,7 @@ export default function Services() {
                         href="#booking"
                         className="inline-flex items-center gap-2 rounded-full bg-gold text-primary px-4 py-2 text-xs hover:bg-gold-soft transition-colors"
                       >
-                        Book this
+                        Book Now
                         <ArrowUpRight size={13} />
                       </a>
                     </div>

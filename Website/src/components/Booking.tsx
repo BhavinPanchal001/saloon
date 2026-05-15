@@ -1,21 +1,36 @@
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Calendar, Clock, User, Phone, Mail, Sparkles } from "lucide-react";
+import { Calendar, Clock, User, Phone, Mail, Sparkles, ChevronDown } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { FadeIn, SectionLabel } from "./Section";
 
-const services = [
-  "Hair Styling",
-  "Hair Spa",
-  "Makeup",
-  "Facial Treatment",
-  "Skincare",
-  "Nail Art",
-  "Bridal Package",
+const categories = [
+  {
+    label: "Individual Services",
+    options: [
+      "Hair Styling",
+      "Hair Spa",
+      "Makeup",
+      "Facial Treatments",
+      "Skincare Rituals",
+      "Nail Art",
+    ],
+  },
+  {
+    label: "Curated Packages",
+    options: ["Basic Glow", "Premium Glow", "Bridal Glow"],
+  },
 ];
 
-const times = ["10:00", "11:30", "13:00", "14:30", "16:00", "17:30", "19:00"];
+const times = [
+  "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+  "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM", "02:30 PM",
+  "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM",
+  "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM", "08:00 PM"
+];
 
 const schema = z.object({
   name: z.string().trim().min(2, "Please share your name").max(80),
@@ -31,12 +46,32 @@ type FormData = z.infer<typeof schema>;
 
 export default function Booking() {
   const today = new Date().toISOString().split("T")[0];
+  const [serviceOpen, setServiceOpen] = useState(false);
+  const [timeOpen, setTimeOpen] = useState(false);
+  
+  const serviceRef = useRef<HTMLDivElement>(null);
+  const timeRef = useRef<HTMLDivElement>(null);
+
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { service: "", time: "" } });
+
+  const selectedService = watch("service");
+  const selectedTime = watch("time");
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (serviceRef.current && !serviceRef.current.contains(event.target as Node)) setServiceOpen(false);
+      if (timeRef.current && !timeRef.current.contains(event.target as Node)) setTimeOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const onSubmit = async (data: FormData) => {
     await new Promise((r) => setTimeout(r, 700));
@@ -47,7 +82,7 @@ export default function Booking() {
   };
 
   const inputCls =
-    "w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors";
+    "w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors cursor-pointer flex items-center justify-between";
   const iconCls = "absolute left-0 top-3.5 text-gold";
 
   return (
@@ -91,43 +126,128 @@ export default function Booking() {
             <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
               <div className="relative pb-5">
                 <User size={16} className={iconCls} />
-                <input {...register("name")} placeholder="Full name" maxLength={80} className={inputCls} />
+                <input {...register("name")} placeholder="Full name" maxLength={80} className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors" />
                 {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
               </div>
 
               <div className="relative pb-5">
                 <Phone size={16} className={iconCls} />
-                <input {...register("phone")} placeholder="Phone number" maxLength={20} className={inputCls} />
+                <input {...register("phone")} placeholder="Phone number" maxLength={20} className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors" />
                 {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone.message}</p>}
               </div>
 
               <div className="relative pb-5 sm:col-span-2">
                 <Mail size={16} className={iconCls} />
-                <input {...register("email")} type="email" placeholder="Email address" maxLength={255} className={inputCls} />
+                <input {...register("email")} type="email" placeholder="Email address" maxLength={255} className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors" />
                 {errors.email && <p className="text-xs text-destructive mt-1">{errors.email.message}</p>}
               </div>
 
-              <div className="relative pb-5 sm:col-span-2">
+              {/* Custom Service Dropdown */}
+              <div className="relative pb-5 sm:col-span-2" ref={serviceRef}>
                 <Sparkles size={16} className={iconCls} />
-                <select {...register("service")} className={`${inputCls} appearance-none cursor-pointer`}>
-                  <option value="">Select a service</option>
-                  {services.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <div 
+                  onClick={() => setServiceOpen(!serviceOpen)}
+                  className={inputCls}
+                >
+                  <span className={selectedService ? "text-foreground" : "text-muted-foreground/60"}>
+                    {selectedService || "Select a service or package"}
+                  </span>
+                  <ChevronDown size={14} className={`text-gold transition-transform duration-300 ${serviceOpen ? "rotate-180" : ""}`} />
+                </div>
+                
+                <AnimatePresence>
+                  {serviceOpen && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute left-0 right-0 top-full mt-2 z-20 max-h-80 overflow-y-auto rounded-2xl bg-white/90 backdrop-blur-xl border border-gold/20 shadow-glow p-2 scrollbar-hide"
+                    >
+                      {categories.map((cat) => (
+                        <div key={cat.label} className="mb-2">
+                          <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-gold font-semibold">{cat.label}</div>
+                          {cat.options.map((s) => (
+                            <div
+                              key={s}
+                              onClick={() => {
+                                setValue("service", s, { shouldValidate: true });
+                                setServiceOpen(false);
+                              }}
+                              className={`px-3 py-2.5 rounded-xl text-sm transition-colors cursor-pointer ${
+                                selectedService === s ? "bg-gold/10 text-primary font-medium" : "text-foreground/80 hover:bg-cream"
+                              }`}
+                            >
+                              {s}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 {errors.service && <p className="text-xs text-destructive mt-1">{errors.service.message}</p>}
               </div>
 
               <div className="relative pb-5">
                 <Calendar size={16} className={iconCls} />
-                <input {...register("date")} type="date" min={today} className={inputCls} />
+                <input {...register("date")} type="date" min={today} className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors" />
                 {errors.date && <p className="text-xs text-destructive mt-1">{errors.date.message}</p>}
               </div>
 
-              <div className="relative pb-5">
+              {/* Custom Time Dropdown */}
+              <div className="relative pb-5" ref={timeRef}>
                 <Clock size={16} className={iconCls} />
-                <select {...register("time")} className={`${inputCls} appearance-none cursor-pointer`}>
-                  <option value="">Preferred time</option>
-                  {times.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <div 
+                  onClick={() => setTimeOpen(!timeOpen)}
+                  className={inputCls}
+                >
+                  <span className={selectedTime ? "text-foreground" : "text-muted-foreground/60"}>
+                    {selectedTime || "Preferred time"}
+                  </span>
+                  <ChevronDown size={14} className={`text-gold transition-transform duration-300 ${timeOpen ? "rotate-180" : ""}`} />
+                </div>
+
+                <AnimatePresence>
+                  {timeOpen && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute left-0 right-0 top-full mt-2 z-20 max-h-80 overflow-y-auto rounded-2xl bg-white/95 backdrop-blur-xl border border-gold/20 shadow-glow p-3 scrollbar-hide"
+                    >
+                      <div className="space-y-4">
+                        {[
+                          { label: "Morning", slots: times.filter(t => t.endsWith("AM")) },
+                          { label: "Afternoon", slots: times.filter(t => t.endsWith("PM") && (t.startsWith("12") || ["01", "02", "03", "04"].some(h => t.startsWith(h)))) },
+                          { label: "Evening", slots: times.filter(t => t.endsWith("PM") && ["05", "06", "07", "08"].some(h => t.startsWith(h))) }
+                        ].map((section) => (
+                          <div key={section.label}>
+                            <div className="px-2 mb-2 text-[10px] uppercase tracking-widest text-gold/60 font-semibold">{section.label}</div>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {section.slots.map((t) => (
+                                <div
+                                  key={t}
+                                  onClick={() => {
+                                    setValue("time", t, { shouldValidate: true });
+                                    setTimeOpen(false);
+                                  }}
+                                  className={`px-3 py-2 rounded-xl text-xs text-center transition-colors cursor-pointer border ${
+                                    selectedTime === t 
+                                      ? "bg-gold/15 border-gold/40 text-primary font-medium" 
+                                      : "border-transparent text-foreground/70 hover:bg-cream hover:border-gold/10"
+                                  }`}
+                                >
+                                  {t.replace(" AM", "").replace(" PM", "")}
+                                  <span className="ml-1 opacity-40 text-[9px]">{t.slice(-2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 {errors.time && <p className="text-xs text-destructive mt-1">{errors.time.message}</p>}
               </div>
 

@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
-import hero from "@/assets/hero.jpg";
 
 export default function Hero() {
   return (
@@ -92,8 +91,8 @@ export default function Hero() {
         >
           <div className="relative aspect-[4/5] rounded-[2.5rem] overflow-hidden shadow-glow">
             <img
-              src={hero}
-              alt="Glowy salon model"
+              src="/hair_styling.png"
+              alt="Glowy salon experience"
               width={1280}
               height={1600}
               className="h-full w-full object-cover"

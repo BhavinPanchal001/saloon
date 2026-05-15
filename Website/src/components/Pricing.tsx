@@ -129,7 +129,7 @@ export default function Pricing() {
                     href="#booking"
                     className="mt-8 inline-flex items-center justify-center gap-2 rounded-full bg-gold text-primary px-8 py-4 text-sm hover:bg-gold-soft transition-colors w-full sm:w-auto"
                   >
-                    Reserve Premium Glow
+                    Book Demo {featured.name}
                     <ArrowRight size={16} />
                   </a>
                 </div>
@@ -204,7 +204,7 @@ function SideCard({
         href="#booking"
         className="mt-6 inline-flex w-full items-center justify-center rounded-full border border-primary/30 px-5 py-2.5 text-xs text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
       >
-        Reserve {tier.name}
+        Book Demo {tier.name}
       </a>
     </div>
   );
