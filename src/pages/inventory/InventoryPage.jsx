@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, ArrowLeftRight, Pencil, Trash2, Tag } from "lucide-react";
+import { X, ArrowLeftRight, Pencil, Trash2, Tag, Images, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { ImageUpload } from "../../components/ui/ImageUpload";
 import {
@@ -89,6 +89,15 @@ export function InventoryPage() {
   const [outletPriceForm, setOutletPriceForm] = useState(initialOutletPriceForm);
   const [feedback, setFeedback] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [lightboxImages, setLightboxImages] = useState([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  const openLightbox = (images, index = 0) => {
+    setLightboxImages(images);
+    setLightboxIndex(index);
+    setIsLightboxOpen(true);
+  };
 
   const loadInventoryPage = async () => {
     try {
@@ -206,6 +215,7 @@ export function InventoryPage() {
       consumptionUnit: item.consumptionUnit || "primary",
       productMeasure: item.productMeasure || 1,
       productMeasureUnit: item.productMeasureUnit || "primary",
+      images: Array.isArray(item.images) ? item.images : [],
     });
     setIsEditProductModalOpen(true);
   };
@@ -222,6 +232,7 @@ export function InventoryPage() {
         consumption_unit: editProductForm.consumptionUnit,
         product_measure: editProductForm.productMeasure,
         product_measure_unit: editProductForm.productMeasureUnit,
+        images: editProductForm.images || [],
       });
       setIsEditProductModalOpen(false);
       setFeedback("Product updated successfully.");
@@ -602,7 +613,30 @@ export function InventoryPage() {
                 <tbody>
                   {productMasters.map((item) => (
                     <tr key={item.id}>
-                      <td className="font-bold text-navy-900">{item.itemName}</td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          {Array.isArray(item.images) && item.images.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => openLightbox(item.images, 0)}
+                              className="relative flex-shrink-0 w-9 h-9 rounded-lg overflow-hidden border border-navy-100 hover:border-navy-400 transition-colors group"
+                              title="View images"
+                            >
+                              <img src={item.images[0]} alt="" className="w-full h-full object-cover" />
+                              {item.images.length > 1 && (
+                                <span className="absolute bottom-0 right-0 bg-navy-800/70 text-white text-[8px] font-bold px-1 leading-4">
+                                  +{item.images.length - 1}
+                                </span>
+                              )}
+                            </button>
+                          ) : (
+                            <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-navy-50 flex items-center justify-center">
+                              <Images size={14} className="text-navy-300" />
+                            </div>
+                          )}
+                          <span className="font-bold text-navy-900">{item.itemName}</span>
+                        </div>
+                      </td>
                       <td>
                         <span className="text-xs font-bold text-navy-600">
                           {item.productMeasureLabel || "—"}
@@ -773,6 +807,15 @@ export function InventoryPage() {
                   ))}
                 </select>
               </div>
+              <ImageUpload
+                label="Product Images"
+                value={editProductForm.images}
+                onChange={(images) => setEditProductForm((c) => ({ ...c, images }))}
+                accept="image/*"
+                maxSize={5 * 1024 * 1024}
+                multiple={true}
+                maxImages={5}
+              />
               <button type="submit" className="btn-premium-primary w-full">
                 Save Changes
               </button>
@@ -783,7 +826,7 @@ export function InventoryPage() {
 
       {isProductModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
-          <div className="card-solid w-full max-w-lg">
+          <div className="card-solid w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-3xl text-navy-900">Create product master</h2>
@@ -1308,6 +1351,73 @@ export function InventoryPage() {
           </div>
         ) : null
       }
+
+      {isLightboxOpen && lightboxImages.length > 0 ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          <div
+            className="relative flex flex-col items-center gap-4 p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setIsLightboxOpen(false)}
+              className="absolute -top-2 -right-2 z-10 p-1.5 bg-white rounded-full shadow hover:bg-gray-100"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="relative flex items-center gap-3">
+              {lightboxImages.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setLightboxIndex((i) => (i - 1 + lightboxImages.length) % lightboxImages.length)}
+                  className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-colors"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+              )}
+              <img
+                src={lightboxImages[lightboxIndex]}
+                alt={`Image ${lightboxIndex + 1}`}
+                className="max-h-[75vh] max-w-[80vw] rounded-xl object-contain shadow-2xl"
+              />
+              {lightboxImages.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setLightboxIndex((i) => (i + 1) % lightboxImages.length)}
+                  className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-full transition-colors"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              )}
+            </div>
+
+            {lightboxImages.length > 1 && (
+              <div className="flex gap-2">
+                {lightboxImages.map((img, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setLightboxIndex(i)}
+                    className={`w-10 h-10 rounded-lg overflow-hidden border-2 transition-colors ${
+                      i === lightboxIndex ? 'border-white' : 'border-white/30 hover:border-white/60'
+                    }`}
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <p className="text-white/60 text-xs">
+              {lightboxIndex + 1} / {lightboxImages.length}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
     </div >
   );

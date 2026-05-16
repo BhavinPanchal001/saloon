@@ -309,15 +309,25 @@ export const fetchPurchaseOrderByIdFromAPI = async (id) => {
   return handleResponse(res);
 };
 
-export const createPurchaseOrderAPI = async (payload, payment = null) => {
-  const body = { ...payload };
-  if (payment) {
-    body.payment = payment;
-  }
+const authHeadersNoContentType = () => ({
+  Authorization: `Bearer ${getToken()}`,
+});
+
+export const createPurchaseOrderAPI = async (payload, payment = null, attachmentFile = null) => {
+  const form = new FormData();
+  form.append("supplierName", payload.supplierName);
+  if (payload.supplier_contact) form.append("supplier_contact", payload.supplier_contact);
+  if (payload.supplier_email) form.append("supplier_email", payload.supplier_email);
+  form.append("taxRate", payload.taxRate ?? 0);
+  form.append("notes", payload.notes || "");
+  form.append("orderDate", payload.orderDate || "");
+  form.append("items", JSON.stringify(payload.items || []));
+  if (payment) form.append("payment", JSON.stringify(payment));
+  if (attachmentFile) form.append("attachment", attachmentFile);
   const res = await fetch(`${API_BASE}/purchase-orders`, {
     method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(body),
+    headers: authHeadersNoContentType(),
+    body: form,
   });
   return handleResponse(res);
 };
@@ -346,17 +356,43 @@ export const cancelPurchaseOrderAPI = async (id) => {
   return handleResponse(res);
 };
 
-export const updatePurchaseOrderAPI = async (id, payload) => {
+export const updatePurchaseOrderAPI = async (id, payload, attachmentFile = null) => {
+  const form = new FormData();
+  form.append("supplierName", payload.supplierName);
+  if (payload.supplierContact) form.append("supplierContact", payload.supplierContact);
+  if (payload.supplierEmail) form.append("supplierEmail", payload.supplierEmail);
+  form.append("taxRate", payload.taxRate ?? 0);
+  form.append("notes", payload.notes || "");
+  form.append("orderDate", payload.orderDate || "");
+  form.append("items", JSON.stringify(payload.items || []));
+  form.append("payment", JSON.stringify(payload.payment ?? false));
+  if (attachmentFile) form.append("attachment", attachmentFile);
   const res = await fetch(`${API_BASE}/purchase-orders/${id}`, {
     method: "PUT",
-    headers: authHeaders(),
-    body: JSON.stringify(payload),
+    headers: authHeadersNoContentType(),
+    body: form,
   });
   return handleResponse(res);
 };
 
 export const deletePurchaseOrderAPI = async (id) => {
   const res = await fetch(`${API_BASE}/purchase-orders/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const deleteAttachmentAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/purchase-orders/${id}/attachment`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const deletePaymentAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/payments/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
@@ -521,18 +557,50 @@ export const updatePaymentStatusAPI = async (id, status) => {
   return handleResponse(res);
 };
 
-export const deletePaymentAPI = async (id) => {
-  const res = await fetch(`${API_BASE}/payments/${id}`, {
-    method: "DELETE",
+// ─── Purchase Order Payments ──────────────────────────────────────────────────
+
+export const fetchPaymentsByPurchaseOrderFromAPI = async (purchaseOrderId) => {
+  const res = await fetch(`${API_BASE}/purchase-orders/${purchaseOrderId}/payments`, {
     headers: authHeaders(),
   });
   return handleResponse(res);
 };
 
-// ─── Purchase Order Payments ──────────────────────────────────────────────────
+// ─── POS ──────────────────────────────────────────────────────────────────────
 
-export const fetchPaymentsByPurchaseOrderFromAPI = async (purchaseOrderId) => {
-  const res = await fetch(`${API_BASE}/purchase-orders/${purchaseOrderId}/payments`, {
+export const fetchPOSCatalogFromAPI = async ({ outletId } = {}) => {
+  const params = outletId ? { outletId } : {};
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/pos/catalog${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const checkoutBillAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/pos/checkout`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const fetchBillsFromAPI = async ({ outletId, search, paymentMethod } = {}) => {
+  const params = {};
+  if (outletId) params.outletId = outletId;
+  if (search) params.search = search;
+  if (paymentMethod) params.paymentMethod = paymentMethod;
+  
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/pos/bills${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchBillByIdFromAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/pos/bills/${id}`, {
     headers: authHeaders(),
   });
   return handleResponse(res);

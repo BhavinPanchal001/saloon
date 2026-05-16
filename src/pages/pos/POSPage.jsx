@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { checkoutBill, fetchCatalog, fetchStaff, fetchOutlets, fetchProductMasters } from "../../services/mockApi";
+import { fetchStaff } from "../../services/mockApi";
+import { fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
@@ -42,7 +43,7 @@ export function POSPage() {
   // Load outlets for admin and pre-select first outlet
   useEffect(() => {
     if (isAdmin) {
-      fetchOutlets().then((outletList) => {
+      fetchOutletsFromAPI().then((outletList) => {
         setOutlets(outletList);
         if (outletList.length > 0 && !selectedOutlet) {
           setSelectedOutlet(outletList[0].id);
@@ -62,9 +63,9 @@ export function POSPage() {
     const loadPos = async () => {
       const outletId = isAdmin ? (selectedOutlet || undefined) : user?.outlet_id;
       const [catalogItems, staffList, products] = await Promise.all([
-        fetchCatalog({ outletId }),
+        fetchPOSCatalogFromAPI({ outletId }),
         fetchStaff({ outletId }),
-        fetchProductMasters(),
+        fetchProductsFromAPI(),
       ]);
 
       const productMeasureMap = Object.fromEntries(
@@ -295,7 +296,7 @@ export function POSPage() {
       })),
     };
 
-    const result = await checkoutBill(payload);
+    const result = await checkoutBillAPI(payload);
     setCurrentBill(result);
     setShowInvoice(true);
     setPayloadPreview({

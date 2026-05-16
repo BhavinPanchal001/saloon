@@ -11,6 +11,7 @@ const outletRoutes = require('./outlets');
 const purchaseOrderRoutes = require('./purchaseOrders');
 const outletInventoryRoutes = require('./outletInventory');
 const paymentRoutes = require('./payments');
+const posRoutes = require('./pos');
 
 router.get('/', (req, res) => {
   res.json({ message: 'Glowy Saloon API v1' });
@@ -26,5 +27,6 @@ router.use('/outlets', outletRoutes);
 router.use('/purchase-orders', purchaseOrderRoutes);
 router.use('/outlet-inventory', outletInventoryRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/pos', posRoutes);
 
 module.exports = router;

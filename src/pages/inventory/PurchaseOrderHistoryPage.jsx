@@ -9,6 +9,7 @@ import {
   fetchPurchaseOrdersFromAPI,
   updatePurchaseOrderAPI,
   deletePurchaseOrderAPI,
+  deletePaymentAPI,
 } from "../../services/api";
 import {
   Package,
@@ -21,6 +22,8 @@ import {
   Banknote,
   Pencil,
   Trash2,
+  X,
+  Paperclip,
 } from "lucide-react";
 
 const statusColors = {
@@ -67,6 +70,19 @@ export function PurchaseOrderHistoryPage() {
       loadOrders();
     } catch (err) {
       toast.error(err.message || "Failed to delete purchase order");
+    }
+  };
+
+  const handleDeletePayment = async (paymentId) => {
+    if (!confirm("Are you sure you want to delete this payment?")) {
+      return;
+    }
+    try {
+      await deletePaymentAPI(paymentId);
+      toast.success("Payment deleted successfully");
+      loadOrders();
+    } catch (err) {
+      toast.error(err.message || "Failed to delete payment");
     }
   };
 
@@ -215,18 +231,40 @@ export function PurchaseOrderHistoryPage() {
                     {/* Payment Summary */}
                     <div className="text-right hidden md:block">
                       {order.payments && order.payments.length > 0 ? (
-                        <>
-                          <p className="text-sm font-medium text-green-600 flex items-center gap-1 justify-end">
-                            <Banknote className="h-3 w-3" />
-                            Paid
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {order.payments.length} payment{order.payments.length > 1 ? 's' : ''}
-                          </p>
-                        </>
+                        (() => {
+                          const hasPending = order.payments.some(p => p.status === 'pending');
+                          const hasCompleted = order.payments.some(p => p.status === 'completed');
+                          const totalPaid = order.payments.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+                          const isPartial = totalPaid < order.totalCost;
+                          
+                          if (hasPending || isPartial) {
+                            return (
+                              <>
+                                <p className="text-sm font-medium text-amber-600 flex items-center gap-1 justify-end">
+                                  <Banknote className="h-3 w-3" />
+                                  Partial
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  {formatCurrency(totalPaid)} / {formatCurrency(order.totalCost)}
+                                </p>
+                              </>
+                            );
+                          }
+                          return (
+                            <>
+                              <p className="text-sm font-medium text-green-600 flex items-center gap-1 justify-end">
+                                <Banknote className="h-3 w-3" />
+                                Paid
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                {order.payments.length} payment{order.payments.length > 1 ? 's' : ''}
+                              </p>
+                            </>
+                          );
+                        })()
                       ) : (
                         <>
-                          <p className="text-sm font-medium text-amber-600">Unpaid</p>
+                          <p className="text-sm font-medium text-slate-500">Unpaid</p>
                           <p className="text-xs text-slate-400">No payment</p>
                         </>
                       )}
@@ -256,12 +294,6 @@ export function PurchaseOrderHistoryPage() {
                             <span className="text-slate-500">Order Date:</span>
                             <span className="font-medium text-navy-900">
                               {new Date(order.orderDate).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Expected Delivery:</span>
-                            <span className="font-medium text-navy-900">
-                              {order.expectedDate ? new Date(order.expectedDate).toLocaleDateString() : "Not set"}
                             </span>
                           </div>
                           <div className="flex justify-between">
@@ -327,6 +359,21 @@ export function PurchaseOrderHistoryPage() {
                         </tbody>
                       </table>
                     </div>
+
+                    {/* Attachment */}
+                    {order.attachmentPath && (
+                      <div className="mt-4 flex items-center gap-2 p-3 rounded-lg border border-slate-200 bg-slate-50">
+                        <Paperclip className="h-4 w-4 text-slate-400 shrink-0" />
+                        <a
+                          href={`http://localhost:5001/uploads/${order.attachmentPath}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm text-blue-600 hover:underline truncate"
+                        >
+                          {order.attachmentPath.split('/').pop()}
+                        </a>
+                      </div>
+                    )}
 
                     {/* Payment Details */}
                     {order.payments && order.payments.length > 0 && (
@@ -408,7 +455,7 @@ export function PurchaseOrderHistoryPage() {
                       </button>
                       <button
                         onClick={() => handleDelete(order.id)}
-                        className="flex-1 btn-danger flex items-center justify-center gap-2 text-sm bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100"
+                        className="flex-1 flex items-center justify-center gap-2 text-sm bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2"
                       >
                         <Trash2 className="h-4 w-4" />
                         Delete

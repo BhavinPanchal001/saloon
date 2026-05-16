@@ -1,5 +1,7 @@
 const { Op } = require('sequelize');
 const { sequelize } = require('../models/db');
+const fs = require('fs');
+const path = require('path');
 const PurchaseOrder = require('../models/PurchaseOrder');
 const PurchaseOrderItem = require('../models/PurchaseOrderItem');
 const Product = require('../models/Product');
@@ -44,6 +46,7 @@ const toResponse = (po) => ({
   taxAmount: Number(po.tax_amount),
   totalCost: Number(po.total_cost),
   notes: po.notes || '',
+  attachmentPath: po.attachment_path || null,
   orderDate: po.order_date,
   approvedAt: po.approved_at,
   receivedAt: po.received_at,
@@ -117,7 +120,15 @@ const getOne = async (req, res) => {
 const create = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { supplierName, supplier_contact, supplier_email, items, taxRate, notes, payment } = req.body;
+    const body = req.body;
+    const supplierName = body.supplierName;
+    const supplier_contact = body.supplier_contact;
+    const supplier_email = body.supplier_email;
+    const taxRate = body.taxRate;
+    const notes = body.notes;
+    const orderDate = body.orderDate;
+    const items = typeof body.items === 'string' ? JSON.parse(body.items) : body.items;
+    const payment = typeof body.payment === 'string' ? JSON.parse(body.payment) : body.payment;
 
     if (!supplierName || !supplierName.trim()) {
       await t.rollback();
@@ -162,7 +173,7 @@ const create = async (req, res) => {
     const taxAmount = Math.round(subtotal * (parsedTaxRate / 100) * 100) / 100;
     const totalCost = subtotal + taxAmount;
     const poNumber = await generatePoNumber(t);
-    const orderDate = new Date().toISOString().split('T')[0];
+    const resolvedOrderDate = orderDate || new Date().toISOString().split('T')[0];
 
     const po = await PurchaseOrder.create({
       po_number: poNumber,
@@ -175,7 +186,8 @@ const create = async (req, res) => {
       tax_amount: taxAmount,
       total_cost: totalCost,
       notes: (notes || '').trim() || null,
-      order_date: orderDate,
+      attachment_path: req.file ? `po-attachments/${req.file.filename}` : null,
+      order_date: resolvedOrderDate,
       approved_at: new Date(),
       received_at: new Date(),
     }, { transaction: t });
@@ -210,21 +222,27 @@ const create = async (req, res) => {
         };
       });
 
-      createdPayment = await Payment.create({
-        purchase_order_id: po.id,
-        expense_id: null,
-        pos_id: null,
-        total_amount: totalAmount,
-        status: payment.status || 'completed',
-        transaction_reference: (payment.transactionReference || '').trim() || null,
-        notes: (payment.notes || '').trim() || null,
-        payment_date: payment.paymentDate || new Date().toISOString().split('T')[0],
-      }, { transaction: t });
+      // Only create payment if amount > 0
+      if (totalAmount > 0) {
+        // Determine status based on payment vs total cost
+        const paymentStatus = totalAmount >= totalCost ? 'completed' : 'pending';
 
-      await PaymentDetail.bulkCreate(
-        detailRows.map((row) => ({ ...row, payment_id: createdPayment.id })),
-        { transaction: t }
-      );
+        createdPayment = await Payment.create({
+          purchase_order_id: po.id,
+          expense_id: null,
+          pos_id: null,
+          total_amount: totalAmount,
+          status: payment.status || paymentStatus,
+          transaction_reference: (payment.transactionReference || '').trim() || null,
+          notes: (payment.notes || '').trim() || null,
+          payment_date: payment.paymentDate || new Date().toISOString().split('T')[0],
+        }, { transaction: t });
+
+        await PaymentDetail.bulkCreate(
+          detailRows.map((row) => ({ ...row, payment_id: createdPayment.id })),
+          { transaction: t }
+        );
+      }
     }
 
     await t.commit();
@@ -331,7 +349,15 @@ const cancel = async (req, res) => {
 const update = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { supplierName, supplierContact, supplierEmail, items, taxRate, notes } = req.body;
+    const body = req.body;
+    const supplierName = body.supplierName;
+    const supplierContact = body.supplierContact;
+    const supplierEmail = body.supplierEmail;
+    const taxRate = body.taxRate;
+    const notes = body.notes;
+    const orderDate = body.orderDate;
+    const items = typeof body.items === 'string' ? JSON.parse(body.items) : body.items;
+    const payment = typeof body.payment === 'string' ? JSON.parse(body.payment) : body.payment;
     const poId = req.params.id;
 
     const po = await PurchaseOrder.findByPk(poId, {
@@ -407,6 +433,8 @@ const update = async (req, res) => {
       tax_amount: taxAmount,
       total_cost: totalCost,
       notes: (notes || '').trim() || null,
+      order_date: orderDate || po.order_date,
+      ...(req.file ? { attachment_path: `po-attachments/${req.file.filename}` } : {}),
     }, { transaction: t });
 
     // Create new items
@@ -420,6 +448,48 @@ const update = async (req, res) => {
           { where: { id: item.product_id }, transaction: t }
         );
       }
+    }
+
+    // Handle payments - delete old ones and create new if provided, or delete all if disabled
+    if (payment && Array.isArray(payment.details) && payment.details.length > 0) {
+      // Delete existing payments (cascade will delete payment details)
+      await Payment.destroy({ where: { purchase_order_id: poId }, transaction: t });
+
+      const validModes = ['cash', 'card', 'upi', 'bank_transfer', 'cheque'];
+      let totalAmount = 0;
+      const detailRows = payment.details.map((d) => {
+        const amount = Math.max(0, Number(d.amount) || 0);
+        totalAmount += amount;
+        if (!validModes.includes(d.paymentMode)) {
+          throw new Error(`Invalid payment mode: ${d.paymentMode}. Must be one of: ${validModes.join(', ')}`);
+        }
+        return {
+          amount,
+          payment_mode: d.paymentMode,
+        };
+      });
+
+      // Only create payment if there's a valid amount
+      if (totalAmount > 0) {
+        const createdPayment = await Payment.create({
+          purchase_order_id: poId,
+          expense_id: null,
+          pos_id: null,
+          total_amount: totalAmount,
+          status: payment.status || 'completed',
+          transaction_reference: (payment.transactionReference || '').trim() || null,
+          notes: (payment.notes || '').trim() || null,
+          payment_date: payment.paymentDate || new Date().toISOString().split('T')[0],
+        }, { transaction: t });
+
+        await PaymentDetail.bulkCreate(
+          detailRows.map((row) => ({ ...row, payment_id: createdPayment.id })),
+          { transaction: t }
+        );
+      }
+    } else if (payment === null || payment === false) {
+      // Payment explicitly disabled - delete all existing payments
+      await Payment.destroy({ where: { purchase_order_id: poId }, transaction: t });
     }
 
     await t.commit();
@@ -477,4 +547,21 @@ const remove = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getOne, create, update, approve, receive, cancel, remove };
+const removeAttachment = async (req, res) => {
+  try {
+    const po = await PurchaseOrder.findByPk(req.params.id);
+    if (!po) return res.status(404).json({ message: 'Purchase order not found.' });
+    if (!po.attachment_path) return res.status(404).json({ message: 'No attachment found.' });
+
+    const filePath = path.join(__dirname, '../../uploads', po.attachment_path);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+    await po.update({ attachment_path: null });
+    return res.json({ message: 'Attachment deleted.' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+module.exports = { getAll, getOne, create, update, approve, receive, cancel, remove, removeAttachment };

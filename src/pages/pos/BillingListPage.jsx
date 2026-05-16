@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchBills, fetchProductMasters } from "../../services/mockApi";
+import { fetchBillsFromAPI, fetchProductsFromAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 import { InvoiceModal } from "./InvoiceModal";
@@ -34,11 +34,10 @@ export default function BillingListPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      const outletId = (user?.role === "admin" || user?.role === "super_admin") ? undefined : user?.outlet_id;
       const [billsData, productsData] = await Promise.all([
-        fetchBills({
-          outletId: (user?.role === "admin" || user?.role === "super_admin") ? undefined : user?.outlet_id,
-        }),
-        fetchProductMasters(),
+        fetchBillsFromAPI({ outletId }),
+        fetchProductsFromAPI(),
       ]);
       setBills(billsData);
       setProductMasters(productsData);
