@@ -1,4 +1,43 @@
-import { Instagram, Facebook, Twitter, MapPin, Phone, Mail, Clock } from "lucide-react";
+import { Instagram, Facebook, MapPin, Phone, Mail, Clock } from "lucide-react";
+
+// Custom Tiktok icon component matching Lucide styling perfectly
+const Tiktok = ({ size = 24, ...props }: { size?: number } & React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+  </svg>
+);
+
+// ==========================================
+// UPDATE YOUR SOCIAL MEDIA LINKS HERE:
+// ==========================================
+const SOCIAL_LINKS = [
+  {
+    icon: Instagram,
+    href: "https://instagram.com/your_username", // <-- Replace with your Instagram URL
+    label: "Instagram",
+  },
+  {
+    icon: Facebook,
+    href: "https://facebook.com/your_page",       // <-- Replace with your Facebook URL
+    label: "Facebook",
+  },
+  {
+    icon: Tiktok,
+    href: "https://tiktok.com/@your_username",     // <-- Replace with your TikTok URL
+    label: "TikTok",
+  },
+];
 
 export default function Footer() {
   return (
@@ -12,11 +51,21 @@ export default function Footer() {
               A sanctuary of soft light and considered beauty. Glow to go, with Glowy.
             </p>
             <div className="mt-6 flex gap-3">
-              {[Instagram, Facebook, Twitter].map((Ic, i) => (
-                <a key={i} href="#" className="h-10 w-10 rounded-full border border-white/15 flex items-center justify-center hover:bg-gold hover:text-primary hover:border-gold transition-colors">
-                  <Ic size={16} />
-                </a>
-              ))}
+              {SOCIAL_LINKS.map((social, i) => {
+                const Icon = social.icon;
+                return (
+                  <a
+                    key={i}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={social.label}
+                    className="h-10 w-10 rounded-full border border-white/15 flex items-center justify-center hover:bg-gold hover:text-primary hover:border-gold transition-colors"
+                  >
+                    <Icon size={16} />
+                  </a>
+                );
+              })}
             </div>
           </div>
 
