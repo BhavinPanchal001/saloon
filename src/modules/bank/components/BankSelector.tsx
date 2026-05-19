@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Building2, AlertCircle } from 'lucide-react';
 import { useBankStore } from '../../../stores/bankStore';
 
@@ -23,9 +23,16 @@ const BankSelector: React.FC<BankSelectorProps> = ({
   disabled = false,
   showDefaultIndicator = true,
 }) => {
-  const { getActiveBanks, getDefaultBank } = useBankStore();
+  const { getActiveBanks, getDefaultBank, fetchBanks } = useBankStore();
   const activeBanks = getActiveBanks();
   const defaultBank = getDefaultBank();
+
+  // Fetch banks from API on component mount
+  useEffect(() => {
+    if (activeBanks.length === 0) {
+      fetchBanks();
+    }
+  }, [activeBanks.length, fetchBanks]);
 
   // If no value is selected and there's a default bank, auto-select it
   React.useEffect(() => {

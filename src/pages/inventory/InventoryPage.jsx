@@ -34,6 +34,7 @@ const initialProductForm = {
   consumptionUnit: "primary",
   productMeasure: 1,
   productMeasureUnit: "primary",
+  images: [],
 };
 
 const initialPoForm = {

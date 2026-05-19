@@ -46,7 +46,7 @@ const create = async (req, res) => {
   try {
     const {
       item_name, unit_price, unit_master_id, opening_stock,
-      purchase_unit, consumption_unit, product_measure, product_measure_unit,
+      purchase_unit, consumption_unit, product_measure, product_measure_unit, images,
     } = req.body;
 
     if (!item_name || unit_price === undefined) {
@@ -80,6 +80,7 @@ const create = async (req, res) => {
       consumption_unit: consumption_unit || 'primary',
       product_measure: Number(product_measure) || 1,
       product_measure_unit: product_measure_unit || 'primary',
+      images: Array.isArray(images) ? images : [],
     });
 
     return res.status(201).json(product);
@@ -97,7 +98,7 @@ const update = async (req, res) => {
     const allowedFields = [
       'item_name', 'unit_price', 'opening_stock', 'unit_master_id',
       'purchase_unit', 'consumption_unit', 'product_measure',
-      'product_measure_unit', 'status',
+      'product_measure_unit', 'status', 'images',
     ];
 
     const updates = {};

@@ -15,37 +15,9 @@ import {
   Edit,
   Trash2,
   ChevronRight,
-  Tag,
   CheckCircle,
   AlertCircle,
-  BarChart3,
-  TrendingUp,
-  Users,
-  Calendar
 } from 'lucide-react';
-
-// Mock service usage data
-const generateMockUsageData = () => ({
-  totalBookings: 156,
-  revenue: 78000,
-  thisMonth: 28,
-  lastMonth: 32,
-  growth: -12.5,
-  averageDuration: 45,
-  topStaff: [
-    { name: "Priya Sharma", count: 45 },
-    { name: "Rahul Verma", count: 38 },
-    { name: "Anita Patel", count: 32 },
-  ],
-  monthlyTrend: [
-    { month: "Jan", count: 24 },
-    { month: "Feb", count: 28 },
-    { month: "Mar", count: 26 },
-    { month: "Apr", count: 32 },
-    { month: "May", count: 28 },
-    { month: "Jun", count: 18 },
-  ]
-});
 
 const ServiceDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -53,8 +25,9 @@ const ServiceDetailPage: React.FC = () => {
   const toast = useToastStore();
   const [service, setService] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [usageData] = useState(generateMockUsageData());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   useEffect(() => {
     loadService();
@@ -186,32 +159,6 @@ const ServiceDetailPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="glass-card p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Total Bookings</p>
-              <p className="mt-2 text-2xl font-black text-navy-900">{usageData.totalBookings}</p>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-              <Calendar className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-card p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">This Month</p>
-              <p className="mt-2 text-2xl font-black text-navy-900">{usageData.thisMonth}</p>
-              <p className={`text-xs ${usageData.growth >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {usageData.growth >= 0 ? '+' : ''}{usageData.growth}% vs last month
-              </p>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-              <TrendingUp className="h-5 w-5" />
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -227,10 +174,6 @@ const ServiceDetailPage: React.FC = () => {
               <div className="rounded-xl border border-slate-100 bg-white/50 p-4">
                 <p className="text-xs font-medium text-slate-500 uppercase">Category</p>
                 <p className="mt-1 font-medium text-navy-900">{service.category || 'General'}</p>
-              </div>
-              <div className="rounded-xl border border-slate-100 bg-white/50 p-4">
-                <p className="text-xs font-medium text-slate-500 uppercase">Gender</p>
-                <p className="mt-1 font-medium text-navy-900">{service.gender || 'Unisex'}</p>
               </div>
               <div className="rounded-xl border border-slate-100 bg-white/50 p-4">
                 <p className="text-xs font-medium text-slate-500 uppercase">Status</p>
@@ -258,59 +201,38 @@ const ServiceDetailPage: React.FC = () => {
             )}
           </div>
 
-          {/* Usage Trend */}
-          <div className="glass-card p-6">
-            <h3 className="text-lg font-semibold text-navy-900">Monthly Usage Trend</h3>
-            <div className="mt-4 space-y-3">
-              {usageData.monthlyTrend.map((month) => (
-                <div key={month.month} className="flex items-center gap-4">
-                  <span className="w-12 text-sm text-slate-600">{month.month}</span>
-                  <div className="flex-1">
-                    <div className="h-8 rounded-lg bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-lg bg-gradient-to-r from-navy-500 to-navy-400"
-                        style={{ width: `${(month.count / 40) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                  <span className="w-10 text-right text-sm font-semibold text-navy-900">{month.count}</span>
-                </div>
-              ))}
+          {/* Service Images */}
+          {Array.isArray(service.images) && service.images.length > 0 && (
+            <div className="glass-card p-6">
+              <h3 className="text-lg font-semibold text-navy-900 mb-4">Service Images</h3>
+              <div className="flex flex-wrap gap-3">
+                {service.images.map((src: string, idx: number) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => { setLightboxIndex(idx); setIsLightboxOpen(true); }}
+                    className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200 hover:border-navy-400 transition-colors"
+                  >
+                    <img src={src} alt={`Service image ${idx + 1}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
         </div>
 
         {/* Sidebar Info */}
         <div className="space-y-6">
-          {/* Top Staff */}
-          <div className="glass-card p-6">
-            <h3 className="text-lg font-semibold text-navy-900">Top Performing Staff</h3>
-            <div className="mt-4 space-y-3">
-              {usageData.topStaff.map((staff, index) => (
-                <div
-                  key={staff.name}
-                  className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/50 p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-navy-100 text-sm font-bold text-navy-700">
-                      {index + 1}
-                    </div>
-                    <span className="font-medium text-navy-900">{staff.name}</span>
-                  </div>
-                  <span className="text-sm text-slate-500">{staff.count} services</span>
-                </div>
-              ))}
-            </div>
-          </div>
 
           {/* Linked Products */}
           <div className="glass-card p-6">
             <h3 className="text-lg font-semibold text-navy-900">Linked Products</h3>
-            {service.products && service.products.length > 0 ? (
+            {service.product_linkages && service.product_linkages.length > 0 ? (
               <div className="mt-4 space-y-3">
-                {service.products.map((product: any) => (
+                {service.product_linkages.map((linkage: any, index: number) => (
                   <div
-                    key={product.id}
+                    key={linkage.inventoryId || index}
                     className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/50 p-3"
                   >
                     <div className="flex items-center gap-3">
@@ -318,8 +240,8 @@ const ServiceDetailPage: React.FC = () => {
                         <Package className="h-4 w-4 text-gold-600" />
                       </div>
                       <div>
-                        <p className="font-medium text-navy-900">{product.name}</p>
-                        <p className="text-xs text-slate-500">Qty: {product.quantity}</p>
+                        <p className="font-medium text-navy-900">{linkage.productName || `Product #${linkage.inventoryId}`}</p>
+                        <p className="text-xs text-slate-500">Qty: {linkage.quantityUsed} {linkage.consumptionUnit || ''}</p>
                       </div>
                     </div>
                   </div>
@@ -355,6 +277,45 @@ const ServiceDetailPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Lightbox */}
+      {isLightboxOpen && Array.isArray(service.images) && service.images.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          <div className="relative max-w-3xl w-full px-4" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={service.images[lightboxIndex]}
+              alt={`Service image ${lightboxIndex + 1}`}
+              className="w-full max-h-[80vh] object-contain rounded-xl"
+            />
+            {service.images.length > 1 && (
+              <div className="flex items-center justify-center gap-4 mt-4">
+                <button
+                  onClick={() => setLightboxIndex((lightboxIndex - 1 + service.images.length) % service.images.length)}
+                  className="px-4 py-2 rounded-lg bg-white/20 text-white hover:bg-white/30"
+                >
+                  ‹
+                </button>
+                <span className="text-white text-sm">{lightboxIndex + 1} / {service.images.length}</span>
+                <button
+                  onClick={() => setLightboxIndex((lightboxIndex + 1) % service.images.length)}
+                  className="px-4 py-2 rounded-lg bg-white/20 text-white hover:bg-white/30"
+                >
+                  ›
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => setIsLightboxOpen(false)}
+              className="absolute top-2 right-6 text-white text-2xl font-bold hover:text-slate-300"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

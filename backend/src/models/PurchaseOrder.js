@@ -6,7 +6,7 @@ const PurchaseOrder = sequelize.define('PurchaseOrder', {
   po_number: { type: DataTypes.STRING(50), allowNull: false, unique: true },
   supplier_name: { type: DataTypes.STRING(200), allowNull: false },
   supplier_contact: { type: DataTypes.STRING(100), allowNull: true },
-  supplier_email: { type: DataTypes.STRING(150), allowNull: true },
+  supplier_phone: { type: DataTypes.STRING(50), allowNull: true },
   status: {
     type: DataTypes.ENUM('pending', 'approved', 'received', 'cancelled'),
     defaultValue: 'pending',

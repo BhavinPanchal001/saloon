@@ -16,6 +16,7 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
+import BankSelector from "../../modules/bank/components/BankSelector";
 import {
   fetchProductsFromAPI,
   createPurchaseOrderAPI,
@@ -38,6 +39,7 @@ export default function PurchaseOrderPage() {
 
   // Order form state
   const [supplierName, setSupplierName] = useState("");
+  const [supplierPhone, setSupplierPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split("T")[0]);
   const [attachmentFile, setAttachmentFile] = useState(null);
@@ -53,6 +55,7 @@ export default function PurchaseOrderPage() {
   ]);
   const [paymentNotes, setPaymentNotes] = useState("");
   const [transactionReference, setTransactionReference] = useState("");
+  const [bankAccountId, setBankAccountId] = useState("");
 
   useEffect(() => {
     loadProducts();
@@ -80,6 +83,7 @@ export default function PurchaseOrderPage() {
       setOriginalOrder(order);
       // Populate form
       setSupplierName(order.supplierName || "");
+      setSupplierPhone(order.supplierPhone || "");
       setNotes(order.notes || "");
       setPurchaseDate(order.orderDate || new Date().toISOString().split("T")[0]);
       setExistingAttachment(order.attachmentPath || null);
@@ -95,14 +99,14 @@ export default function PurchaseOrderPage() {
         const payment = order.payments[0];
         setTransactionReference(payment.transactionReference || "");
         setPaymentNotes(payment.notes || "");
+        setBankAccountId(payment.bankAccountId || "");
         setPaymentDetails(payment.details?.map(d => ({
           paymentMode: d.paymentMode,
           amount: d.amount,
         })) || [{ paymentMode: "cash", amount: 0 }]);
       }
-    } catch {
-      toast.error("Failed to load purchase order");
-      navigate("/inventory/purchase-orders");
+    } catch (err) {
+      toast.error(err?.message || "Failed to load purchase order");
     } finally {
       setLoading(false);
     }
@@ -203,13 +207,32 @@ export default function PurchaseOrderPage() {
       toast.warning("Please enter a supplier name.");
       return;
     }
+    if (supplierPhone && (!/^\d+$/.test(supplierPhone) || supplierPhone.length > 15)) {
+      toast.warning("Supplier phone must be numbers only, max 15 digits.");
+      return;
+    }
 
-    // Payment validation removed - allow unpaid and partial payments
+    if (enablePayment && totalPaymentAmount > grandTotal) {
+      toast.warning(`Payment amount (${formatCurrency(totalPaymentAmount)}) cannot exceed the order total (${formatCurrency(grandTotal)}).`);
+      return;
+    }
+
+    if (enablePayment) {
+      const hasBankTransferOrCheque = paymentDetails.some(d => 
+        (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && Number(d.amount) > 0
+      );
+      if (hasBankTransferOrCheque && !bankAccountId.trim()) {
+        toast.warning("Bank account selection is required for bank transfer and cheque payments.");
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
       const payload = {
         supplierName: supplierName.trim(),
+        supplierPhone: supplierPhone.trim(),
+        supplier_phone: supplierPhone.trim(),
         items: orderItems,
         taxRate: 0,
         notes: notes.trim(),
@@ -223,11 +246,13 @@ export default function PurchaseOrderPage() {
             transactionReference: transactionReference.trim(),
             notes: paymentNotes.trim(),
             paymentDate: new Date().toISOString().split("T")[0],
+            bankAccountId: bankAccountId.trim() || null,
             details: paymentDetails
               .filter((d) => Number(d.amount) > 0)
               .map((d) => ({
                 paymentMode: d.paymentMode,
                 amount: Number(d.amount),
+                bankAccountId: (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') ? bankAccountId.trim() || null : null,
               })),
           }
         : false; // false indicates payment should be deleted
@@ -295,6 +320,22 @@ export default function PurchaseOrderPage() {
               value={supplierName}
               onChange={(e) => setSupplierName(e.target.value)}
               placeholder="e.g. Beauty Supplies Co."
+              className="premium-input w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+              Supplier Phone (optional)
+            </label>
+            <input
+              type="tel"
+              value={supplierPhone}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "");
+                if (digits.length <= 15) setSupplierPhone(digits);
+              }}
+              placeholder="e.g. 60123456789"
+              maxLength={15}
               className="premium-input w-full"
             />
           </div>
@@ -538,7 +579,10 @@ export default function PurchaseOrderPage() {
             onChange={(e) => {
               const checked = e.target.checked;
               setEnablePayment(checked);
-              if (!checked) setPaymentDetails([{ paymentMode: 'cash', amount: '' }]);
+              if (!checked) {
+                setPaymentDetails([{ paymentMode: 'cash', amount: '' }]);
+                setBankAccountId('');
+              }
             }}
             className="h-4 w-4 accent-gold-500"
           />
@@ -576,8 +620,14 @@ export default function PurchaseOrderPage() {
                     <input
                       type="number"
                       min="0"
+                      max={grandTotal}
                       value={detail.amount || ""}
-                      onChange={(e) => updatePaymentDetail(index, "amount", e.target.value)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        const otherTotal = paymentDetails.reduce((s, d, i) => i === index ? s : s + (Number(d.amount) || 0), 0);
+                        const capped = Math.min(val, grandTotal - otherTotal);
+                        updatePaymentDetail(index, "amount", capped >= 0 ? capped : 0);
+                      }}
                       placeholder="Amount"
                       className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                     />
@@ -620,6 +670,15 @@ export default function PurchaseOrderPage() {
                 />
               </div>
             </div>
+
+            <BankSelector
+              value={bankAccountId}
+              onChange={setBankAccountId}
+              label="Bank Account (required for Bank Transfer & Cheque)"
+              placeholder="Select bank account"
+              className="mt-4"
+              showDefaultIndicator={true}
+            />
           </div>
         )}
       </div>

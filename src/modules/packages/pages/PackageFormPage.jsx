@@ -15,20 +15,23 @@ import {
   Globe,
   Monitor,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  Package,
+  ToggleLeft,
+  ToggleRight
 } from "lucide-react";
 import { PageHeader } from "../../../components/ui/PageHeader";
-import {
-  fetchServices,
-  fetchServiceCategories,
-} from "../../../services/mockApi";
 import {
   fetchPackageProfileFromAPI,
   createPackageAPI,
   updatePackageAPI,
   fetchOutletsFromAPI,
+  fetchServicesFromAPI,
+  fetchServiceCategoriesFromAPI,
+  fetchProductsFromAPI,
 } from "../../../services/api";
 import { formatCurrency } from "../../../utils/format";
+import { useToastStore } from "../../../stores/toastStore";
 import {
   createInitialPackageForm,
   createInitialServiceSelection,
@@ -42,8 +45,10 @@ export function PackageFormPage() {
   const navigate = useNavigate();
   const { packageId } = useParams();
   const isEditing = Boolean(packageId);
+  const toast = useToastStore();
   const [form, setForm] = useState(createInitialPackageForm());
   const [services, setServices] = useState([]);
+  const [products, setProducts] = useState([]);
   const [outlets, setOutlets] = useState([]);
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,8 +57,7 @@ export function PackageFormPage() {
 
   const tabs = [
     { id: "basics", label: "Basics", icon: <Tag size={18} /> },
-    { id: "bundle", label: "Service Bundle", icon: <LayoutGrid size={18} /> },
-    { id: "availability", label: "Availability", icon: <Store size={18} /> },
+    { id: "services", label: "Services & Outlets", icon: <LayoutGrid size={18} /> },
     { id: "pricing", label: "Pricing & Rules", icon: <CreditCard size={18} /> },
   ];
 
@@ -64,16 +68,22 @@ export function PackageFormPage() {
       setIsLoading(true);
 
       try {
-        const [serviceList, outletList, categoryList, packageRecord] = await Promise.all([
-          fetchServices(),
+        const [rawServiceList, outletList, categoryList, productList, packageRecord] = await Promise.all([
+          fetchServicesFromAPI(),
           fetchOutletsFromAPI(),
-          fetchServiceCategories(),
+          fetchServiceCategoriesFromAPI(),
+          fetchProductsFromAPI(),
           isEditing ? fetchPackageProfileFromAPI(packageId) : Promise.resolve(null),
         ]);
 
         if (!isMounted) return;
 
+        const serviceList = rawServiceList.map(s => ({
+          ...s,
+          serviceName: s.serviceName || s.service_name || '',
+        }));
         setServices(serviceList);
+        setProducts(productList);
         setOutlets(outletList);
         setCategories(categoryList);
         setForm(packageRecord ? mapPackageToForm(packageRecord) : createInitialPackageForm());
@@ -90,6 +100,27 @@ export function PackageFormPage() {
     () => Object.fromEntries(services.map((service) => [service.id, service])),
     [services]
   );
+
+  const productOptionsById = useMemo(
+    () => Object.fromEntries(products.map((p) => [p.id, p])),
+    [products]
+  );
+
+  const availableServices = useMemo(() => {
+    if (!form.assignedOutletIds || form.assignedOutletIds.length === 0) {
+      return services;
+    }
+    return services;
+  }, [services, form.assignedOutletIds]);
+
+  const getServiceLinkedProducts = (serviceId) => {
+    const service = serviceOptionsById[serviceId];
+    if (!service?.productLinkages?.length) return [];
+    return service.productLinkages.map(link => ({
+      ...link,
+      product: productOptionsById[link.inventoryId],
+    })).filter(l => l.product);
+  };
 
   const packageSummary = useMemo(() => {
     const selectedServices = form.services
@@ -126,9 +157,54 @@ export function PackageFormPage() {
   const updateServiceSelection = (rowId, key, value) => {
     setForm((current) => ({
       ...current,
-      services: current.services.map((selection) =>
-        selection.id === rowId ? { ...selection, [key]: value } : selection,
-      ),
+      services: current.services.map((selection) => {
+        if (selection.id !== rowId) return selection;
+        const updated = { ...selection, [key]: value };
+        if (key === 'serviceId' && value) {
+          const service = serviceOptionsById[value];
+          if (service?.productLinkages?.length) {
+            updated.linkedProducts = service.productLinkages.map(link => ({
+              inventoryId: link.inventoryId,
+              quantityUsed: link.quantityUsed || 1,
+              consumptionUnit: link.consumptionUnit || 'primary',
+              included: true,
+            }));
+          } else {
+            updated.linkedProducts = [];
+          }
+        }
+        return updated;
+      }),
+    }));
+  };
+
+  const toggleLinkedProduct = (selectionId, inventoryId) => {
+    setForm(current => ({
+      ...current,
+      services: current.services.map(s => {
+        if (s.id !== selectionId) return s;
+        return {
+          ...s,
+          linkedProducts: (s.linkedProducts || []).map(lp =>
+            lp.inventoryId === inventoryId ? { ...lp, included: !lp.included } : lp
+          )
+        };
+      })
+    }));
+  };
+
+  const updateLinkedProductQty = (selectionId, inventoryId, qty) => {
+    setForm(current => ({
+      ...current,
+      services: current.services.map(s => {
+        if (s.id !== selectionId) return s;
+        return {
+          ...s,
+          linkedProducts: (s.linkedProducts || []).map(lp =>
+            lp.inventoryId === inventoryId ? { ...lp, quantityUsed: Math.max(0.1, Number(qty) || 1) } : lp
+          )
+        };
+      })
     }));
   };
 
@@ -154,7 +230,16 @@ export function PackageFormPage() {
   const handleSubmit = async (event) => {
     if (event) event.preventDefault();
     const cleanedServices = form.services.filter((selection) => selection.serviceId);
-    if (!form.packageName.trim() || cleanedServices.length === 0) return;
+    if (!form.packageName.trim()) {
+      toast.error("Package name is required");
+      setActiveTab("basics");
+      return;
+    }
+    if (cleanedServices.length === 0) {
+      toast.error("Please add at least one service to the package");
+      setActiveTab("services");
+      return;
+    }
     setIsSaving(true);
     try {
       const payload = {
@@ -176,12 +261,22 @@ export function PackageFormPage() {
         services: cleanedServices.map((selection) => ({
           service_id: selection.serviceId,
           sessions: Number(selection.sessions) || 1,
+          linked_products: (selection.linkedProducts || [])
+            .filter(lp => lp.included)
+            .map(lp => ({
+              product_id: lp.inventoryId,
+              quantity: Number(lp.quantityUsed) || 1,
+              unit: lp.consumptionUnit || 'primary',
+            })),
         })),
       };
       const savedPackage = isEditing
         ? await updatePackageAPI(packageId, payload)
         : await createPackageAPI(payload);
+      toast.success(isEditing ? "Package updated successfully" : "Package created successfully");
       navigate(`/packages/${savedPackage.id}`);
+    } catch (error) {
+      toast.error(error.message || "Failed to save package");
     } finally {
       setIsSaving(false);
     }
@@ -296,83 +391,155 @@ export function PackageFormPage() {
             </div>
           )}
 
-          {activeTab === "bundle" && (
+          {activeTab === "services" && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-               <div className="flex items-center justify-between mb-6">
-                 <h2 className="form-section-title" style={{ margin: 0 }}>Service Bundle</h2>
-                 <button
-                    type="button"
-                    className="btn-premium-outline !py-2 !px-4 text-xs"
-                    onClick={() => setForm({ ...form, services: [...form.services, createInitialServiceSelection()] })}
-                  >
-                    + Add Service
-                  </button>
-               </div>
-               <div className="space-y-4">
-                  {form.services.map((selection, index) => (
-                    <div key={selection.id} className="service-selection-item">
-                      <div className="form-field">
-                        <label className="premium-label">Service {index + 1}</label>
-                        <select
-                          className="premium-input"
-                          value={selection.serviceId}
-                          onChange={(e) => updateServiceSelection(selection.id, "serviceId", e.target.value)}
-                        >
-                          <option value="">Select Service</option>
-                          {services.map(s => (
-                            <option key={s.id} value={s.id}>{s.serviceName} ({formatCurrency(s.price)})</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-field">
-                        <label className="premium-label">Sessions</label>
+              {/* Outlet Selection - Must select first */}
+              <div className="mb-8 p-5 rounded-2xl bg-navy-50/50 border border-navy-100">
+                <div className="flex items-center gap-2 mb-4">
+                  <Store size={18} className="text-navy-600" />
+                  <h2 className="form-section-title" style={{ margin: 0 }}>Select Outlets</h2>
+                </div>
+                <p className="text-sm text-slate-500 mb-4">Select outlets where this package will be available. Services will be filtered based on outlet availability.</p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {outlets.map((outlet) => {
+                    const isSelected = form.assignedOutletIds.includes(outlet.id);
+                    return (
+                      <label key={outlet.id} className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all cursor-pointer ${isSelected ? 'border-navy-600 bg-navy-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                         <input
-                          type="number"
-                          min="1"
-                          className="premium-input text-center"
-                          value={selection.sessions}
-                          onChange={(e) => updateServiceSelection(selection.id, "sessions", e.target.value)}
+                          type="checkbox"
+                          className="h-5 w-5 rounded border-slate-300 text-navy-600 focus:ring-navy-600"
+                          checked={isSelected}
+                          onChange={() => toggleOutlet(outlet.id)}
                         />
-                      </div>
-                      <button
-                        type="button"
-                        className="flex items-center justify-center rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all h-[42px] w-[42px]"
-                        onClick={() => setForm({
-                          ...form,
-                          services: form.services.length === 1 ? [createInitialServiceSelection()] : form.services.filter(s => s.id !== selection.id)
-                        })}
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  ))}
-               </div>
-            </div>
-          )}
-
-          {activeTab === "availability" && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <h2 className="form-section-title">Outlet Availability</h2>
-              <p className="text-sm text-slate-500 mb-6 italic">Select outlets where this bundle can be redeemed. Leave empty to allow in all outlets.</p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {outlets.map((outlet) => {
-                  const isSelected = form.assignedOutletIds.includes(outlet.id);
-                  return (
-                    <label key={outlet.id} className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer ${isSelected ? 'border-navy-600 bg-navy-50/30' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5 rounded border-slate-300 text-navy-600 focus:ring-navy-600"
-                        checked={isSelected}
-                        onChange={() => toggleOutlet(outlet.id)}
-                      />
-                      <div>
-                        <p className="font-bold text-navy-900">{outlet.name}</p>
-                        <p className="text-xs text-slate-500 uppercase tracking-wider">{outlet.city}</p>
-                      </div>
-                    </label>
-                  );
-                })}
+                        <div>
+                          <p className={`font-bold ${isSelected ? 'text-navy-900' : 'text-slate-700'}`}>{outlet.name}</p>
+                          <p className="text-xs text-slate-500 uppercase tracking-wider">{outlet.city}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                {form.assignedOutletIds.length === 0 && (
+                  <div className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+                    Please select at least one outlet to continue.
+                  </div>
+                )}
               </div>
+
+              {/* Service Bundle Section */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="form-section-title" style={{ margin: 0 }}>Service Bundle</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {form.assignedOutletIds.length > 0 
+                      ? `${availableServices.length} services available`
+                      : 'Select an outlet to add services'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-premium-outline !py-2 !px-4 text-xs"
+                  onClick={() => setForm({ ...form, services: [...form.services, createInitialServiceSelection()] })}
+                  disabled={form.assignedOutletIds.length === 0}
+                >
+                  + Add Service
+                </button>
+              </div>
+
+              {form.assignedOutletIds.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                  <Store size={32} className="mx-auto text-slate-300 mb-3" />
+                  <p className="text-slate-500 font-medium">Select an outlet above to add services</p>
+                </div>
+              ) : (
+               <div className="space-y-4">
+                  {form.services.map((selection, index) => {
+                    const linkedProducts = selection.serviceId ? getServiceLinkedProducts(selection.serviceId) : [];
+                    const hasLinkedProducts = linkedProducts.length > 0;
+                    return (
+                      <div key={selection.id} className="service-selection-item">
+                        <div className="form-field">
+                          <label className="premium-label">Service {index + 1}</label>
+                          <select
+                            className="premium-input"
+                            value={selection.serviceId}
+                            onChange={(e) => updateServiceSelection(selection.id, "serviceId", e.target.value)}
+                          >
+                            <option value="">Select Service</option>
+                            {availableServices.map(s => (
+                              <option key={s.id} value={s.id}>{s.serviceName} ({formatCurrency(s.price)})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-field">
+                          <label className="premium-label">Sessions</label>
+                          <input
+                            type="number"
+                            min="1"
+                            className="premium-input text-center"
+                            value={selection.sessions}
+                            onChange={(e) => updateServiceSelection(selection.id, "sessions", e.target.value)}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="flex items-center justify-center rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all h-[42px] w-[42px]"
+                          onClick={() => setForm({
+                            ...form,
+                            services: form.services.length === 1 ? [createInitialServiceSelection()] : form.services.filter(s => s.id !== selection.id)
+                          })}
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                        
+                        {/* Linked Products Section */}
+                        {hasLinkedProducts && (
+                          <div className="col-span-full mt-3 p-4 rounded-xl bg-navy-50/50 border border-navy-100">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Package size={16} className="text-navy-500" />
+                              <span className="text-xs font-bold uppercase tracking-widest text-navy-600">Linked Products</span>
+                              <span className="text-[10px] text-slate-400 ml-auto">Toggle to include/exclude</span>
+                            </div>
+                            <div className="space-y-2">
+                              {linkedProducts.map((link) => {
+                                const selectedLP = selection.linkedProducts?.find(lp => lp.inventoryId === link.inventoryId);
+                                const isIncluded = selectedLP?.included ?? true;
+                                return (
+                                  <div key={link.inventoryId} className={`flex items-center justify-between p-2.5 rounded-lg bg-white border transition-all ${isIncluded ? 'border-navy-200 shadow-sm' : 'border-slate-200 opacity-60'}`}>
+                                    <div className="flex items-center gap-3">
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleLinkedProduct(selection.id, link.inventoryId)}
+                                        className="text-navy-600 hover:text-navy-800"
+                                      >
+                                        {isIncluded ? <ToggleRight size={22} className="text-emerald-500" /> : <ToggleLeft size={22} className="text-slate-400" />}
+                                      </button>
+                                      <span className="text-sm font-medium text-navy-900">{link.product.itemName}</span>
+                                    </div>
+                                    {isIncluded && (
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="number"
+                                          min="0.1"
+                                          step="any"
+                                          className="w-20 text-center text-sm border border-slate-200 rounded-lg px-2 py-1"
+                                          value={selectedLP?.quantityUsed || link.quantityUsed}
+                                          onChange={(e) => updateLinkedProductQty(selection.id, link.inventoryId, e.target.value)}
+                                        />
+                                        <span className="text-xs text-slate-500 uppercase">{link.consumptionUnit === 'secondary' ? link.product.unitMaster?.secondary_abbr : link.product.unitMaster?.primary_abbr || 'unit'}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+               </div>
+              )}
             </div>
           )}
 

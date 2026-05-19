@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Search } from 'lucide-react';
-import { fetchServicesFromAPI, fetchServiceCategoriesFromAPI } from '../../../services/api';
+import { Loader2, Search, Trash2, Eye, Pencil } from 'lucide-react';
+import { fetchServicesFromAPI, fetchServiceCategoriesFromAPI, fetchProductsFromAPI, deleteServiceAPI } from '../../../services/api';
 import { formatCurrency } from '../../../utils/format';
 import { useToastStore } from '../../../stores/toastStore';
 import { EmptyTable, NoSearchResults } from '../../../components/ui/EmptyState';
@@ -11,9 +11,17 @@ const ServiceListPage: React.FC = () => {
   const [allServices, setAllServices] = useState<any[]>([]);
   const [filteredServices, setFilteredServices] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [productFilter, setProductFilter] = useState('');
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [minDuration, setMinDuration] = useState('');
+  const [maxDuration, setMaxDuration] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const navigate = useNavigate();
   const toast = useToastStore();
 
@@ -22,9 +30,10 @@ const ServiceListPage: React.FC = () => {
     const loadServices = async () => {
       try {
         setLoading(true);
-        const [rawServices, catList] = await Promise.all([
+        const [rawServices, catList, productList] = await Promise.all([
           fetchServicesFromAPI(),
           fetchServiceCategoriesFromAPI(),
+          fetchProductsFromAPI(),
         ]);
         const mapped = rawServices.map((s: any) => ({
           ...s,
@@ -35,6 +44,7 @@ const ServiceListPage: React.FC = () => {
         setAllServices(mapped);
         setFilteredServices(mapped);
         setCategories(catList);
+        setProducts(productList);
       } catch (err) {
         toast.error('Failed to load services');
       } finally {
@@ -42,7 +52,7 @@ const ServiceListPage: React.FC = () => {
       }
     };
     loadServices();
-  }, [toast]);
+  }, []);
 
   // Apply search and filter
   useEffect(() => {
@@ -61,8 +71,23 @@ const ServiceListPage: React.FC = () => {
       result = result.filter(s => String(s.category_id) === categoryFilter);
     }
 
+    // Apply product filter
+    if (productFilter) {
+      result = result.filter(s =>
+        (s.productLinkages || []).some((l: any) => String(l.inventoryId) === productFilter)
+      );
+    }
+
+    // Apply duration range
+    if (minDuration !== '') result = result.filter(s => Number(s.duration) >= Number(minDuration));
+    if (maxDuration !== '') result = result.filter(s => Number(s.duration) <= Number(maxDuration));
+
+    // Apply price range
+    if (minPrice !== '') result = result.filter(s => parseFloat(s.price) >= parseFloat(minPrice));
+    if (maxPrice !== '') result = result.filter(s => parseFloat(s.price) <= parseFloat(maxPrice));
+
     setFilteredServices(result);
-  }, [searchQuery, categoryFilter, allServices]);
+  }, [searchQuery, categoryFilter, productFilter, minDuration, maxDuration, minPrice, maxPrice, allServices]);
 
   // Calculate stats from actual data
   const stats = useMemo(() => {
@@ -75,9 +100,31 @@ const ServiceListPage: React.FC = () => {
     return { total, withProductLinkages, avgPrice };
   }, [allServices]);
 
+  const hasActiveFilters = searchQuery || categoryFilter || productFilter || minDuration || maxDuration || minPrice || maxPrice;
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await deleteServiceAPI(deleteId);
+      setAllServices(prev => prev.filter(s => s.id !== deleteId));
+      toast.success('Service deleted successfully');
+    } catch (err) {
+      toast.error('Failed to delete service');
+    } finally {
+      setDeleting(false);
+      setDeleteId(null);
+    }
+  };
+
   const handleClearSearch = () => {
     setSearchQuery('');
     setCategoryFilter('');
+    setProductFilter('');
+    setMinDuration('');
+    setMaxDuration('');
+    setMinPrice('');
+    setMaxPrice('');
   };
 
   if (loading) {
@@ -135,27 +182,87 @@ const ServiceListPage: React.FC = () => {
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-navy-400" />
-          <input
-            type="text"
-            placeholder="Search services..."
-            className="premium-input pl-12"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      <div className="glass-card p-4 mb-6 space-y-3">
+        {/* Row 1: Search + Category + Product */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-navy-400" />
+            <input
+              type="text"
+              placeholder="Search services..."
+              className="premium-input pl-12 w-full"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <select
+            className="premium-input sm:w-44"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={String(cat.id)}>{cat.name}</option>
+            ))}
+          </select>
+          <select
+            className="premium-input sm:w-48"
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+          >
+            <option value="">All Products</option>
+            {products.map((p) => (
+              <option key={p.id} value={String(p.id)}>{p.itemName}</option>
+            ))}
+          </select>
         </div>
-        <select
-          className="premium-input sm:w-48"
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-        >
-          <option value="">All Categories</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={String(cat.id)}>{cat.name}</option>
-          ))}
-        </select>
+        {/* Row 2: Duration + Price ranges */}
+        <div className="flex flex-col sm:flex-row gap-3 items-center">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Duration (min)</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="Min"
+            className="premium-input sm:w-24"
+            value={minDuration}
+            onChange={(e) => setMinDuration(e.target.value)}
+          />
+          <span className="text-slate-400">–</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="Max"
+            className="premium-input sm:w-24"
+            value={maxDuration}
+            onChange={(e) => setMaxDuration(e.target.value)}
+          />
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap sm:ml-4">Price (RM)</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="Min"
+            className="premium-input sm:w-24"
+            value={minPrice}
+            onChange={(e) => setMinPrice(e.target.value)}
+          />
+          <span className="text-slate-400">–</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="Max"
+            className="premium-input sm:w-24"
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value)}
+          />
+          {hasActiveFilters && (
+            <button
+              onClick={handleClearSearch}
+              className="ml-auto text-xs font-medium text-rose-500 hover:text-rose-700 whitespace-nowrap"
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Services Table */}
@@ -200,16 +307,25 @@ const ServiceListPage: React.FC = () => {
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                        title="View"
+                        className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 transition-colors hover:bg-slate-50"
                         onClick={() => navigate(`/services/${service.id}`)}
                       >
-                        View
+                        <Eye className="h-4 w-4" />
                       </button>
                       <button
-                        className="btn-premium-outline !py-1.5 !px-3 text-xs"
+                        title="Edit"
+                        className="rounded-lg border border-navy-200 bg-navy-50 p-1.5 text-navy-700 transition-colors hover:bg-navy-100"
                         onClick={() => navigate(`/services/edit/${service.id}`)}
                       >
-                        Edit
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        title="Delete"
+                        className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-700 transition-colors hover:bg-rose-100"
+                        onClick={() => setDeleteId(service.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </td>
@@ -217,6 +333,33 @@ const ServiceListPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {deleteId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="glass-card w-full max-w-sm p-6 space-y-4">
+            <h3 className="text-lg font-bold text-navy-900">Delete Service</h3>
+            <p className="text-sm text-slate-600">
+              Are you sure you want to delete <span className="font-semibold">{allServices.find(s => s.id === deleteId)?.serviceName}</span>? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="btn-premium-outline !py-2 !px-4 text-sm"
+                onClick={() => setDeleteId(null)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

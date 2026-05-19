@@ -36,7 +36,8 @@ export function PurchaseOrderHistoryPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-    const [dateRange, setDateRange] = useState("all");
+  const [dateRange, setDateRange] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
   const [expandedOrder, setExpandedOrder] = useState(null);
   
   
@@ -109,7 +110,21 @@ export function PurchaseOrderHistoryPage() {
       }
     }
 
-    return matchesSearch && matchesDate;
+    let matchesPayment = true;
+    if (paymentFilter !== "all") {
+      const totalPaid = order.payments?.reduce((sum, p) => sum + (p.totalAmount || 0), 0) ?? 0;
+      const hasPending = order.payments?.some(p => p.status === 'pending');
+      const hasPayments = order.payments && order.payments.length > 0;
+      if (paymentFilter === "paid") {
+        matchesPayment = hasPayments && totalPaid >= order.totalCost && !hasPending;
+      } else if (paymentFilter === "partial") {
+        matchesPayment = hasPayments && (totalPaid < order.totalCost || hasPending);
+      } else if (paymentFilter === "unpaid") {
+        matchesPayment = !hasPayments;
+      }
+    }
+
+    return matchesSearch && matchesDate && matchesPayment;
   });
 
   const stats = {
@@ -180,6 +195,19 @@ export function PurchaseOrderHistoryPage() {
               <option value="thisYear">This Year</option>
             </select>
           </div>
+          <div className="flex items-center gap-2">
+            <Banknote className="h-4 w-4 text-slate-400" />
+            <select
+              value={paymentFilter}
+              onChange={(e) => setPaymentFilter(e.target.value)}
+              className="premium-input"
+            >
+              <option value="all">All Payments</option>
+              <option value="paid">Paid</option>
+              <option value="partial">Partial</option>
+              <option value="unpaid">Unpaid</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -215,10 +243,6 @@ export function PurchaseOrderHistoryPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-navy-900">{order.poNumber}</span>
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusStyle.bg} ${statusStyle.text}`}>
-                          <StatusIcon className="h-3 w-3" />
-                          {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
-                        </span>
                       </div>
                       <p className="text-sm text-slate-500">{order.supplierName}</p>
                     </div>
@@ -296,12 +320,6 @@ export function PurchaseOrderHistoryPage() {
                               {new Date(order.orderDate).toLocaleDateString()}
                             </span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Status:</span>
-                            <span className={`font-medium ${statusStyle.text}`}>
-                              {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
-                            </span>
-                          </div>
                         </div>
                       </div>
 
@@ -317,8 +335,8 @@ export function PurchaseOrderHistoryPage() {
                             <span className="font-medium text-navy-900">{order.supplierContact || "N/A"}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-slate-500">Email:</span>
-                            <span className="font-medium text-navy-900">{order.supplierEmail || "N/A"}</span>
+                            <span className="text-slate-500">Phone:</span>
+                            <span className="font-medium text-navy-900">{order.supplierPhone || "N/A"}</span>
                           </div>
                         </div>
                       </div>

@@ -16,10 +16,10 @@ import {
 } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import {
-  createExpense,
-  fetchBudgetSummary,
-  fetchOutlets,
-} from "../../services/mockApi";
+  createExpenseAPI,
+  fetchBudgetSummaryFromAPI,
+  fetchOutletsFromAPI,
+} from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 
@@ -61,7 +61,7 @@ export function ExpenseAddPage() {
   const loadBudget = async () => {
     setIsLoading(true);
     try {
-      const budgetSummary = await fetchBudgetSummary({ outletId: selectedOutletId });
+      const budgetSummary = await fetchBudgetSummaryFromAPI({ outletId: selectedOutletId });
       setBudget(budgetSummary);
     } catch (err) {
       console.error("Failed to load budget:", err);
@@ -73,7 +73,7 @@ export function ExpenseAddPage() {
   const loadOutlets = async () => {
     if (!isAdmin) return;
     try {
-      const outletList = await fetchOutlets();
+      const outletList = await fetchOutletsFromAPI();
       setOutlets(outletList);
     } catch (err) {
       console.error("Failed to load outlets:", err);
@@ -100,9 +100,9 @@ export function ExpenseAddPage() {
     setError(null);
 
     try {
-      await createExpense({
+      await createExpenseAPI({
         ...form,
-        outletId: selectedOutletId || userOutletId || "outlet_hsr",
+        outletId: selectedOutletId || userOutletId,
       });
 
       navigate("/expenses");

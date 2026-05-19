@@ -30,6 +30,18 @@ const Service = sequelize.define('Service', {
     type: DataTypes.JSON,
     defaultValue: [],
   },
+  images: {
+    type: DataTypes.TEXT('long'),
+    allowNull: true,
+    get() {
+      const raw = this.getDataValue('images');
+      if (!raw) return [];
+      try { return JSON.parse(raw); } catch { return []; }
+    },
+    set(val) {
+      this.setDataValue('images', val ? JSON.stringify(val) : null);
+    },
+  },
   status: {
     type: DataTypes.ENUM('active', 'inactive'),
     defaultValue: 'active',

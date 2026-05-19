@@ -49,7 +49,7 @@ const EmployeeListPage: React.FC = () => {
     };
 
     loadEmployees();
-  }, [toast]);
+  }, []);
 
   // Apply search and filters
   useEffect(() => {

@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchBillsFromAPI, fetchProductsFromAPI } from "../../services/api";
+import { fetchBillsFromAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 import { InvoiceModal } from "./InvoiceModal";
 import { BillDetailModal } from "./BillDetailModal";
-import { Search, Download, Filter, FileText, Eye } from "lucide-react";
+import { Search, Download, Filter, FileText, Eye, Calendar } from "lucide-react";
 
 const paymentFilters = ["All", "Cash", "Card", "UPI"];
 
@@ -27,21 +27,25 @@ export default function BillingListPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [paymentFilter, setPaymentFilter] = useState("All");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [selectedBill, setSelectedBill] = useState(null);
   const [viewBill, setViewBill] = useState(null);
-  const [productMasters, setProductMasters] = useState([]);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const outletId = (user?.role === "admin" || user?.role === "super_admin") ? undefined : user?.outlet_id;
-      const [billsData, productsData] = await Promise.all([
-        fetchBillsFromAPI({ outletId }),
-        fetchProductsFromAPI(),
-      ]);
-      setBills(billsData);
-      setProductMasters(productsData);
-      setLoading(false);
+      setError(null);
+      try {
+        const outletId = (user?.role === "admin" || user?.role === "super_admin") ? undefined : user?.outlet_id;
+        const billsData = await fetchBillsFromAPI({ outletId });
+        setBills(billsData);
+      } catch (err) {
+        setError(err.message || "Failed to load billing history.");
+      } finally {
+        setLoading(false);
+      }
     };
     if (user) load();
   }, [user]);
@@ -53,7 +57,10 @@ export default function BillingListPage() {
       b.customer?.name?.toLowerCase().includes(search.toLowerCase()) ||
       b.customer?.phone?.includes(search);
     const matchesPayment = paymentFilter === "All" || b.paymentMethod === paymentFilter;
-    return matchesSearch && matchesPayment;
+    const billDate = new Date(b.createdAt);
+    const matchesDateFrom = !dateFrom || billDate >= new Date(dateFrom);
+    const matchesDateTo = !dateTo || billDate <= new Date(dateTo + "T23:59:59");
+    return matchesSearch && matchesPayment && matchesDateFrom && matchesDateTo;
   });
 
   const handleDownload = (bill) => {
@@ -119,6 +126,39 @@ export default function BillingListPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <div className="flex items-center gap-3">
+            {/* Date From */}
+            <div className="relative">
+              <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-400" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="premium-input !pl-9 !py-2 !text-xs"
+                placeholder="From"
+              />
+            </div>
+            {/* Date To */}
+            <div className="relative">
+              <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-400" />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="premium-input !pl-9 !py-2 !text-xs"
+                placeholder="To"
+              />
+            </div>
+            {/* Clear Dates */}
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className="text-xs font-medium text-navy-500 hover:text-navy-700 underline"
+              >
+                Clear dates
+              </button>
+            )}
+          </div>
           <div className="flex gap-2">
             {paymentFilters.map((f) => (
               <button
@@ -137,6 +177,13 @@ export default function BillingListPage() {
           </div>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Table */}
       {loading ? (
@@ -241,7 +288,6 @@ export default function BillingListPage() {
       {viewBill && (
         <BillDetailModal 
           bill={viewBill} 
-          productMasters={productMasters}
           onClose={() => setViewBill(null)} 
         />
       )}

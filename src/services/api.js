@@ -234,6 +234,7 @@ export const fetchProductsFromAPI = async (params = {}) => {
     productMeasure: Number(p.product_measure || 1),
     productMeasureUnit: p.product_measure_unit,
     status: p.status,
+    images: Array.isArray(p.images) ? p.images : [],
     unitMaster: p.unitMaster ? {
       id: p.unitMaster.id,
       groupName: p.unitMaster.group_name,
@@ -270,6 +271,7 @@ export const createProductAPI = async (payload) => {
       consumption_unit: payload.consumptionUnit,
       product_measure: payload.productMeasure,
       product_measure_unit: payload.productMeasureUnit,
+      images: Array.isArray(payload.images) ? payload.images : [],
     }),
   });
   return handleResponse(res);
@@ -317,7 +319,7 @@ export const createPurchaseOrderAPI = async (payload, payment = null, attachment
   const form = new FormData();
   form.append("supplierName", payload.supplierName);
   if (payload.supplier_contact) form.append("supplier_contact", payload.supplier_contact);
-  if (payload.supplier_email) form.append("supplier_email", payload.supplier_email);
+  if (payload.supplier_phone) form.append("supplier_phone", payload.supplier_phone);
   form.append("taxRate", payload.taxRate ?? 0);
   form.append("notes", payload.notes || "");
   form.append("orderDate", payload.orderDate || "");
@@ -360,7 +362,7 @@ export const updatePurchaseOrderAPI = async (id, payload, attachmentFile = null)
   const form = new FormData();
   form.append("supplierName", payload.supplierName);
   if (payload.supplierContact) form.append("supplierContact", payload.supplierContact);
-  if (payload.supplierEmail) form.append("supplierEmail", payload.supplierEmail);
+  if (payload.supplierPhone) form.append("supplierPhone", payload.supplierPhone);
   form.append("taxRate", payload.taxRate ?? 0);
   form.append("notes", payload.notes || "");
   form.append("orderDate", payload.orderDate || "");
@@ -601,6 +603,227 @@ export const fetchBillsFromAPI = async ({ outletId, search, paymentMethod } = {}
 
 export const fetchBillByIdFromAPI = async (id) => {
   const res = await fetch(`${API_BASE}/pos/bills/${id}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── Banks ────────────────────────────────────────────────────────────────────
+
+export const fetchBanksFromAPI = async () => {
+  const res = await fetch(`${API_BASE}/banks`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchActiveBanksFromAPI = async () => {
+  const res = await fetch(`${API_BASE}/banks/active`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchBankByIdFromAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/banks/${id}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const createBankAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/banks`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const updateBankAPI = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/banks/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteBankAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/banks/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const setDefaultBankAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/banks/${id}/set-default`, {
+    method: "PATCH",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const depositAPI = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/banks/${id}/deposit`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const withdrawAPI = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/banks/${id}/withdraw`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const transferAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/banks/transfer`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const fetchBankTransactionsFromAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/banks/${id}/transactions`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── Expenses ───────────────────────────────────────────────────────────────
+
+export const fetchExpensesFromAPI = async ({ outletId, monthKey } = {}) => {
+  const params = {};
+  if (outletId) params.outletId = outletId;
+  if (monthKey) params.monthKey = monthKey;
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/expenses${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await handleResponse(res);
+  // Transform snake_case to camelCase for frontend
+  return data.map((e) => ({
+    id: e.id,
+    itemName: e.item_name,
+    qty: e.qty ? Number(e.qty) : null,
+    price: Number(e.price),
+    totalAmount: Number(e.total_amount),
+    billNo: e.bill_no,
+    outletId: e.outlet_id,
+    monthKey: e.month_key,
+    createdAt: e.created_at,
+    updatedAt: e.updated_at,
+    outlet: e.Outlet
+      ? {
+          id: e.Outlet.id,
+          name: e.Outlet.name,
+          code: e.Outlet.code,
+        }
+      : null,
+  }));
+};
+
+export const createExpenseAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/expenses`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      item_name: payload.itemName,
+      qty: payload.qty,
+      price: payload.price,
+      total_amount: payload.totalAmount,
+      bill_no: payload.billNo,
+      outlet_id: payload.outletId,
+      month_key: payload.monthKey,
+    }),
+  });
+  return handleResponse(res);
+};
+
+export const deleteExpenseAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/expenses/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchBudgetSummaryFromAPI = async ({ outletId, monthKey } = {}) => {
+  const params = {};
+  if (outletId) params.outletId = outletId;
+  if (monthKey) params.monthKey = monthKey;
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/budgets/summary${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await handleResponse(res);
+  // Transform snake_case to camelCase
+  return {
+    totalMonthlyBudget: data.total_monthly_budget,
+    totalExpensesSoFar: data.total_expenses_so_far,
+    remainingBalance: data.remaining_balance,
+    spendPercentage: data.spend_percentage,
+    monthKey: data.month_key,
+    budgets: data.budgets?.map(b => ({
+      outletId: b.outlet_id,
+      outletName: b.outlet_name,
+      amount: b.amount,
+      spendPercentage: b.spend_percentage,
+      currentExpenses: b.current_expenses,
+      remainingBudget: b.remaining_budget,
+    })) || [],
+  };
+};
+
+export const updateMonthlyBudgetAPI = async ({ outletId, amount, monthKey, reason }) => {
+  const res = await fetch(`${API_BASE}/budgets`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      outletId,
+      amount,
+      monthKey,
+      reason,
+    }),
+  });
+  return handleResponse(res);
+};
+
+export const fetchBudgetHistoryFromAPI = async ({ outletId, monthKey, limit = 50 } = {}) => {
+  const params = { limit };
+  if (outletId) params.outletId = outletId;
+  if (monthKey) params.monthKey = monthKey;
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/budgets/history${query ? `?${query}` : ''}`, {
+    headers: authHeaders(),
+  });
+  const data = await handleResponse(res);
+  // Transform snake_case to camelCase
+  return data.map(h => ({
+    id: h.id,
+    outletId: h.outlet_id,
+    outletName: h.outlet_name,
+    monthKey: h.month_key,
+    previousAmount: h.previous_amount,
+    newAmount: h.new_amount,
+    changeAmount: h.change_amount,
+    changeType: h.change_type,
+    reason: h.reason,
+    changedAt: h.changed_at,
+  }));
+};
+
+export const fetchAvailableMonthsFromAPI = async () => {
+  const res = await fetch(`${API_BASE}/budgets/months`, {
     headers: authHeaders(),
   });
   return handleResponse(res);

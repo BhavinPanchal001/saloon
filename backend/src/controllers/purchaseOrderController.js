@@ -7,6 +7,7 @@ const PurchaseOrderItem = require('../models/PurchaseOrderItem');
 const Product = require('../models/Product');
 const Payment = require('../models/Payment');
 const PaymentDetail = require('../models/PaymentDetail');
+const Bank = require('../models/Bank');
 
 // Set up associations (idempotent)
 PurchaseOrder.hasMany(PurchaseOrderItem, { foreignKey: 'purchase_order_id', as: 'items' });
@@ -39,7 +40,7 @@ const toResponse = (po) => ({
   poNumber: po.po_number,
   supplierName: po.supplier_name,
   supplierContact: po.supplier_contact || '',
-  supplierEmail: po.supplier_email || '',
+  supplierPhone: po.supplier_phone || '',
   status: po.status,
   subtotal: Number(po.subtotal),
   taxRate: Number(po.tax_rate),
@@ -58,6 +59,13 @@ const toResponse = (po) => ({
     transactionReference: p.transaction_reference || '',
     notes: p.notes || '',
     paymentDate: p.payment_date,
+    bankAccountId: p.bank_account_id || null,
+    bankAccount: p.bankAccount ? {
+      id: p.bankAccount.id,
+      bankName: p.bankAccount.bankName,
+      accountNumber: p.bankAccount.accountNumber,
+      accountHolderName: p.bankAccount.accountHolderName,
+    } : null,
     details: (p.details || p.PaymentDetails || []).map((d) => ({
       id: d.id,
       amount: Number(d.amount),
@@ -90,7 +98,14 @@ const getAll = async (req, res) => {
       where,
       include: [
         { model: PurchaseOrderItem, as: 'items' },
-        { model: Payment, as: 'Payments', include: [{ model: PaymentDetail, as: 'details' }] },
+        { 
+          model: Payment, 
+          as: 'Payments', 
+          include: [
+            { model: PaymentDetail, as: 'details' },
+            { model: Bank, as: 'bankAccount' }
+          ] 
+        },
       ],
       order: [['created_at', 'DESC']],
     });
@@ -107,7 +122,14 @@ const getOne = async (req, res) => {
     const po = await PurchaseOrder.findByPk(req.params.id, {
       include: [
         { model: PurchaseOrderItem, as: 'items' },
-        { model: Payment, as: 'Payments', include: [{ model: PaymentDetail, as: 'details' }] },
+        { 
+          model: Payment, 
+          as: 'Payments', 
+          include: [
+            { model: PaymentDetail, as: 'details' },
+            { model: Bank, as: 'bankAccount' }
+          ] 
+        },
       ],
     });
     if (!po) return res.status(404).json({ message: 'Purchase order not found.' });
@@ -123,7 +145,7 @@ const create = async (req, res) => {
     const body = req.body;
     const supplierName = body.supplierName;
     const supplier_contact = body.supplier_contact;
-    const supplier_email = body.supplier_email;
+    const supplier_phone = body.supplier_phone;
     const taxRate = body.taxRate;
     const notes = body.notes;
     const orderDate = body.orderDate;
@@ -179,7 +201,7 @@ const create = async (req, res) => {
       po_number: poNumber,
       supplier_name: supplierName.trim(),
       supplier_contact: (supplier_contact || '').trim() || null,
-      supplier_email: (supplier_email || '').trim() || null,
+      supplier_phone: (supplier_phone || '').trim() || null,
       status: 'received',
       subtotal,
       tax_rate: parsedTaxRate,
@@ -216,11 +238,26 @@ const create = async (req, res) => {
         if (!validModes.includes(d.paymentMode)) {
           throw new Error(`Invalid payment mode: ${d.paymentMode}. Must be one of: ${validModes.join(', ')}`);
         }
+        
+        // Validate bank account requirement for bank_transfer and cheque
+        if ((d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && !d.bankAccountId) {
+          throw new Error(`Bank account is required for ${d.paymentMode} payments.`);
+        }
+        
         return {
           amount,
           payment_mode: d.paymentMode,
         };
       });
+
+      // Validate bank account exists if provided
+      if (payment.bankAccountId) {
+        const bank = await Bank.findByPk(payment.bankAccountId, { transaction: t });
+        if (!bank) {
+          await t.rollback();
+          return res.status(400).json({ message: 'Selected bank account not found.' });
+        }
+      }
 
       // Only create payment if amount > 0
       if (totalAmount > 0) {
@@ -236,6 +273,7 @@ const create = async (req, res) => {
           transaction_reference: (payment.transactionReference || '').trim() || null,
           notes: (payment.notes || '').trim() || null,
           payment_date: payment.paymentDate || new Date().toISOString().split('T')[0],
+          bank_account_id: payment.bankAccountId || null,
         }, { transaction: t });
 
         await PaymentDetail.bulkCreate(
@@ -250,7 +288,14 @@ const create = async (req, res) => {
     const created = await PurchaseOrder.findByPk(po.id, {
       include: [
         { model: PurchaseOrderItem, as: 'items' },
-        { model: Payment, as: 'Payments', include: [{ model: PaymentDetail, as: 'details' }] },
+        { 
+          model: Payment, 
+          as: 'Payments', 
+          include: [
+            { model: PaymentDetail, as: 'details' },
+            { model: Bank, as: 'bankAccount' }
+          ] 
+        },
       ],
     });
     return res.status(201).json(toResponse(created));
@@ -276,7 +321,14 @@ const approve = async (req, res) => {
     await po.update({ status: 'approved', approved_at: new Date() });
     await po.reload({ include: [
       { model: PurchaseOrderItem, as: 'items' },
-      { model: Payment, as: 'Payments', include: [{ model: PaymentDetail, as: 'details' }] },
+      { 
+        model: Payment, 
+        as: 'Payments', 
+        include: [
+          { model: PaymentDetail, as: 'details' },
+          { model: Bank, as: 'bankAccount' }
+        ] 
+      },
     ] });
     return res.json(toResponse(po));
   } catch (err) {
@@ -311,7 +363,14 @@ const receive = async (req, res) => {
     const received = await PurchaseOrder.findByPk(po.id, {
       include: [
         { model: PurchaseOrderItem, as: 'items' },
-        { model: Payment, as: 'Payments', include: [{ model: PaymentDetail, as: 'details' }] },
+        { 
+          model: Payment, 
+          as: 'Payments', 
+          include: [
+            { model: PaymentDetail, as: 'details' },
+            { model: Bank, as: 'bankAccount' }
+          ] 
+        },
       ],
     });
     return res.json(toResponse(received));
@@ -337,7 +396,14 @@ const cancel = async (req, res) => {
     await po.update({ status: 'cancelled' });
     await po.reload({ include: [
       { model: PurchaseOrderItem, as: 'items' },
-      { model: Payment, as: 'Payments', include: [{ model: PaymentDetail, as: 'details' }] },
+      { 
+        model: Payment, 
+        as: 'Payments', 
+        include: [
+          { model: PaymentDetail, as: 'details' },
+          { model: Bank, as: 'bankAccount' }
+        ] 
+      },
     ] });
     return res.json(toResponse(po));
   } catch (err) {
@@ -352,7 +418,7 @@ const update = async (req, res) => {
     const body = req.body;
     const supplierName = body.supplierName;
     const supplierContact = body.supplierContact;
-    const supplierEmail = body.supplierEmail;
+    const supplierPhone = body.supplierPhone;
     const taxRate = body.taxRate;
     const notes = body.notes;
     const orderDate = body.orderDate;
@@ -427,7 +493,7 @@ const update = async (req, res) => {
     await po.update({
       supplier_name: supplierName.trim(),
       supplier_contact: (supplierContact || '').trim() || null,
-      supplier_email: (supplierEmail || '').trim() || null,
+      supplier_phone: (supplierPhone || '').trim() || null,
       subtotal,
       tax_rate: parsedTaxRate,
       tax_amount: taxAmount,
@@ -463,11 +529,26 @@ const update = async (req, res) => {
         if (!validModes.includes(d.paymentMode)) {
           throw new Error(`Invalid payment mode: ${d.paymentMode}. Must be one of: ${validModes.join(', ')}`);
         }
+        
+        // Validate bank account requirement for bank_transfer and cheque
+        if ((d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && !d.bankAccountId) {
+          throw new Error(`Bank account is required for ${d.paymentMode} payments.`);
+        }
+        
         return {
           amount,
           payment_mode: d.paymentMode,
         };
       });
+
+      // Validate bank account exists if provided
+      if (payment.bankAccountId) {
+        const bank = await Bank.findByPk(payment.bankAccountId, { transaction: t });
+        if (!bank) {
+          await t.rollback();
+          return res.status(400).json({ message: 'Selected bank account not found.' });
+        }
+      }
 
       // Only create payment if there's a valid amount
       if (totalAmount > 0) {
@@ -480,6 +561,7 @@ const update = async (req, res) => {
           transaction_reference: (payment.transactionReference || '').trim() || null,
           notes: (payment.notes || '').trim() || null,
           payment_date: payment.paymentDate || new Date().toISOString().split('T')[0],
+          bank_account_id: payment.bankAccountId || null,
         }, { transaction: t });
 
         await PaymentDetail.bulkCreate(
@@ -497,7 +579,14 @@ const update = async (req, res) => {
     const updated = await PurchaseOrder.findByPk(poId, {
       include: [
         { model: PurchaseOrderItem, as: 'items' },
-        { model: Payment, as: 'Payments', include: [{ model: PaymentDetail, as: 'details' }] },
+        { 
+          model: Payment, 
+          as: 'Payments', 
+          include: [
+            { model: PaymentDetail, as: 'details' },
+            { model: Bank, as: 'bankAccount' }
+          ] 
+        },
       ],
     });
     return res.json(toResponse(updated));

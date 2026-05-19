@@ -31,7 +31,7 @@ export function SettingsPage() {
       }
     };
     loadSettings();
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     if (user?.email) {

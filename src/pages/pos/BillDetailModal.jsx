@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { X, Calendar, User, MapPin, Package, Scissors, CreditCard, Info } from "lucide-react";
 import { formatCurrency } from "../../utils/format";
 import { createPortal } from "react-dom";
 import { getUnitAbbr } from "../../utils/unitConversion";
+import { fetchProductsFromAPI } from "../../services/api";
 
 const formatDate = (iso) => {
   const d = new Date(iso);
@@ -15,7 +17,18 @@ const formatTime = (iso) => {
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 };
 
-export function BillDetailModal({ bill, productMasters, onClose }) {
+export function BillDetailModal({ bill, onClose }) {
+  const [productMasters, setProductMasters] = useState([]);
+
+  useEffect(() => {
+    if (!bill) return;
+    const hasConsumption = bill.lineItems?.some(
+      (item) => item.itemType === 'service' && item.productConsumption?.length > 0
+    );
+    if (!hasConsumption) return;
+    fetchProductsFromAPI().then(setProductMasters).catch(() => {});
+  }, [bill]);
+
   if (!bill) return null;
 
   return createPortal(

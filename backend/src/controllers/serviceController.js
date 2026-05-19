@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const Service = require('../models/Service');
 const ServiceCategory = require('../models/ServiceCategory');
+const Product = require('../models/Product');
 
 const getAll = async (req, res) => {
   try {
@@ -34,7 +35,21 @@ const getById = async (req, res) => {
       include: [{ model: ServiceCategory, as: 'category', attributes: ['id', 'name', 'code'] }],
     });
     if (!service) return res.status(404).json({ message: 'Service not found.' });
-    return res.json(service);
+
+    const raw = service.toJSON();
+    const linkages = Array.isArray(raw.product_linkages) ? raw.product_linkages : [];
+
+    if (linkages.length > 0) {
+      const ids = linkages.map((l) => l.inventoryId).filter(Boolean);
+      const products = ids.length ? await Product.findAll({ where: { id: ids } }) : [];
+      const productMap = Object.fromEntries(products.map((p) => [String(p.id), p.item_name]));
+      raw.product_linkages = linkages.map((l) => ({
+        ...l,
+        productName: productMap[String(l.inventoryId)] || `Product #${l.inventoryId}`,
+      }));
+    }
+
+    return res.json(raw);
   } catch (err) {
     return res.status(500).json({ message: 'Server error.' });
   }
@@ -42,7 +57,7 @@ const getById = async (req, res) => {
 
 const create = async (req, res) => {
   try {
-    const { service_name, price, duration, category_id, product_linkages } = req.body;
+    const { service_name, price, duration, category_id, product_linkages, images } = req.body;
 
     if (!service_name || price === undefined) {
       return res.status(400).json({ message: 'service_name and price are required.' });
@@ -63,6 +78,7 @@ const create = async (req, res) => {
       duration: Number(duration) || 30,
       category_id: category_id || null,
       product_linkages: product_linkages || [],
+      images: Array.isArray(images) ? images : [],
     });
 
     const result = await Service.findByPk(service.id, {
@@ -81,7 +97,7 @@ const update = async (req, res) => {
     const service = await Service.findByPk(req.params.id);
     if (!service) return res.status(404).json({ message: 'Service not found.' });
 
-    const allowedFields = ['service_name', 'price', 'duration', 'category_id', 'product_linkages', 'status'];
+    const allowedFields = ['service_name', 'price', 'duration', 'category_id', 'product_linkages', 'images', 'status'];
     const updates = {};
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field];

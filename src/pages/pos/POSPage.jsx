@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchStaff } from "../../services/mockApi";
-import { fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI } from "../../services/api";
+import { fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase } from "../../utils/unitConversion";
 import { InvoiceModal } from "./InvoiceModal";
-import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag } from "lucide-react";
+import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle } from "lucide-react";
 import BankSelector from "../../modules/bank/components/BankSelector";
 
 const paymentMethods = ["Cash", "Card", "UPI"];
@@ -32,13 +32,35 @@ export function POSPage() {
   const [outlets, setOutlets] = useState([]);
   const [selectedOutlet, setSelectedOutlet] = useState("");
   const [productMasters, setProductMasters] = useState([]);
+  const [outletInventory, setOutletInventory] = useState([]);
   const [discountType, setDiscountType] = useState("percent");
   const [discountValue, setDiscountValue] = useState("");
+  const [stockErrors, setStockErrors] = useState([]);
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
   const productNameById = useMemo(() => {
     return Object.fromEntries(productMasters.map((p) => [p.id, p.itemName]));
   }, [productMasters]);
+
+  // Stock lookup by product ID from outlet inventory
+  const stockByProductId = useMemo(() => {
+    return Object.fromEntries(outletInventory.map((item) => [String(item.productId), Number(item.currentStock || 0)]));
+  }, [outletInventory]);
+
+  // Fetch outlet inventory stock when outlet changes
+  const refreshOutletInventory = async () => {
+    if (!selectedOutlet) return;
+    try {
+      const items = await fetchOutletInventoryFromAPI({ outletId: selectedOutlet });
+      setOutletInventory(items);
+    } catch {
+      setOutletInventory([]);
+    }
+  };
+
+  useEffect(() => {
+    refreshOutletInventory();
+  }, [selectedOutlet]);
 
   // Load outlets for admin and pre-select first outlet
   useEffect(() => {
@@ -61,27 +83,32 @@ export function POSPage() {
 
   useEffect(() => {
     const loadPos = async () => {
-      const outletId = isAdmin ? (selectedOutlet || undefined) : user?.outlet_id;
-      const [catalogItems, staffList, products] = await Promise.all([
-        fetchPOSCatalogFromAPI({ outletId }),
-        fetchStaff({ outletId }),
-        fetchProductsFromAPI(),
-      ]);
+      try {
+        const outletId = isAdmin ? (selectedOutlet || undefined) : user?.outlet_id;
+        const [catalogItems, staffList, products] = await Promise.all([
+          fetchPOSCatalogFromAPI({ outletId }),
+          fetchStaff({ outletId }),
+          fetchProductsFromAPI(),
+        ]);
 
-      const productMeasureMap = Object.fromEntries(
-        products.map((p) => [p.id, p.productMeasureLabel])
-      );
+        const productMeasureMap = Object.fromEntries(
+          products.map((p) => [p.id, p.productMeasureLabel])
+        );
 
-      setCatalog(catalogItems.map(item => ({
-        ...item,
-        measureLabel: item.type === "product" ? productMeasureMap[item.id] : ""
-      })));
-      setFilteredCatalog(catalogItems.map(item => ({
-        ...item,
-        measureLabel: item.type === "product" ? productMeasureMap[item.id] : ""
-      })));
-      setStaffMembers(staffList);
-      setProductMasters(products);
+        setCatalog(catalogItems.map(item => ({
+          ...item,
+          measureLabel: item.type === "product" ? productMeasureMap[item.id] : ""
+        })));
+        setFilteredCatalog(catalogItems.map(item => ({
+          ...item,
+          measureLabel: item.type === "product" ? productMeasureMap[item.id] : ""
+        })));
+        setStaffMembers(staffList);
+        setProductMasters(products);
+      } catch (err) {
+        console.error("Failed to load POS catalog:", err);
+        toast.error("Failed to load catalog: " + (err.message || "Server error"));
+      }
     };
 
     if (user) {
@@ -111,11 +138,23 @@ export function POSPage() {
           duration: item.duration,
           offerLabel: item.offerLabel,
           serviceCount: item.serviceCount,
-          serviceItems: item.serviceItems || [],
+          serviceItems: (item.serviceItems || []).map((svc) => ({
+            ...svc,
+            enabled: true,
+            staffId: "",
+            productLinkages: (svc.productLinkages || []).map((link) => ({
+              ...link,
+              currentQty: link.quantityUsed,
+              currentUnit: link.consumptionUnit || "primary",
+              unitMaster: link.unitMaster || null,
+              unitMasterId: link.unitMasterId || null,
+              enabled: true,
+            })),
+          })),
           productLinkages: (item.productLinkages || []).map((link) => ({
             ...link,
-            currentQty: link.quantityUsed, // editable quantity
-            currentUnit: link.consumptionUnit || "primary", // editable unit
+            currentQty: link.quantityUsed,
+            currentUnit: link.consumptionUnit || "primary",
             unitMaster: link.unitMaster || null,
             unitMasterId: link.unitMasterId || null,
           })),
@@ -219,6 +258,111 @@ export function POSPage() {
     toast.info("Staff unassigned");
   };
 
+  const togglePackageService = (lineId, serviceId) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          serviceItems: line.serviceItems.map((svc) =>
+            svc.serviceId === serviceId ? { ...svc, enabled: !svc.enabled } : svc
+          ),
+        };
+      })
+    );
+  };
+
+  const updatePackageServiceField = (lineId, serviceId, field, value) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          serviceItems: line.serviceItems.map((svc) =>
+            svc.serviceId === serviceId ? { ...svc, [field]: value } : svc
+          ),
+        };
+      })
+    );
+  };
+
+  const togglePackageServiceProduct = (lineId, serviceId, inventoryId) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          serviceItems: line.serviceItems.map((svc) => {
+            if (svc.serviceId !== serviceId) return svc;
+            return {
+              ...svc,
+              productLinkages: svc.productLinkages.map((link) =>
+                link.inventoryId === inventoryId ? { ...link, enabled: !link.enabled } : link
+              ),
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  const updatePackageServiceProductField = (lineId, serviceId, inventoryId, field, value) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          serviceItems: line.serviceItems.map((svc) => {
+            if (svc.serviceId !== serviceId) return svc;
+            return {
+              ...svc,
+              productLinkages: svc.productLinkages.map((link) => {
+                if (link.inventoryId !== inventoryId) return link;
+                if (field === "currentUnit" && link.unitMaster) {
+                  const oldUnit = link.currentUnit;
+                  const newUnit = value;
+                  if (oldUnit !== newUnit) {
+                    const ratio = link.unitMaster.conversionRatio;
+                    let newQty = link.currentQty;
+                    if (oldUnit === "primary" && newUnit === "secondary") {
+                      newQty = (Number(link.currentQty) || 0) * ratio;
+                    } else if (oldUnit === "secondary" && newUnit === "primary") {
+                      newQty = (Number(link.currentQty) || 0) / ratio;
+                    }
+                    return { ...link, currentUnit: newUnit, currentQty: Number(newQty.toFixed(4)) };
+                  }
+                }
+                return { ...link, [field]: value };
+              }),
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  const updatePackageServiceProductQty = (lineId, serviceId, inventoryId, delta) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          serviceItems: line.serviceItems.map((svc) => {
+            if (svc.serviceId !== serviceId) return svc;
+            return {
+              ...svc,
+              productLinkages: svc.productLinkages.map((link) =>
+                link.inventoryId === inventoryId
+                  ? { ...link, currentQty: Math.max(0, (Number(link.currentQty) || 0) + delta) }
+                  : link
+              ),
+            };
+          }),
+        };
+      })
+    );
+  };
+
   // Filter catalog based on search and category
   useEffect(() => {
     let filtered = catalog;
@@ -250,8 +394,84 @@ export function POSPage() {
   const total = discountedSubtotal + tax;
 
   const hasUnassignedService = cart.some(
-    (line) => line.type === "service" && !line.staffId,
+    (line) =>
+      (line.type === "service" && !line.staffId) ||
+      (line.type === "package" && line.serviceItems?.some((svc) => svc.enabled && !svc.staffId))
   );
+
+  // Validate stock for all cart items (only when a specific outlet is selected)
+  const stockValidation = useMemo(() => {
+    const errors = [];
+    if (!selectedOutlet || outletInventory.length === 0 || cart.length === 0) return { errors, hasErrors: false };
+
+    for (const line of cart) {
+      // Check direct product sales
+      if (line.type === "product") {
+        const available = stockByProductId[String(line.id)] ?? 0;
+        if (line.quantity > available) {
+          errors.push({
+            lineId: line.lineId,
+            itemName: line.name,
+            type: "product",
+            required: line.quantity,
+            available,
+            shortfall: line.quantity - available,
+          });
+        }
+      }
+
+      // Check service product consumptions
+      if (line.type === "service" && line.productLinkages?.length > 0) {
+        for (const link of line.productLinkages) {
+          if (!link.inventoryId || link.currentQty <= 0) continue;
+          const totalNeeded = (Number(link.currentQty) || 0) * line.quantity;
+          const available = stockByProductId[String(link.inventoryId)] ?? 0;
+          if (totalNeeded > available) {
+            errors.push({
+              lineId: line.lineId,
+              itemName: `${line.name} → ${productNameById[link.inventoryId] || link.inventoryId}`,
+              type: "service-consumption",
+              required: totalNeeded,
+              available,
+              shortfall: totalNeeded - available,
+            });
+          }
+        }
+      }
+
+      // Check package service consumptions (only enabled services + enabled links)
+      if (line.type === "package" && line.serviceItems?.length > 0) {
+        for (const serviceItem of line.serviceItems) {
+          if (!serviceItem.enabled) continue;
+          if (!serviceItem.productLinkages?.length) continue;
+
+          for (const link of serviceItem.productLinkages) {
+            if (!link.enabled || !link.inventoryId || (Number(link.currentQty) || 0) <= 0) continue;
+            const totalNeeded = (Number(link.currentQty) || 0) * Number(serviceItem.sessions || 1) * line.quantity;
+            const available = stockByProductId[String(link.inventoryId)] ?? 0;
+            if (totalNeeded > available) {
+              errors.push({
+                lineId: line.lineId,
+                itemName: `${line.name} → ${serviceItem.serviceName} → ${productNameById[link.inventoryId] || link.inventoryId}`,
+                type: "package-consumption",
+                required: totalNeeded,
+                available,
+                shortfall: totalNeeded - available,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return { errors, hasErrors: errors.length > 0 };
+  }, [cart, stockByProductId, productNameById, selectedOutlet, catalog]);
+
+  // Update stock errors when validation changes
+  useEffect(() => {
+    setStockErrors(stockValidation.errors);
+  }, [stockValidation.errors]);
+
   // Bank required for Card and UPI payments, optional for Cash
   const isBankRequired = paymentMethod === "Card" || paymentMethod === "UPI";
   const canCheckout = cart.length > 0 && paymentMethod && !hasUnassignedService && (!isBankRequired || selectedBankId);
@@ -287,11 +507,21 @@ export function POSPage() {
             : undefined,
         includedServices:
           line.type === "package"
-            ? line.serviceItems.map((service) => ({
-              serviceId: service.serviceId,
-              serviceName: service.serviceName,
-              sessions: service.sessions,
-            }))
+            ? line.serviceItems
+                .filter((svc) => svc.enabled)
+                .map((svc) => ({
+                  serviceId: svc.serviceId,
+                  serviceName: svc.serviceName,
+                  sessions: svc.sessions,
+                  staffAssigned: svc.staffId || null,
+                  productConsumption: (svc.productLinkages || [])
+                    .filter((link) => link.enabled && link.inventoryId && (Number(link.currentQty) || 0) > 0)
+                    .map((link) => ({
+                      productId: link.inventoryId,
+                      qty: (Number(link.currentQty) || 0) * line.quantity,
+                      unit: link.currentUnit || "primary",
+                    })),
+                }))
             : undefined,
       })),
     };
@@ -617,6 +847,130 @@ export function POSPage() {
                       </>
                     )}
 
+                    {/* Package: services + linked products */}
+                    {line.type === "package" && line.serviceItems?.length > 0 && (
+                      <div className="mt-3 space-y-2 rounded-xl border border-gold-200 bg-gold-50/40 p-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gold-700">Included Services</p>
+                        {line.serviceItems.map((svc) => (
+                          <div key={svc.serviceId} className={`rounded-lg border bg-white p-2.5 transition-opacity ${svc.enabled ? "border-navy-200 opacity-100" : "border-slate-100 opacity-50"}`}>
+                            {/* Service header row */}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => togglePackageService(line.lineId, svc.serviceId)}
+                                className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${svc.enabled ? "bg-navy-700" : "bg-slate-300"}`}
+                              >
+                                <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${svc.enabled ? "translate-x-3" : "translate-x-0"}`} />
+                              </button>
+                              <span className="flex-1 text-xs font-bold text-navy-800 truncate">
+                                {svc.serviceName}
+                                {svc.sessions > 1 && <span className="ml-1 text-[10px] text-navy-400 font-normal">×{svc.sessions}</span>}
+                              </span>
+                            </div>
+
+                            {/* Staff assignment per service */}
+                            {svc.enabled && (
+                              <div className="mt-2 flex items-center gap-1.5">
+                                <select
+                                  className="premium-input !py-1.5 !px-2 !text-xs appearance-none flex-1"
+                                  value={svc.staffId || ""}
+                                  onChange={(e) => updatePackageServiceField(line.lineId, svc.serviceId, "staffId", e.target.value)}
+                                >
+                                  <option value="">Assign Talent</option>
+                                  {staffMembers.map((member) => (
+                                    <option key={member.id} value={member.id}>{member.name}</option>
+                                  ))}
+                                </select>
+                                {svc.staffId && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updatePackageServiceField(line.lineId, svc.serviceId, "staffId", "")}
+                                    className="rounded border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-medium text-slate-500 hover:bg-slate-50"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Linked products per service */}
+                            {svc.enabled && svc.productLinkages?.length > 0 && (
+                              <div className="mt-2 space-y-1.5 rounded-lg bg-navy-50 p-2 border border-navy-100">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-navy-400">Product Consumption</p>
+                                {svc.productLinkages.map((link) => {
+                                  const finalQty = Math.max(0, Number(link.currentQty) || 0);
+                                  const um = link.unitMaster;
+                                  const unitOptions = um ? getAvailableUnits(um) : [];
+                                  const showConv = um && link.currentUnit === "secondary" && finalQty > 0;
+                                  const baseEquiv = showConv ? convertToBase(finalQty, um.conversionRatio, "secondary") : null;
+                                  return (
+                                    <div key={link.inventoryId} className={`space-y-0.5 transition-opacity ${link.enabled ? "opacity-100" : "opacity-40"}`}>
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => togglePackageServiceProduct(line.lineId, svc.serviceId, link.inventoryId)}
+                                          className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full border-2 border-transparent transition-colors ${link.enabled ? "bg-emerald-500" : "bg-slate-300"}`}
+                                        >
+                                          <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow transition-transform ${link.enabled ? "translate-x-2.5" : "translate-x-0"}`} />
+                                        </button>
+                                        <span className="flex-1 text-[11px] text-navy-700 truncate">
+                                          {productNameById[link.inventoryId] || link.inventoryId}
+                                        </span>
+                                        {link.enabled && (
+                                          <div className="flex items-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => updatePackageServiceProductQty(line.lineId, svc.serviceId, link.inventoryId, link.currentUnit === "secondary" ? -1 : -0.1)}
+                                              disabled={finalQty <= 0}
+                                              className="flex h-4 w-4 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                            >
+                                              <Minus className="h-2 w-2" />
+                                            </button>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              step="any"
+                                              value={finalQty}
+                                              onChange={(e) => updatePackageServiceProductField(line.lineId, svc.serviceId, link.inventoryId, "currentQty", Number(e.target.value) || 0)}
+                                              className="w-12 text-center text-[11px] font-semibold text-navy-700 border border-navy-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:border-navy-400"
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => updatePackageServiceProductQty(line.lineId, svc.serviceId, link.inventoryId, link.currentUnit === "secondary" ? 1 : 0.1)}
+                                              className="flex h-4 w-4 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                            >
+                                              <Plus className="h-2 w-2" />
+                                            </button>
+                                            {unitOptions.length > 0 && (
+                                              <select
+                                                className="text-[10px] font-semibold text-navy-600 bg-white border border-navy-200 rounded px-1 py-0.5 appearance-none"
+                                                value={link.currentUnit || "primary"}
+                                                onChange={(e) => updatePackageServiceProductField(line.lineId, svc.serviceId, link.inventoryId, "currentUnit", e.target.value)}
+                                              >
+                                                {unitOptions.map((opt) => (
+                                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                ))}
+                                              </select>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                      {showConv && baseEquiv !== null && (
+                                        <div className="flex items-center gap-1 text-[9px] text-slate-400 pl-6">
+                                          <ArrowLeftRight className="h-2 w-2" />
+                                          <span>= {baseEquiv.toFixed(4).replace(/\.?0+$/, "")} {um.primaryAbbr}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Editable price for services with products */}
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -777,6 +1131,25 @@ export function POSPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <span>Assign talent to all services to continue</span>
+              </div>
+            )}
+
+            {/* Stock Validation Warnings */}
+            {stockErrors.length > 0 && (
+              <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                  <span className="text-xs font-black uppercase tracking-widest text-amber-700">Stock Warning</span>
+                </div>
+                <p className="text-[11px] text-amber-600 mb-1.5">Some items have low stock. You can still proceed.</p>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                  {stockErrors.map((error, idx) => (
+                    <div key={idx} className="text-[11px] text-amber-700 leading-tight">
+                      <span className="font-semibold">{error.itemName}</span>: need {error.required}, have {error.available}
+                      <span className="text-amber-500"> (short {error.shortfall})</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

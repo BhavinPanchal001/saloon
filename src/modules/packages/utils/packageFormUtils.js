@@ -18,6 +18,7 @@ export const createInitialServiceSelection = () => ({
   id: createLocalId("service"),
   serviceId: "",
   sessions: 1,
+  linkedProducts: [], // Array of { inventoryId, quantityUsed, consumptionUnit, included }
 });
 
 export const createInitialPackageForm = (assignedOutletIds = []) => ({
@@ -63,6 +64,12 @@ export const mapPackageToForm = (servicePackage) => ({
           id: createLocalId("service"),
           serviceId: serviceItem.serviceId,
           sessions: serviceItem.sessions,
+          linkedProducts: (serviceItem.linked_products || []).map(lp => ({
+            inventoryId: lp.product_id || lp.inventoryId,
+            quantityUsed: lp.quantity || lp.quantityUsed || 1,
+            consumptionUnit: lp.unit || lp.consumptionUnit || 'primary',
+            included: true,
+          })),
         }))
       : [createInitialServiceSelection()],
 });

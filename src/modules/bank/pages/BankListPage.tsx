@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
@@ -26,14 +26,21 @@ import '../styles/bank.css';
 
 const BankListPage: React.FC = () => {
   const navigate = useNavigate();
-  const { banks, deleteBank, setDefaultBank, deposit, withdraw, transfer, getTransactions } = useBankStore();
+  const { banks, deleteBank, setDefaultBank, deposit, withdraw, transfer, getTransactions, fetchBanks, loading, error } = useBankStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  
+  const [actionError, setActionError] = useState<string | null>(null);
+
   // Transaction modals
   const [showAddMoneyModal, setShowAddMoneyModal] = useState<string | null>(null);
   const [showTransferModal, setShowTransferModal] = useState<string | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null);
+  const [historyTransactions, setHistoryTransactions] = useState<BankTransaction[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    fetchBanks();
+  }, []);
 
   const filteredBanks = useMemo(() => {
     let result = [...banks];
@@ -65,13 +72,34 @@ const BankListPage: React.FC = () => {
     return { total, active, defaultCount, totalBalance };
   }, [banks]);
 
-  const handleDelete = (id: string) => {
-    deleteBank(id);
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteBank(id);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to delete bank.');
+    }
     setShowDeleteConfirm(null);
   };
 
-  const handleSetDefault = (id: string) => {
-    setDefaultBank(id);
+  const handleSetDefault = async (id: string) => {
+    try {
+      await setDefaultBank(id);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to set default bank.');
+    }
+  };
+
+  const handleOpenHistory = async (bankId: string) => {
+    setShowHistoryModal(bankId);
+    setHistoryLoading(true);
+    try {
+      const txns = await getTransactions(bankId);
+      setHistoryTransactions(Array.isArray(txns) ? txns : []);
+    } catch {
+      setHistoryTransactions([]);
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   return (
@@ -129,8 +157,26 @@ const BankListPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Error Banner */}
+      {(actionError || error) && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-sm text-rose-700 flex items-center justify-between">
+          <span>{actionError || error}</span>
+          <button onClick={() => setActionError(null)} className="ml-2 text-rose-400 hover:text-rose-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && banks.length === 0 && (
+        <div className="glass-card p-12 text-center">
+          <div className="animate-spin w-8 h-8 border-2 border-navy-600 border-t-transparent rounded-full mx-auto mb-3" />
+          <p className="text-sm text-navy-500">Loading bank accounts...</p>
+        </div>
+      )}
+
       {/* Banks Grid */}
-      {filteredBanks.length === 0 ? (
+      {!loading && filteredBanks.length === 0 ? (
         <div className="glass-card p-12 text-center">
           <div className="bank-empty-state-icon">
             <Building2 className="w-8 h-8" />
@@ -159,11 +205,11 @@ const BankListPage: React.FC = () => {
               key={bank.id}
               bank={bank}
               onEdit={() => navigate(`/bank/edit/${bank.id}`)}
-              onDelete={() => setShowDeleteConfirm(bank.id)}
-              onSetDefault={() => handleSetDefault(bank.id)}
-              onAddMoney={() => setShowAddMoneyModal(bank.id)}
-              onTransfer={() => setShowTransferModal(bank.id)}
-              onHistory={() => setShowHistoryModal(bank.id)}
+              onDelete={() => setShowDeleteConfirm(String(bank.id))}
+              onSetDefault={() => handleSetDefault(String(bank.id))}
+              onAddMoney={() => setShowAddMoneyModal(String(bank.id))}
+              onTransfer={() => setShowTransferModal(String(bank.id))}
+              onHistory={() => handleOpenHistory(String(bank.id))}
             />
           ))}
         </div>
@@ -180,11 +226,15 @@ const BankListPage: React.FC = () => {
       {/* Add Money Modal */}
       {showAddMoneyModal && (
         <AddMoneyModal
-          bank={banks.find(b => b.id === showAddMoneyModal)!}
+          bank={banks.find(b => String(b.id) === showAddMoneyModal)!}
           onClose={() => setShowAddMoneyModal(null)}
-          onDeposit={(amount, description, reference) => {
-            deposit(showAddMoneyModal, amount, description, reference);
-            setShowAddMoneyModal(null);
+          onDeposit={async (amount, description, reference) => {
+            try {
+              await deposit(showAddMoneyModal, amount, description, reference);
+              setShowAddMoneyModal(null);
+            } catch (err: any) {
+              setActionError(err.message || 'Deposit failed.');
+            }
           }}
         />
       )}
@@ -192,18 +242,20 @@ const BankListPage: React.FC = () => {
       {/* Transfer Modal */}
       {showTransferModal && (
         <TransferModal
-          fromBank={banks.find(b => b.id === showTransferModal)!}
-          otherBanks={banks.filter(b => b.id !== showTransferModal && b.isActive)}
+          fromBank={banks.find(b => String(b.id) === showTransferModal)!}
+          otherBanks={banks.filter(b => String(b.id) !== showTransferModal && b.isActive)}
           onClose={() => setShowTransferModal(null)}
-          onTransfer={(toBankId, amount, description) => {
-            const success = transfer({
+          onTransfer={async (toBankId, amount, description) => {
+            const success = await transfer({
               fromBankId: showTransferModal,
               toBankId,
               amount,
-              description
+              description,
             });
             if (success) {
               setShowTransferModal(null);
+            } else {
+              throw new Error(useBankStore.getState().error || 'Transfer failed.');
             }
           }}
         />
@@ -212,9 +264,10 @@ const BankListPage: React.FC = () => {
       {/* History Modal */}
       {showHistoryModal && (
         <HistoryModal
-          bank={banks.find(b => b.id === showHistoryModal)!}
-          transactions={getTransactions(showHistoryModal)}
-          onClose={() => setShowHistoryModal(null)}
+          bank={banks.find(b => String(b.id) === showHistoryModal)!}
+          transactions={historyTransactions}
+          loading={historyLoading}
+          onClose={() => { setShowHistoryModal(null); setHistoryTransactions([]); }}
         />
       )}
     </div>
@@ -386,7 +439,7 @@ const DeleteModal: React.FC<DeleteModalProps> = ({ onClose, onConfirm }) => (
 interface AddMoneyModalProps {
   bank: Bank;
   onClose: () => void;
-  onDeposit: (amount: number, description: string, reference?: string) => void;
+  onDeposit: (amount: number, description: string, reference?: string) => Promise<void>;
 }
 
 const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ bank, onClose, onDeposit }) => {
@@ -394,14 +447,20 @@ const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ bank, onClose, onDeposit 
   const [description, setDescription] = useState('');
   const [reference, setReference] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const numAmount = parseFloat(amount);
     if (!numAmount || numAmount <= 0) {
       setError('Please enter a valid amount');
       return;
     }
-    onDeposit(numAmount, description || 'Deposit', reference || undefined);
+    setSubmitting(true);
+    try {
+      await onDeposit(numAmount, description || 'Deposit', reference || undefined);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -468,9 +527,10 @@ const AddMoneyModal: React.FC<AddMoneyModalProps> = ({ bank, onClose, onDeposit 
           </button>
           <button
             onClick={handleSubmit}
-            className="flex-1 py-3 px-6 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all"
+            disabled={submitting}
+            className="flex-1 py-3 px-6 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Add Money
+            {submitting ? 'Adding...' : 'Add Money'}
           </button>
         </div>
       </div>
@@ -482,7 +542,7 @@ interface TransferModalProps {
   fromBank: Bank;
   otherBanks: Bank[];
   onClose: () => void;
-  onTransfer: (toBankId: string, amount: number, description: string) => void;
+  onTransfer: (toBankId: string, amount: number, description: string) => Promise<void>;
 }
 
 const TransferModal: React.FC<TransferModalProps> = ({ fromBank, otherBanks, onClose, onTransfer }) => {
@@ -490,8 +550,9 @@ const TransferModal: React.FC<TransferModalProps> = ({ fromBank, otherBanks, onC
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const numAmount = parseFloat(amount);
     if (!toBankId) {
       setError('Please select destination bank');
@@ -505,7 +566,12 @@ const TransferModal: React.FC<TransferModalProps> = ({ fromBank, otherBanks, onC
       setError('Insufficient balance');
       return;
     }
-    onTransfer(toBankId, numAmount, description || 'Transfer');
+    setSubmitting(true);
+    try {
+      await onTransfer(toBankId, numAmount, description || 'Transfer');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -578,10 +644,10 @@ const TransferModal: React.FC<TransferModalProps> = ({ fromBank, otherBanks, onC
           </button>
           <button
             onClick={handleSubmit}
-            disabled={otherBanks.length === 0}
+            disabled={otherBanks.length === 0 || submitting}
             className="flex-1 py-3 px-6 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Transfer
+            {submitting ? 'Transferring...' : 'Transfer'}
           </button>
         </div>
       </div>
@@ -592,10 +658,11 @@ const TransferModal: React.FC<TransferModalProps> = ({ fromBank, otherBanks, onC
 interface HistoryModalProps {
   bank: Bank;
   transactions: BankTransaction[];
+  loading?: boolean;
   onClose: () => void;
 }
 
-const HistoryModal: React.FC<HistoryModalProps> = ({ bank, transactions, onClose }) => {
+const HistoryModal: React.FC<HistoryModalProps> = ({ bank, transactions, loading = false, onClose }) => {
   const getTransactionIcon = (type: string) => {
     switch (type) {
       case 'deposit':
@@ -648,7 +715,12 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ bank, transactions, onClose
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-2 min-h-[200px]">
-          {transactions.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin w-8 h-8 border-2 border-navy-600 border-t-transparent rounded-full mx-auto mb-3" />
+              <p className="text-sm text-slate-400">Loading transactions...</p>
+            </div>
+          ) : transactions.length === 0 ? (
             <div className="text-center py-8 text-slate-400">
               <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p>No transactions yet</p>

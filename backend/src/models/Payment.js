@@ -14,6 +14,7 @@ const Payment = sequelize.define('Payment', {
   transaction_reference: { type: DataTypes.STRING(100), allowNull: true },
   notes: { type: DataTypes.TEXT, allowNull: true },
   payment_date: { type: DataTypes.DATEONLY, allowNull: false },
+  bank_account_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
 }, {
   tableName: 'payments',
   underscored: true,

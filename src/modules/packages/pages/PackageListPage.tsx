@@ -213,6 +213,12 @@ const PackageListPage: React.FC = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-end' }}>
                     <button 
                       className="btn-premium-outline !py-1 !px-3 text-[10px]"
+                      onClick={() => navigate(`/packages/${p.id}`)}
+                    >
+                      View
+                    </button>
+                    <button 
+                      className="btn-premium-outline !py-1 !px-3 text-[10px]"
                       onClick={() => navigate(`/packages/${p.id}/edit`)}
                     >
                       Edit

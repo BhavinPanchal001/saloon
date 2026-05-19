@@ -15,11 +15,11 @@ import {
 } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import {
-  fetchBudgetSummary,
-  fetchExpenses,
-  deleteExpense,
-  fetchOutlets,
-} from "../../services/mockApi";
+  fetchBudgetSummaryFromAPI,
+  fetchExpensesFromAPI,
+  deleteExpenseAPI,
+  fetchOutletsFromAPI,
+} from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 
@@ -41,8 +41,8 @@ export function ExpenseListPage() {
     setError(null);
     try {
       const [budgetSummary, expenseList] = await Promise.all([
-        fetchBudgetSummary({ outletId: selectedOutletId }),
-        fetchExpenses({ outletId: selectedOutletId }),
+        fetchBudgetSummaryFromAPI({ outletId: selectedOutletId }),
+        fetchExpensesFromAPI({ outletId: selectedOutletId }),
       ]);
 
       setBudget(budgetSummary);
@@ -58,7 +58,7 @@ export function ExpenseListPage() {
   const loadOutlets = async () => {
     if (!isAdmin) return;
     try {
-      const outletList = await fetchOutlets();
+      const outletList = await fetchOutletsFromAPI();
       setOutlets(outletList);
     } catch (err) {
       console.error("Failed to load outlets:", err);
@@ -80,7 +80,7 @@ export function ExpenseListPage() {
 
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this expense?")) {
-      await deleteExpense(id);
+      await deleteExpenseAPI(id);
       loadData();
     }
   };

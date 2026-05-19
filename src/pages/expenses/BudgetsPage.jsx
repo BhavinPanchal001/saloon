@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { Calendar, History, ArrowUpRight, ArrowDownRight, Clock, Store, Plus, X } from "lucide-react";
+import { Calendar, History, Store, Plus, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
-import { fetchBudgetSummary, updateMonthlyBudget, fetchAvailableMonths, fetchBudgetHistory, fetchOutlets } from "../../services/mockApi";
+import {
+  fetchBudgetSummaryFromAPI,
+  updateMonthlyBudgetAPI,
+  fetchAvailableMonthsFromAPI,
+  fetchBudgetHistoryFromAPI,
+  fetchOutletsFromAPI,
+} from "../../services/api";
 import { formatCurrency } from "../../utils/format";
 
 function formatMonthLabel(monthKey) {
@@ -44,7 +50,7 @@ export function BudgetsPage() {
 
   const loadAvailableMonths = async () => {
     try {
-      const months = await fetchAvailableMonths();
+      const months = await fetchAvailableMonthsFromAPI();
       setAvailableMonths(months);
       if (!selectedMonth && months.length > 0) {
         setSelectedMonth(months[0]);
@@ -56,7 +62,7 @@ export function BudgetsPage() {
 
   const loadOutlets = async () => {
     try {
-      const outletList = await fetchOutlets();
+      const outletList = await fetchOutletsFromAPI();
       setOutlets(outletList);
     } catch (error) {
       console.error("Failed to load outlets:", error);
@@ -68,7 +74,7 @@ export function BudgetsPage() {
     setIsLoading(true);
     try {
       const outletId = selectedOutlet === "all" ? undefined : selectedOutlet;
-      const summary = await fetchBudgetSummary({ monthKey: selectedMonth, outletId });
+      const summary = await fetchBudgetSummaryFromAPI({ monthKey: selectedMonth, outletId });
       setBudgetData(summary);
     } catch (error) {
       console.error("Failed to load budgets:", error);
@@ -92,7 +98,7 @@ export function BudgetsPage() {
     try {
       const outletId = selectedOutlet === "all" ? undefined : selectedOutlet;
       const monthKey = selectedMonth || undefined;
-      const history = await fetchBudgetHistory({ limit: 20, outletId, monthKey });
+      const history = await fetchBudgetHistoryFromAPI({ limit: 20, outletId, monthKey });
       setBudgetHistory(history);
     } catch (error) {
       console.error("Failed to load budget history:", error);
@@ -213,7 +219,7 @@ export function BudgetsPage() {
                 if (!editAmount || !selectedMonth) return;
                 setSaving(true);
                 try {
-                  await updateMonthlyBudget({
+                  await updateMonthlyBudgetAPI({
                     outletId: selectedOutlet,
                     amount: Number(editAmount),
                     monthKey: selectedMonth,

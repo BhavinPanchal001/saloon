@@ -19,7 +19,7 @@ import '../styles/bank.css';
 const BankFormPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { banks, addBank, updateBank, getBankById, defaultBank } = useBankStore();
+  const { banks, addBank, updateBank, getBankById, fetchBanks, loading } = useBankStore();
   const isEditMode = Boolean(id);
 
   const [formData, setFormData] = useState<BankFormData>({
@@ -35,6 +35,13 @@ const BankFormPage: React.FC = () => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (banks.length === 0) {
+      fetchBanks();
+    }
+  }, []);
 
   useEffect(() => {
     if (isEditMode && id) {
@@ -99,14 +106,17 @@ const BankFormPage: React.FC = () => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
+    setApiError(null);
 
     try {
       if (isEditMode && id) {
-        updateBank(id, formData);
+        await updateBank(id, formData);
       } else {
-        addBank(formData);
+        await addBank(formData);
       }
       navigate('/bank');
+    } catch (err: any) {
+      setApiError(err.message || 'Failed to save bank account. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -327,6 +337,14 @@ const BankFormPage: React.FC = () => {
             </label>
           </div>
         </div>
+
+        {/* API Error */}
+        {apiError && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-sm text-rose-700 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {apiError}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-4">

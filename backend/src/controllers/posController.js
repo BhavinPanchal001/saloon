@@ -13,6 +13,8 @@ const {
   BillLineItem,
 } = require('../models');
 
+// Ensure Service is available for package consumption validation
+
 // Helper: Convert quantity to base unit
 const convertToBase = (qty, conversionRatio, unit) => {
   if (unit === 'secondary' && conversionRatio) {
@@ -141,13 +143,40 @@ const getCatalog = async (req, res) => {
         // Get package services
         const pkgServices = await PackageService.findAll({
           where: { package_id: pkg.id },
-          include: [{ model: Service, attributes: ['id', 'service_name', 'price', 'duration'] }],
+          include: [{ model: Service, attributes: ['id', 'service_name', 'price', 'duration', 'product_linkages'] }],
         });
 
-        const serviceItems = pkgServices.map((ps) => ({
-          serviceId: ps.service_id,
-          serviceName: ps.Service?.service_name || `Service #${ps.service_id}`,
-          sessions: ps.sessions,
+        const serviceItems = await Promise.all(pkgServices.map(async (ps) => {
+          const rawLinkages = ps.Service?.product_linkages || [];
+          const productLinkages = await Promise.all(
+            rawLinkages.map(async (link) => {
+              const product = await Product.findByPk(link.inventoryId, {
+                include: [{ model: UnitMaster, as: 'unitMaster' }],
+              });
+              return {
+                ...link,
+                unitMasterId: product?.unit_master_id || null,
+                unitMaster: product?.unitMaster
+                  ? {
+                      id: product.unitMaster.id,
+                      groupName: product.unitMaster.group_name,
+                      primaryUnit: product.unitMaster.primary_unit,
+                      primaryAbbr: product.unitMaster.primary_abbr,
+                      secondaryUnit: product.unitMaster.secondary_unit,
+                      secondaryAbbr: product.unitMaster.secondary_abbr,
+                      conversionRatio: Number(product.unitMaster.conversion_ratio),
+                    }
+                  : null,
+                consumptionUnit: link.consumptionUnit || product?.consumption_unit || 'primary',
+              };
+            })
+          );
+          return {
+            serviceId: ps.service_id,
+            serviceName: ps.Service?.service_name || `Service #${ps.service_id}`,
+            sessions: ps.sessions,
+            productLinkages,
+          };
         }));
 
         const totalOriginalPrice = pkgServices.reduce(
@@ -300,6 +329,100 @@ const checkout = async (req, res) => {
       return res.status(404).json({ message: 'Outlet not found.' });
     }
 
+    // Fetch outlet inventory for stock validation
+    const outletInventory = await OutletInventory.findAll({
+      where: { outlet_id: outletId },
+      include: [{ model: Product, include: [{ model: UnitMaster, as: 'unitMaster' }] }],
+      transaction,
+    });
+
+    // Build stock lookup map (productId -> { currentStock, unitMaster })
+    const stockMap = {};
+    for (const inv of outletInventory) {
+      stockMap[inv.product_id] = {
+        currentStock: parseFloat(inv.current_stock),
+        unitMaster: inv.Product?.unitMaster,
+      };
+    }
+
+    // Fetch services for package consumption validation
+    const serviceIds = new Set();
+    for (const item of lineItems) {
+      if (item.itemType === 'package' && item.includedServices?.length > 0) {
+        for (const svc of item.includedServices) {
+          serviceIds.add(svc.serviceId);
+        }
+      }
+    }
+
+    const servicesMap = {};
+    if (serviceIds.size > 0) {
+      const services = await Service.findAll({
+        where: { id: Array.from(serviceIds) },
+        transaction,
+      });
+      for (const s of services) {
+        servicesMap[s.id] = s;
+      }
+    }
+
+    // Validate stock for all items
+    const stockErrors = [];
+
+    for (const item of lineItems) {
+      // 1. Direct product sales
+      if (item.itemType === 'product') {
+        const stockInfo = stockMap[item.itemId];
+        if (!stockInfo || stockInfo.currentStock < item.qty) {
+          stockErrors.push({
+            itemName: item.itemName,
+            type: 'product',
+            required: item.qty,
+            available: stockInfo?.currentStock || 0,
+            shortfall: item.qty - (stockInfo?.currentStock || 0),
+          });
+        }
+      }
+
+      // 2. Service product consumptions
+      if (item.itemType === 'service' && item.productConsumption?.length > 0) {
+        for (const consumption of item.productConsumption) {
+          const stockInfo = stockMap[consumption.productId];
+          const totalNeeded = consumption.qty;
+          if (!stockInfo || stockInfo.currentStock < totalNeeded) {
+            stockErrors.push({
+              itemName: `${item.itemName} → Product #${consumption.productId}`,
+              type: 'service-consumption',
+              required: totalNeeded,
+              available: stockInfo?.currentStock || 0,
+              shortfall: totalNeeded - (stockInfo?.currentStock || 0),
+            });
+          }
+        }
+      }
+
+      // 3. Package service consumptions — use frontend-sent productConsumption per service
+      if (item.itemType === 'package' && item.includedServices?.length > 0) {
+        for (const svcItem of item.includedServices) {
+          if (!svcItem.productConsumption?.length) continue;
+
+          for (const consumption of svcItem.productConsumption) {
+            const stockInfo = stockMap[consumption.productId];
+            const totalNeeded = Number(consumption.qty);
+            if (!stockInfo || stockInfo.currentStock < totalNeeded) {
+              stockErrors.push({
+                itemName: `${item.itemName} → ${svcItem.serviceName} → Product #${consumption.productId}`,
+                type: 'package-consumption',
+                required: totalNeeded,
+                available: stockInfo?.currentStock || 0,
+                shortfall: totalNeeded - (stockInfo?.currentStock || 0),
+              });
+            }
+          }
+        }
+      }
+    }
+
     // Generate bill number
     const billNumber = await generateBillNumber(outletId, outlet.code);
 
@@ -352,21 +475,73 @@ const checkout = async (req, res) => {
           // Convert consumption to base unit
           const consumptionUnit = consumption.unit || 'primary';
           const baseDeduction = convertToBase(
-            consumption.qty * item.qty,
+            consumption.qty,
             product.unitMaster?.conversion_ratio,
             consumptionUnit
           );
 
           // Find outlet inventory
-          const outletInventory = await OutletInventory.findOne({
+          const invRecord = await OutletInventory.findOne({
             where: { outlet_id: outletId, product_id: consumption.productId },
             transaction,
           });
 
-          if (outletInventory) {
-            const currentStock = parseFloat(outletInventory.current_stock);
+          if (invRecord) {
+            const currentStock = parseFloat(invRecord.current_stock);
             const newStock = Math.max(0, currentStock - baseDeduction);
-            await outletInventory.update({ current_stock: newStock }, { transaction });
+            await invRecord.update({ current_stock: newStock }, { transaction });
+          }
+        }
+      }
+    }
+
+    // Deduct stock for direct product sales
+    for (const item of lineItems) {
+      if (item.itemType === 'product') {
+        const invRecord = await OutletInventory.findOne({
+          where: { outlet_id: outletId, product_id: item.itemId },
+          transaction,
+        });
+
+        if (invRecord) {
+          const currentStock = parseFloat(invRecord.current_stock);
+          const newStock = Math.max(0, currentStock - item.qty);
+          await invRecord.update({ current_stock: newStock }, { transaction });
+        }
+      }
+    }
+
+    // Deduct stock for package service consumptions — use frontend-sent productConsumption
+    for (const item of lineItems) {
+      if (item.itemType === 'package' && item.includedServices?.length > 0) {
+        for (const svcItem of item.includedServices) {
+          if (!svcItem.productConsumption?.length) continue;
+
+          for (const consumption of svcItem.productConsumption) {
+            const product = await Product.findByPk(consumption.productId, {
+              include: [{ model: UnitMaster, as: 'unitMaster' }],
+              transaction,
+            });
+
+            if (!product) continue;
+
+            const consumptionUnit = consumption.unit || 'primary';
+            const baseDeduction = convertToBase(
+              Number(consumption.qty),
+              product.unitMaster?.conversion_ratio,
+              consumptionUnit
+            );
+
+            const invRecord = await OutletInventory.findOne({
+              where: { outlet_id: outletId, product_id: consumption.productId },
+              transaction,
+            });
+
+            if (invRecord) {
+              const currentStock = parseFloat(invRecord.current_stock);
+              const newStock = Math.max(0, currentStock - baseDeduction);
+              await invRecord.update({ current_stock: newStock }, { transaction });
+            }
           }
         }
       }

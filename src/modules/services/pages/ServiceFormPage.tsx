@@ -5,8 +5,10 @@ import {
   createServiceAPI,
   updateServiceAPI,
   fetchServiceCategoriesFromAPI,
+  fetchProductsFromAPI,
+  fetchOutletsFromAPI,
+  fetchOutletInventoryFromAPI,
 } from '../../../services/api';
-import { fetchProductMasters } from '../../../services/mockApi';
 import { getAvailableUnits, getUnitAbbr, convertToBase } from '../../../utils/unitConversion';
 import { ImageUpload } from '../../../components/ui/ImageUpload';
 import '../styles/services.css';
@@ -46,17 +48,24 @@ const ServiceFormPage: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
+  const [allProducts, setAllProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [outlets, setOutlets] = useState<any[]>([]);
+  const [selectedOutlet, setSelectedOutlet] = useState('');
+  const [outletProductsLoading, setOutletProductsLoading] = useState(false);
   const [form, setForm] = useState<ServiceForm>(createInitialServiceForm());
 
   useEffect(() => {
     const loadData = async () => {
-      const [inventoryList, categoryList] = await Promise.all([
-        fetchProductMasters(),
+      const [inventoryList, categoryList, outletList] = await Promise.all([
+        fetchProductsFromAPI(),
         fetchServiceCategoriesFromAPI(),
+        fetchOutletsFromAPI(),
       ]);
+      setAllProducts(inventoryList);
       setInventory(inventoryList);
       setCategories(categoryList);
+      setOutlets(outletList);
 
       if (id) {
         const service = await fetchServiceByIdFromAPI(id);
@@ -78,6 +87,32 @@ const ServiceFormPage: React.FC = () => {
     };
     loadData();
   }, [id]);
+
+  const handleOutletChange = async (outletId: string) => {
+    setSelectedOutlet(outletId);
+    if (!outletId) {
+      setInventory(allProducts);
+      return;
+    }
+    setOutletProductsLoading(true);
+    try {
+      const outletItems = await fetchOutletInventoryFromAPI({ outletId });
+      // outletItems have { productId, itemName, unitPrice, unitMasterId, currentStock }
+      // Map to same shape as allProducts so the dropdown works
+      const mapped = outletItems.map((item: any) => ({
+        id: String(item.productId),
+        itemName: item.itemName,
+        unitPrice: item.unitPrice,
+        unitMasterId: item.unitMasterId,
+        currentStock: item.currentStock,
+      }));
+      setInventory(mapped);
+    } catch {
+      setInventory([]);
+    } finally {
+      setOutletProductsLoading(false);
+    }
+  };
 
   const updateLinkage = (index: number, key: string, value: any) => {
     setForm((current) => ({
@@ -104,6 +139,7 @@ const ServiceFormPage: React.FC = () => {
           quantityUsed: Number(l.quantityUsed),
           consumptionUnit: l.consumptionUnit || 'primary',
         })),
+        images: form.images,
       };
       if (id) {
         await updateServiceAPI(id, payload);
@@ -221,9 +257,29 @@ const ServiceFormPage: React.FC = () => {
                   + Add Linkage
                 </button>
               </div>
-              <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1.5rem' }}>
+              <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
                 Specify the inventory items and quantities used during this service.
               </p>
+
+              <div className="form-field" style={{ marginBottom: '1.5rem' }}>
+                <label>Filter by Outlet <span style={{ fontWeight: 400, color: '#94a3b8' }}>(shows only products assigned to that outlet)</span></label>
+                <select
+                  className="premium-input"
+                  value={selectedOutlet}
+                  onChange={(e) => handleOutletChange(e.target.value)}
+                >
+                  <option value="">All Products (no outlet filter)</option>
+                  {outlets.map((o: any) => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+                {outletProductsLoading && (
+                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>Loading outlet products...</p>
+                )}
+                {selectedOutlet && !outletProductsLoading && inventory.length === 0 && (
+                  <p style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '0.25rem' }}>No products assigned to this outlet yet.</p>
+                )}
+              </div>
 
               <div className="space-y-4">
                 {form.productLinkages.map((linkage, index) => {

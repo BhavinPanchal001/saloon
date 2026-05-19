@@ -89,7 +89,7 @@ const CommissionMastersPage: React.FC = () => {
     };
 
     loadConfig();
-  }, [toast]);
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
