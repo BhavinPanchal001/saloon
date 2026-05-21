@@ -1,4 +1,5 @@
 import { Instagram, Facebook, MapPin, Phone, Mail, Clock } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 // Custom Tiktok icon component matching Lucide styling perfectly
 const Tiktok = ({ size = 24, ...props }: { size?: number } & React.SVGProps<SVGSVGElement>) => (
@@ -74,9 +75,9 @@ export default function Footer() {
             <ul className="mt-5 space-y-3 text-sm text-primary-foreground/75">
               <li><a href="#about" className="hover:text-gold transition-colors">About</a></li>
               <li><a href="#services" className="hover:text-gold transition-colors">Services</a></li>
-              <li><a href="#gallery" className="hover:text-gold transition-colors">Gallery</a></li>
+              {/* <li><a href="#gallery" className="hover:text-gold transition-colors">Gallery</a></li> */}
               <li><a href="#pricing" className="hover:text-gold transition-colors">Pricing</a></li>
-              <li><a href="#testimonials" className="hover:text-gold transition-colors">Testimonials</a></li>
+              {/* <li><a href="#testimonials" className="hover:text-gold transition-colors">Testimonials</a></li> */}
             </ul>
           </div>
 
@@ -85,8 +86,8 @@ export default function Footer() {
             <ul className="mt-5 space-y-4 text-sm text-primary-foreground/80">
               <li className="flex gap-3"><MapPin size={16} className="text-gold mt-0.5 shrink-0" /> 15, Jalan Telawi, Bangsar, 59100 Kuala Lumpur, Malaysia</li>
               <li className="flex gap-3"><Phone size={16} className="text-gold mt-0.5 shrink-0" /> +60 3-2282 1234</li>
-              <li className="flex gap-3"><Mail size={16} className="text-gold mt-0.5 shrink-0" /> hello@glowy.salon.my</li>
-              <li className="flex gap-3"><Clock size={16} className="text-gold mt-0.5 shrink-0" /> Tue – Sun · 10am – 8pm</li>
+              <li className="flex gap-3"><Mail size={16} className="text-gold mt-0.5 shrink-0" /> glowy.beautyspasb@gmail.com</li>
+              <li className="flex gap-3"><Clock size={16} className="text-gold mt-0.5 shrink-0" /> Sun – Sat · 10am – 8pm</li>
             </ul>
           </div>
 
@@ -95,9 +96,12 @@ export default function Footer() {
             <div className="mt-5 rounded-2xl overflow-hidden border border-white/10 aspect-[4/3]">
               <iframe
                 title="Glowy Location"
-                src="https://www.openstreetmap.org/export/embed.html?bbox=101.65,3.10,101.72,3.18&layer=mapnik"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3983.833596570648!2d101.6705626750379!3d3.131179653138863!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x31cc4974f1b88e17%3A0x633190df03772186!2s15%2C%20Jalan%20Telawi%202%2C%20Bangsar%2C%2059100%20Kuala%20Lumpur%2C%20Wilayah%20Persekutuan%20Kuala%20Lumpur%2C%20Malaysia!5e0!3m2!1sen!2smy!4v1716300000000!5m2!1sen!2smy"
                 className="w-full h-full grayscale opacity-90"
                 loading="lazy"
+                style={{ border: 0 }}
+                allowFullScreen={true}
+                referrerPolicy="no-referrer-when-downgrade"
               />
             </div>
           </div>
@@ -105,6 +109,10 @@ export default function Footer() {
 
         <div className="mt-16 pt-8 border-t border-white/10 flex flex-col md:flex-row gap-4 items-center justify-between text-xs text-primary-foreground/50">
           <p>© {new Date().getFullYear()} Glowy. Crafted with quiet care.</p>
+          <div className="flex gap-6">
+            <Link to="/privacy-policy" className="hover:text-gold transition-colors">Privacy Policy</Link>
+            <Link to="/terms-conditions" className="hover:text-gold transition-colors">Terms & Conditions</Link>
+          </div>
           <p>Glow To Go With Glowy ✦</p>
         </div>
       </div>

@@ -21,7 +21,7 @@ export default function Testimonials() {
   const go = (d: number) => setI((p) => (p + d + testimonials.length) % testimonials.length);
 
   return (
-    <section id="testimonials" className="py-32 relative overflow-hidden">
+    <section id="testimonials" className="py-16 md:py-20 relative overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[60rem] h-[60rem] rounded-full bg-gold/10 blur-3xl -z-10" />
       <div className="mx-auto max-w-5xl px-6 text-center">
         <FadeIn>

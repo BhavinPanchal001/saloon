@@ -11,7 +11,7 @@ const items = [
 
 export default function WhyUs() {
   return (
-    <section className="py-32">
+    <section className="py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-6">
         <FadeIn className="text-center max-w-2xl mx-auto">
           <SectionLabel>Why Glowy</SectionLabel>

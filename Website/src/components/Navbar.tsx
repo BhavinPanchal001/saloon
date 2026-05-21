@@ -8,8 +8,8 @@ const links = [
   ["Services", "/#services"],
   ["Packages", "/#pricing"],
   ["Products", "/#products"],
-  ["Gallery", "/#gallery"],
-  ["Testimonials", "/#testimonials"],
+  // ["Gallery", "/#gallery"],
+  // ["Testimonials", "/#testimonials"],
   ["Contact", "/#contact"],
 ];
 

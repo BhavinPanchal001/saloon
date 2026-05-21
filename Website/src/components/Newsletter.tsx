@@ -2,7 +2,7 @@ import { FadeIn } from "./Section";
 
 export default function Newsletter() {
   return (
-    <section className="py-24">
+    <section className="py-12 md:py-16">
       <div className="mx-auto max-w-5xl px-6">
         <FadeIn>
           <div className="rounded-[2.5rem] bg-gradient-to-br from-cream via-nude/40 to-gold-soft/30 p-12 md:p-16 text-center relative overflow-hidden border border-gold/20">

@@ -25,7 +25,7 @@ export default function Services() {
   const a = services[active];
 
   return (
-    <section id="services" className="relative py-32 md:py-40 bg-cream/60 overflow-hidden">
+    <section id="services" className="relative py-16 md:py-24 bg-cream/60 overflow-hidden">
       <div className="absolute top-20 -left-32 w-[24rem] h-[24rem] rounded-full bg-gold/10 blur-3xl" />
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8 mb-16">

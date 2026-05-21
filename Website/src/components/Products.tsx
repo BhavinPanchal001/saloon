@@ -35,7 +35,7 @@ const products = [
 
 export default function Products() {
   return (
-    <section id="products" className="py-32 md:py-40 bg-cream/30 relative overflow-hidden">
+    <section id="products" className="py-16 md:py-24 bg-cream/30 relative overflow-hidden">
       <div className="absolute top-40 right-0 w-[30rem] h-[30rem] rounded-full bg-gold/5 blur-3xl" />
       
       <div className="mx-auto max-w-7xl px-6 relative">

@@ -56,15 +56,15 @@ export default function Pricing() {
   return (
     <>
       {/* Distinct break between Services and Packages */}
-      <div className="bg-cream/60 pt-4">
-        <div className="mx-auto max-w-7xl px-6 flex items-center justify-center gap-6 py-10">
+      <div className="bg-background pt-0">
+        <div className="mx-auto max-w-7xl px-6 flex items-center justify-center gap-6 py-2">
           <span className="h-px flex-1 bg-gradient-to-r from-transparent to-gold/50" />
           <Sparkles className="text-gold" size={18} />
           <span className="h-px flex-1 bg-gradient-to-l from-transparent to-gold/50" />
         </div>
       </div>
 
-      <section id="pricing" className="py-32 md:py-40 bg-background relative overflow-hidden">
+      <section id="pricing" className="pt-0 pb-16 md:pt-0 md:pb-24 bg-background relative overflow-hidden">
         <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[60rem] h-[60rem] rounded-full bg-gold/5 blur-3xl" />
 
         <div className="relative mx-auto max-w-7xl px-6">

@@ -4,7 +4,7 @@ import { Leaf, Heart } from "lucide-react";
 
 export default function About() {
   return (
-    <section id="about" className="relative py-32 overflow-hidden">
+    <section id="about" className="relative py-16 md:py-20 overflow-hidden">
       <div className="mx-auto max-w-7xl px-6 grid lg:grid-cols-2 gap-16 items-center">
         <FadeIn className="relative">
           <div className="relative aspect-[4/5] rounded-[2.5rem] overflow-hidden shadow-soft">

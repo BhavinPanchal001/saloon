@@ -86,7 +86,7 @@ export default function Booking() {
   const iconCls = "absolute left-0 top-3.5 text-gold";
 
   return (
-    <section id="booking" className="py-32 relative overflow-hidden">
+    <section id="booking" className="py-16 md:py-20 relative overflow-hidden">
       <div className="absolute -top-24 right-0 w-[28rem] h-[28rem] rounded-full bg-teal/10 blur-3xl -z-10" />
       <div className="mx-auto max-w-7xl px-6 grid lg:grid-cols-2 gap-16 items-start">
         <FadeIn>

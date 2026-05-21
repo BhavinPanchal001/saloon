@@ -5,8 +5,8 @@ import Hero from "@/components/Hero";
 import About from "@/components/About";
 import Services from "@/components/Services";
 import WhyUs from "@/components/WhyUs";
-import Gallery from "@/components/Gallery";
-import Testimonials from "@/components/Testimonials";
+// import Gallery from "@/components/Gallery";
+// import Testimonials from "@/components/Testimonials";
 import Pricing from "@/components/Pricing";
 import Products from "@/components/Products";
 import Booking from "@/components/Booking";
@@ -33,8 +33,8 @@ function Index() {
       <About />
       <Services />
       <WhyUs />
-      <Gallery />
-      <Testimonials />
+      {/* <Gallery /> */}
+      {/* <Testimonials /> */}
       <Pricing />
       <Products />
       <Booking />

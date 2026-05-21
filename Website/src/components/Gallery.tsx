@@ -23,7 +23,7 @@ const images = [
 
 export default function Gallery() {
   return (
-    <section id="gallery" className="py-32 bg-cream/60">
+    <section id="gallery" className="py-16 md:py-20 bg-cream/60">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-16">
           <FadeIn>
