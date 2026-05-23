@@ -3,14 +3,18 @@ import { formatCurrency } from "../../utils/format";
 import { COMPANY_INFO } from "../../utils/companyInfo";
 
 const formatDate = (iso) => {
+  if (!iso) return "—";
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-IN", {
     day: "2-digit", month: "short", year: "numeric",
   });
 };
 
 const formatTime = (iso) => {
+  if (!iso) return "";
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 };
 

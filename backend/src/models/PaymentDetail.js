@@ -9,6 +9,7 @@ const PaymentDetail = sequelize.define('PaymentDetail', {
     type: DataTypes.ENUM('cash', 'card', 'upi', 'bank_transfer', 'cheque'),
     allowNull: false,
   },
+  bank_account_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
 }, {
   tableName: 'payment_details',
   underscored: true,

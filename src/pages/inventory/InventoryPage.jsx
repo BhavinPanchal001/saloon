@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { X, ArrowLeftRight, Pencil, Trash2, Tag, Images, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { ImageUpload } from "../../components/ui/ImageUpload";
+import { AuditHistoryButton, AuditHistoryModal } from "../../components/audit";
 import {
   createProductAPI,
   fetchProductsFromAPI,
@@ -93,11 +94,20 @@ export function InventoryPage() {
   const [lightboxImages, setLightboxImages] = useState([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  
+  // Audit history state
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [auditEntity, setAuditEntity] = useState({ type: null, id: null, name: null });
 
   const openLightbox = (images, index = 0) => {
     setLightboxImages(images);
     setLightboxIndex(index);
     setIsLightboxOpen(true);
+  };
+
+  const openAuditHistory = (entityType, entityId, entityName) => {
+    setAuditEntity({ type: entityType, id: entityId, name: entityName });
+    setAuditModalOpen(true);
   };
 
   const loadInventoryPage = async () => {
@@ -334,12 +344,12 @@ export function InventoryPage() {
 
   const filteredInventory = useMemo(() => {
     if (!outletFilter) return inventory;
-    return inventory.filter((item) => item.outletId === outletFilter);
+    return inventory.filter((item) => String(item.outletId) === String(outletFilter));
   }, [inventory, outletFilter]);
 
   const filteredOutletPrices = useMemo(() => {
     if (!outletPriceFilter) return outletPrices;
-    return outletPrices.filter((r) => r.outletId === outletPriceFilter);
+    return outletPrices.filter((r) => String(r.outletId) === String(outletPriceFilter));
   }, [outletPrices, outletPriceFilter]);
 
   const outletPriceFormItemId = outletPriceForm.type === "service"
@@ -558,6 +568,7 @@ export function InventoryPage() {
                         <th>Base Price</th>
                         <th>Outlet Price</th>
                         <th>Actions</th>
+                        <th>History</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -590,6 +601,14 @@ export function InventoryPage() {
                                 <Trash2 className="h-3 w-3" /> Remove
                               </button>
                             </div>
+                          </td>
+                          <td>
+                            <AuditHistoryButton
+                              onClick={() => openAuditHistory('outlet_product_price', `${record.outletId}-${record.productId}`, `${record.itemName} - ${outletNameById[record.outletId]}`)}
+                              size="sm"
+                              variant="ghost"
+                              showText={false}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -697,6 +716,11 @@ export function InventoryPage() {
                             >
                               <Trash2 size={12} /> Delete
                             </button>
+                            <AuditHistoryButton
+                              onClick={() => openAuditHistory('central_stock', item.id, item.itemName)}
+                              size="sm"
+                              variant="ghost"
+                            />
                           </div>
                         </td>
                       )}
@@ -741,6 +765,7 @@ export function InventoryPage() {
                       {isAdmin ? <th>Outlet</th> : null}
                       <th>Outlet Stock</th>
                       <th>Unit Price</th>
+                      <th>History</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -752,6 +777,14 @@ export function InventoryPage() {
                         ) : null}
                         <td>{item.currentStock}</td>
                         <td>{formatCurrency(item.unitPrice)}</td>
+                        <td>
+                          <AuditHistoryButton
+                            onClick={() => openAuditHistory('outlet_inventory', item.id, item.itemName)}
+                            size="sm"
+                            variant="ghost"
+                            showText={false}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1419,6 +1452,15 @@ export function InventoryPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Audit History Modal */}
+      <AuditHistoryModal
+        isOpen={auditModalOpen}
+        onClose={() => setAuditModalOpen(false)}
+        entityType={auditEntity.type}
+        entityId={auditEntity.id}
+        entityName={auditEntity.name}
+      />
 
     </div >
   );

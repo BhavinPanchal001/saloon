@@ -20,6 +20,7 @@ import { SalaryViewPage } from "../pages/payroll/SalaryViewPage";
 import { SalaryPayPage } from "../pages/payroll/SalaryPayPage";
 import { POSPage } from "../pages/pos/POSPage";
 import BillingListPage from "../pages/pos/BillingListPage";
+import BillDetailPage from "../pages/pos/BillDetailPage";
 import PackageListPage from "../modules/packages/pages/PackageListPage";
 import { PackageFormPage } from "../modules/packages/pages/PackageFormPage";
 import { PackageProfilePage } from "../modules/packages/pages/PackageProfilePage";
@@ -228,6 +229,10 @@ export const router = createBrowserRouter([
           {
             path: "/pos/bills",
             element: <BillingListPage />,
+          },
+          {
+            path: "/pos/bills/:id",
+            element: <BillDetailPage />,
           },
           {
             path: "/payroll",

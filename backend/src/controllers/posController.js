@@ -11,6 +11,9 @@ const {
   Outlet,
   Bill,
   BillLineItem,
+  Payment,
+  PaymentDetail,
+  Bank,
 } = require('../models');
 
 // Ensure Service is available for package consumption validation
@@ -306,6 +309,10 @@ const checkout = async (req, res) => {
       tax,
       total,
       lineItems,
+      paymentDetails,
+      transactionReference,
+      paymentNotes,
+      bankAccountId,
     } = req.body;
 
     // Validation
@@ -488,7 +495,7 @@ const checkout = async (req, res) => {
 
           if (invRecord) {
             const currentStock = parseFloat(invRecord.current_stock);
-            const newStock = Math.max(0, currentStock - baseDeduction);
+            const newStock = currentStock - baseDeduction;
             await invRecord.update({ current_stock: newStock }, { transaction });
           }
         }
@@ -505,7 +512,7 @@ const checkout = async (req, res) => {
 
         if (invRecord) {
           const currentStock = parseFloat(invRecord.current_stock);
-          const newStock = Math.max(0, currentStock - item.qty);
+          const newStock = currentStock - item.qty;
           await invRecord.update({ current_stock: newStock }, { transaction });
         }
       }
@@ -539,7 +546,7 @@ const checkout = async (req, res) => {
 
             if (invRecord) {
               const currentStock = parseFloat(invRecord.current_stock);
-              const newStock = Math.max(0, currentStock - baseDeduction);
+              const newStock = currentStock - baseDeduction;
               await invRecord.update({ current_stock: newStock }, { transaction });
             }
           }
@@ -547,18 +554,67 @@ const checkout = async (req, res) => {
       }
     }
 
+    // Create Payment record linked to this bill
+    const validModes = ['cash', 'card', 'upi', 'bank_transfer', 'cheque'];
+    const modeMap = { Cash: 'cash', Card: 'card', UPI: 'upi' };
+
+    // Build payment detail rows: prefer split paymentDetails from frontend, else use single paymentMethod
+    let detailRows = [];
+    if (Array.isArray(paymentDetails) && paymentDetails.length > 0) {
+      for (const d of paymentDetails) {
+        const mode = d.paymentMode;
+        if (!validModes.includes(mode)) continue;
+        const amount = Math.max(0, Number(d.amount) || 0);
+        if (amount > 0) detailRows.push({ payment_mode: mode, amount, bank_account_id: d.bankAccountId || null });
+      }
+    }
+    if (detailRows.length === 0) {
+      const singleMode = modeMap[paymentMethod] || 'cash';
+      detailRows = [{ payment_mode: singleMode, amount: Number(total) || 0, bank_account_id: null }];
+    }
+
+    const totalPaid = detailRows.reduce((s, d) => s + d.amount, 0);
+
+    // Use the first non-cash detail's bank as the primary bank for the Payment record
+    const primaryBankId = detailRows.find((d) => d.payment_mode !== 'cash' && d.bank_account_id)?.bank_account_id
+      || bankAccountId || bankId || null;
+
+    const createdPayment = await Payment.create(
+      {
+        bill_id: bill.id,
+        purchase_order_id: null,
+        expense_id: null,
+        pos_id: null,
+        total_amount: totalPaid,
+        status: 'completed',
+        transaction_reference: (transactionReference || '').trim() || null,
+        notes: (paymentNotes || '').trim() || null,
+        payment_date: new Date().toISOString().split('T')[0],
+        bank_account_id: primaryBankId,
+      },
+      { transaction }
+    );
+
+    await PaymentDetail.bulkCreate(
+      detailRows.map((row) => ({ ...row, payment_id: createdPayment.id })),
+      { transaction }
+    );
+
     await transaction.commit();
 
-    // Fetch the complete bill with line items
+    // Fetch the complete bill with line items and payment
     const completeBill = await Bill.findByPk(bill.id, {
-      include: [{ model: BillLineItem, as: 'lineItems' }],
+      include: [
+        { model: BillLineItem, as: 'lineItems' },
+        { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
+      ],
     });
 
     // Format response
     const response = {
       id: completeBill.id,
       billNumber: completeBill.bill_number,
-      createdAt: completeBill.created_at,
+      createdAt: completeBill.createdAt,
       customer: {
         name: completeBill.customer_name,
         phone: completeBill.customer_phone,
@@ -583,6 +639,20 @@ const checkout = async (req, res) => {
         staffAssigned: li.staff_assigned,
         productConsumption: li.product_consumption,
         includedServices: li.included_services,
+      })),
+      payments: (completeBill.payments || []).map((p) => ({
+        id: p.id,
+        totalAmount: Number(p.total_amount),
+        status: p.status,
+        transactionReference: p.transaction_reference || '',
+        notes: p.notes || '',
+        paymentDate: p.payment_date,
+        details: (p.details || []).map((d) => ({
+          id: d.id,
+          paymentMode: d.payment_mode,
+          amount: Number(d.amount),
+          bankAccountId: d.bank_account_id || null,
+        })),
       })),
     };
 
@@ -630,6 +700,7 @@ const getBills = async (req, res) => {
       include: [
         { model: BillLineItem, as: 'lineItems' },
         { model: Outlet, attributes: ['id', 'name'] },
+        { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
       ],
       order: [['created_at', 'DESC']],
     });
@@ -638,7 +709,7 @@ const getBills = async (req, res) => {
     const response = bills.map((bill) => ({
       id: bill.id,
       billNumber: bill.bill_number,
-      createdAt: bill.created_at,
+      createdAt: bill.createdAt,
       customer: {
         name: bill.customer_name,
         phone: bill.customer_phone,
@@ -661,6 +732,20 @@ const getBills = async (req, res) => {
         productConsumption: li.product_consumption,
         includedServices: li.included_services,
       })),
+      payments: (bill.payments || []).map((p) => ({
+        id: p.id,
+        totalAmount: Number(p.total_amount),
+        status: p.status,
+        transactionReference: p.transaction_reference || '',
+        notes: p.notes || '',
+        paymentDate: p.payment_date,
+        details: (p.details || []).map((d) => ({
+          id: d.id,
+          paymentMode: d.payment_mode,
+          amount: Number(d.amount),
+          bankAccountId: d.bank_account_id || null,
+        })),
+      })),
     }));
 
     return res.json(response);
@@ -677,6 +762,7 @@ const getBillById = async (req, res) => {
       include: [
         { model: BillLineItem, as: 'lineItems' },
         { model: Outlet, attributes: ['id', 'name'] },
+        { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
       ],
     });
 
@@ -688,7 +774,7 @@ const getBillById = async (req, res) => {
     const response = {
       id: bill.id,
       billNumber: bill.bill_number,
-      createdAt: bill.created_at,
+      createdAt: bill.createdAt,
       customer: {
         name: bill.customer_name,
         phone: bill.customer_phone,
@@ -713,6 +799,20 @@ const getBillById = async (req, res) => {
         staffAssigned: li.staff_assigned,
         productConsumption: li.product_consumption,
         includedServices: li.included_services,
+      })),
+      payments: (bill.payments || []).map((p) => ({
+        id: p.id,
+        totalAmount: Number(p.total_amount),
+        status: p.status,
+        transactionReference: p.transaction_reference || '',
+        notes: p.notes || '',
+        paymentDate: p.payment_date,
+        details: (p.details || []).map((d) => ({
+          id: d.id,
+          paymentMode: d.payment_mode,
+          amount: Number(d.amount),
+          bankAccountId: d.bank_account_id || null,
+        })),
       })),
     };
 

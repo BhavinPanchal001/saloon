@@ -7,7 +7,7 @@ import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase } from "../../utils/unitConversion";
 import { InvoiceModal } from "./InvoiceModal";
-import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle } from "lucide-react";
+import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle, CreditCard } from "lucide-react";
 import BankSelector from "../../modules/bank/components/BankSelector";
 
 const paymentMethods = ["Cash", "Card", "UPI"];
@@ -24,7 +24,6 @@ export function POSPage() {
   const [cart, setCart] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [selectedBankId, setSelectedBankId] = useState("");
-  const [payloadPreview, setPayloadPreview] = useState(null);
   const [showInvoice, setShowInvoice] = useState(false);
   const [currentBill, setCurrentBill] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -36,6 +35,9 @@ export function POSPage() {
   const [discountType, setDiscountType] = useState("percent");
   const [discountValue, setDiscountValue] = useState("");
   const [stockErrors, setStockErrors] = useState([]);
+  const [paymentDetails, setPaymentDetails] = useState([{ paymentMode: "cash", amount: "", bankAccountId: "" }]);
+  const [transactionReference, setTransactionReference] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
   const productNameById = useMemo(() => {
@@ -472,15 +474,48 @@ export function POSPage() {
     setStockErrors(stockValidation.errors);
   }, [stockValidation.errors]);
 
-  // Bank required for Card and UPI payments, optional for Cash
-  const isBankRequired = paymentMethod === "Card" || paymentMethod === "UPI";
-  const canCheckout = cart.length > 0 && paymentMethod && !hasUnassignedService && (!isBankRequired || selectedBankId);
+  // Bank required for any non-cash payment detail row
+  const isBankRequired = paymentMethod && paymentMethod !== "Cash";
+  const canCheckout = cart.length > 0 && paymentMethod;
+
+  const paymentModeMap = { Cash: "cash", Card: "card", UPI: "upi" };
+
+  const syncPaymentDetailsWithMethod = (method) => {
+    const mode = paymentModeMap[method] || "cash";
+    setPaymentDetails([{ paymentMode: mode, amount: "", bankAccountId: "" }]);
+  };
+
+  const addPaymentDetail = () => {
+    setPaymentDetails((prev) => [...prev, { paymentMode: "cash", amount: "", bankAccountId: "" }]);
+  };
+
+  const removePaymentDetail = (idx) => {
+    setPaymentDetails((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const updatePaymentDetail = (idx, field, value) => {
+    setPaymentDetails((prev) =>
+      prev.map((d, i) => (i === idx ? { ...d, [field]: value } : d))
+    );
+  };
+
+  // Derive the primary bank for the Payment record: first non-cash detail's bank, fallback to selectedBankId
+  const primaryBankAccountId = paymentDetails.find((d) => d.paymentMode !== "cash" && d.bankAccountId)?.bankAccountId || selectedBankId || null;
+
+  // isBankRequired: true if any non-cash detail has no bank selected
+  const nonCashNeedsBank = paymentMethod && paymentMethod !== "Cash" &&
+    paymentDetails.some((d) => d.paymentMode !== "cash" && !d.bankAccountId);
 
   const handleCheckout = async () => {
+    const resolvedDetails = paymentDetails
+      .map((d) => ({ paymentMode: d.paymentMode, amount: Number(d.amount) || 0, bankAccountId: d.bankAccountId || null }))
+      .filter((d) => d.amount > 0);
+
     const payload = {
       customer,
       paymentMethod,
-      bankId: selectedBankId || null,
+      bankId: primaryBankAccountId,
+      bankAccountId: primaryBankAccountId,
       outletId: selectedOutlet || user?.outlet_id || "all_outlets",
       subtotal,
       discountType: discountAmount > 0 ? discountType : null,
@@ -488,6 +523,9 @@ export function POSPage() {
       discountAmount,
       tax,
       total,
+      paymentDetails: resolvedDetails.length > 0 ? resolvedDetails : undefined,
+      transactionReference: transactionReference.trim() || undefined,
+      paymentNotes: paymentNotes.trim() || undefined,
       lineItems: cart.map((line) => ({
         itemId: line.id,
         itemType: line.type,
@@ -529,15 +567,14 @@ export function POSPage() {
     const result = await checkoutBillAPI(payload);
     setCurrentBill(result);
     setShowInvoice(true);
-    setPayloadPreview({
-      billNumber: result.billNumber,
-      payload,
-    });
     setCart([]);
     setPaymentMethod("");
     setSelectedBankId("");
     setDiscountValue("");
     setCustomer({ name: "", phone: "" });
+    setPaymentDetails([{ paymentMode: "cash", amount: "", bankAccountId: "" }]);
+    setTransactionReference("");
+    setPaymentNotes("");
     toast.success(`Bill ${result.billNumber} created successfully!`);
   };
 
@@ -1074,7 +1111,7 @@ export function POSPage() {
                   }
                   onClick={() => {
                     setPaymentMethod(method);
-                    // Clear bank selection when switching to Cash
+                    syncPaymentDetailsWithMethod(method);
                     if (method === "Cash") {
                       setSelectedBankId("");
                     }
@@ -1085,15 +1122,105 @@ export function POSPage() {
               ))}
             </div>
 
-            {/* Bank Selection - Show for Card and UPI payments */}
-            {paymentMethod && paymentMethod !== "Cash" && (
-              <div className="mt-3">
-                <BankSelector
-                  value={selectedBankId}
-                  onChange={setSelectedBankId}
-                  label="Deposit Bank Account"
-                  required={isBankRequired}
-                  placeholder="Select bank for deposit"
+            {/* Split Payment Details */}
+            {paymentMethod && (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-navy-400 flex items-center gap-1">
+                    <CreditCard className="h-3 w-3" /> Payment Breakdown
+                  </span>
+                  <button
+                    type="button"
+                    onClick={addPaymentDetail}
+                    className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700"
+                  >
+                    + Add Method
+                  </button>
+                </div>
+                {paymentDetails.map((detail, idx) => (
+                  <div key={idx} className="space-y-1.5 rounded-xl border border-navy-100 bg-white p-2">
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={detail.paymentMode}
+                        onChange={(e) => {
+                          updatePaymentDetail(idx, "paymentMode", e.target.value);
+                          if (e.target.value === "cash") updatePaymentDetail(idx, "bankAccountId", "");
+                        }}
+                        className="flex-1 rounded-lg border border-navy-200 bg-white px-2 py-1.5 text-xs font-semibold text-navy-700 focus:outline-none focus:border-navy-400"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="upi">UPI</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="cheque">Cheque</option>
+                      </select>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Amount"
+                        value={detail.amount}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          const otherTotal = paymentDetails.reduce((s, d, i) => i === idx ? s : s + (Number(d.amount) || 0), 0);
+                          const capped = Math.min(val, total - otherTotal);
+                          updatePaymentDetail(idx, "amount", capped >= 0 ? capped : 0);
+                        }}
+                        className="w-24 rounded-lg border border-navy-200 bg-white px-2 py-1.5 text-xs font-semibold text-navy-700 text-right focus:outline-none focus:border-navy-400"
+                      />
+                      {paymentDetails.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePaymentDetail(idx)}
+                          className="text-rose-400 hover:text-rose-600 flex-shrink-0"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {detail.paymentMode !== "cash" && (
+                      <BankSelector
+                        value={detail.bankAccountId || ""}
+                        onChange={(v) => updatePaymentDetail(idx, "bankAccountId", v)}
+                        label=""
+                        required={false}
+                        placeholder="Select bank account"
+                        showDefaultIndicator={true}
+                      />
+                    )}
+                  </div>
+                ))}
+                {/* Running total vs bill total */}
+                {(() => {
+                  const entered = paymentDetails.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+                  const balance = total - entered;
+                  if (entered === 0) return null;
+                  return (
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${
+                      balance === 0 ? "text-emerald-600" : balance > 0 ? "text-amber-500" : "text-rose-500"
+                    }`}>
+                      {balance === 0 ? "Fully covered" : balance > 0 ? `Due: ${balance.toFixed(2)}` : `Overpaid: ${Math.abs(balance).toFixed(2)}`}
+                    </p>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Transaction Ref + Notes */}
+            {paymentMethod && (
+              <div className="mt-3 space-y-2">
+                <input
+                  type="text"
+                  value={transactionReference}
+                  onChange={(e) => setTransactionReference(e.target.value)}
+                  placeholder="Transaction ref (optional)"
+                  className="w-full rounded-lg border border-navy-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-navy-700 placeholder:text-slate-400 focus:outline-none focus:border-navy-400"
+                />
+                <input
+                  type="text"
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  placeholder="Payment notes (optional)"
+                  className="w-full rounded-lg border border-navy-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-navy-700 placeholder:text-slate-400 focus:outline-none focus:border-navy-400"
                 />
               </div>
             )}
@@ -1116,21 +1243,21 @@ export function POSPage() {
               </div>
             )}
 
-            {cart.length > 0 && isBankRequired && !selectedBankId && (
+            {cart.length > 0 && nonCashNeedsBank && (
               <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
                 <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                <span>Select a bank account for {paymentMethod} deposit</span>
+                <span>Select a bank account for each non-cash payment row</span>
               </div>
             )}
 
             {hasUnassignedService && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-rose-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-rose-600">
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
                 <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                <span>Assign talent to all services to continue</span>
+                <span>Talent not assigned — you can still proceed</span>
               </div>
             )}
 
@@ -1163,14 +1290,6 @@ export function POSPage() {
             </button>
           </div>
 
-          {payloadPreview ? (
-            <div className="rounded-2xl border border-navy-800 bg-navy-950 p-4 text-navy-100">
-              <p className="text-xs font-black uppercase tracking-widest text-navy-400">Mocked JSON · {payloadPreview.billNumber}</p>
-              <pre className="mt-3 overflow-x-auto text-xs leading-5 text-navy-300 font-mono max-h-48 custom-scrollbar">
-                {JSON.stringify(payloadPreview.payload, null, 2)}
-              </pre>
-            </div>
-          ) : null}
         </div>
       </div>
 

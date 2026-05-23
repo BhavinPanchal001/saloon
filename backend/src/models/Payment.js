@@ -6,6 +6,7 @@ const Payment = sequelize.define('Payment', {
   purchase_order_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   expense_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   pos_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  bill_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   total_amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
   status: {
     type: DataTypes.ENUM('pending', 'completed', 'failed', 'refunded'),

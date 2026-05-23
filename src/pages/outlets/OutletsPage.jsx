@@ -4,12 +4,17 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { Plus, ArrowUpRight } from "lucide-react";
 import { fetchOutletsFromAPI } from "../../services/api";
 import { OutletFormModal } from "./OutletFormModal";
+import { AuditHistoryButton, AuditHistoryModal } from "../../components/audit";
 
 export function OutletsPage() {
   const [outlets, setOutlets] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOutletId, setEditingOutletId] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  
+  // Audit history state
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [auditEntity, setAuditEntity] = useState({ type: null, id: null, name: null });
 
   const loadOutlets = () => {
     setLoadError(null);
@@ -30,6 +35,11 @@ export function OutletsPage() {
   const handleEditClick = (id) => {
     setEditingOutletId(id);
     setIsModalOpen(true);
+  };
+
+  const openAuditHistory = (entityType, entityId, entityName) => {
+    setAuditEntity({ type: entityType, id: entityId, name: entityName });
+    setAuditModalOpen(true);
   };
 
   return (
@@ -64,6 +74,7 @@ export function OutletsPage() {
               <th>City</th>
               <th>Branch Manager</th>
               <th>Status</th>
+              <th>History</th>
               <th className="w-20"></th>
             </tr>
           </thead>
@@ -82,6 +93,14 @@ export function OutletsPage() {
                   <span className={`status-badge ${outlet.status === 'active' ? 'status-active' : 'status-inactive'}`}>
                     {outlet.status}
                   </span>
+                </td>
+                <td>
+                  <AuditHistoryButton
+                    onClick={() => openAuditHistory('outlet_inventory', outlet.id, outlet.name)}
+                    size="sm"
+                    variant="ghost"
+                    showText={false}
+                  />
                 </td>
                 <td>
                   <div className="flex items-center gap-3">
@@ -111,6 +130,15 @@ export function OutletsPage() {
         onClose={() => setIsModalOpen(false)}
         outletId={editingOutletId}
         onSave={loadOutlets}
+      />
+      
+      {/* Audit History Modal */}
+      <AuditHistoryModal
+        isOpen={auditModalOpen}
+        onClose={() => setAuditModalOpen(false)}
+        entityType={auditEntity.type}
+        entityId={auditEntity.id}
+        entityName={auditEntity.name}
       />
     </div>
   );

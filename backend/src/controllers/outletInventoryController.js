@@ -1,5 +1,6 @@
 const { Op } = require('sequelize');
 const { sequelize, OutletInventory, StockIssue, OutletProductPrice, Product, Outlet } = require('../models');
+const AuditService = require('../services/auditService');
 
 // Get inventory for outlets (with optional outlet filter)
 const getInventory = async (req, res) => {
@@ -72,11 +73,30 @@ const issueProduct = async (req, res) => {
       return res.status(400).json({ message: 'Not enough central stock available to issue.' });
     }
 
+    // Log central stock before update
+    const oldProductValues = {
+      id: product.id,
+      central_stock: product.central_stock,
+      item_name: product.item_name
+    };
+
     // Deduct from central stock
+    const newCentralStock = currentCentralStock - parsedQty;
     await product.update(
-      { central_stock: currentCentralStock - parsedQty },
+      { central_stock: newCentralStock },
       { transaction }
     );
+
+    // Log central stock change
+    await AuditService.logCentralStockOperation('UPDATE', {
+      id: product.id,
+      oldValues: oldProductValues,
+      newValues: { ...oldProductValues, central_stock: newCentralStock },
+      quantityChange: -parsedQty,
+      referenceId: null, // Will be set after stock issue creation
+      referenceType: 'stock_issue',
+      metadata: { operation: 'stock_issue_to_outlet', outletId, productId }
+    }, req, transaction);
 
     // Find or create outlet inventory record
     let outletInventory = await OutletInventory.findOne({
@@ -84,23 +104,60 @@ const issueProduct = async (req, res) => {
       transaction,
     });
 
+    let oldOutletInventoryValues = null;
+    let inventoryOperation = 'CREATE';
+
     if (outletInventory) {
       // Update existing stock
+      inventoryOperation = 'UPDATE';
+      oldOutletInventoryValues = {
+        id: outletInventory.id,
+        outlet_id: outletInventory.outlet_id,
+        product_id: outletInventory.product_id,
+        current_stock: outletInventory.current_stock
+      };
+      
       const currentStock = parseFloat(outletInventory.current_stock);
+      const newStock = currentStock + parsedQty;
+      
       await outletInventory.update(
-        { current_stock: currentStock + parsedQty },
+        { current_stock: newStock },
         { transaction }
       );
+
+      // Log outlet inventory change
+      await AuditService.logOutletInventoryOperation(inventoryOperation, {
+        id: outletInventory.id,
+        oldValues: oldOutletInventoryValues,
+        newValues: { ...oldOutletInventoryValues, current_stock: newStock },
+        outlet_id: outletId,
+        product_id: productId,
+        quantityChange: parsedQty,
+        referenceId: null, // Will be set after stock issue creation
+        referenceType: 'stock_issue',
+        metadata: { operation: 'stock_received_from_central' }
+      }, req, transaction);
     } else {
       // Create new inventory record
-      outletInventory = await OutletInventory.create(
-        {
-          outlet_id: outletId,
-          product_id: productId,
-          current_stock: parsedQty,
-        },
-        { transaction }
-      );
+      const newInventoryData = {
+        outlet_id: outletId,
+        product_id: productId,
+        current_stock: parsedQty,
+      };
+      
+      outletInventory = await OutletInventory.create(newInventoryData, { transaction });
+
+      // Log outlet inventory creation
+      await AuditService.logOutletInventoryOperation(inventoryOperation, {
+        id: outletInventory.id,
+        newValues: newInventoryData,
+        outlet_id: outletId,
+        product_id: productId,
+        quantityChange: parsedQty,
+        referenceId: null, // Will be set after stock issue creation
+        referenceType: 'stock_issue',
+        metadata: { operation: 'initial_stock_from_central' }
+      }, req, transaction);
     }
 
     // Create stock issue record
@@ -114,6 +171,27 @@ const issueProduct = async (req, res) => {
       { transaction }
     );
 
+    // Log the complete stock issue operation
+    await AuditService.logStockIssue({
+      outletInventoryId: outletInventory.id,
+      oldValues: oldOutletInventoryValues,
+      newValues: {
+        id: outletInventory.id,
+        outlet_id: outletId,
+        product_id: productId,
+        current_stock: outletInventory.current_stock
+      },
+      outlet_id: outletId,
+      product_id: productId,
+      quantityChange: parsedQty,
+      stockIssueId: stockIssue.id,
+      metadata: {
+        outletName: outlet.name,
+        productName: product.item_name,
+        operation: 'stock_issue_complete'
+      }
+    }, req, transaction);
+
     // Handle selling price if provided
     if (sellingPrice !== undefined && sellingPrice !== '') {
       const parsedPrice = Number(sellingPrice);
@@ -124,9 +202,24 @@ const issueProduct = async (req, res) => {
         });
 
         if (existingPrice) {
+          // Log price update before change
+          await AuditService.logInventoryChange({
+            entityType: 'outlet_product_price',
+            entityId: existingPrice.id,
+            operation: 'UPDATE',
+            oldValues: { price: existingPrice.price },
+            newValues: { price: parsedPrice },
+            outletId,
+            productId,
+            referenceId: stockIssue.id,
+            referenceType: 'stock_issue',
+            metadata: { priceUpdateSource: 'stock_issue_operation' }
+          }, req, transaction);
+
           await existingPrice.update({ price: parsedPrice }, { transaction });
         } else {
-          await OutletProductPrice.create(
+          // Create new price record
+          const newPrice = await OutletProductPrice.create(
             {
               outlet_id: outletId,
               product_id: productId,
@@ -134,6 +227,19 @@ const issueProduct = async (req, res) => {
             },
             { transaction }
           );
+
+          // Log price creation
+          await AuditService.logInventoryChange({
+            entityType: 'outlet_product_price',
+            entityId: newPrice.id,
+            operation: 'CREATE',
+            newValues: { outlet_id: outletId, product_id: productId, price: parsedPrice },
+            outletId,
+            productId,
+            referenceId: stockIssue.id,
+            referenceType: 'stock_issue',
+            metadata: { priceCreationSource: 'stock_issue_operation' }
+          }, req, transaction);
         }
       }
     }
@@ -207,35 +313,66 @@ const getOutletProductPrices = async (req, res) => {
 
 // Save/Update outlet product price
 const saveOutletProductPrice = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
   try {
     const { outletId, productId, price } = req.body;
 
     if (!outletId || !productId || price === undefined) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'outletId, productId, and price are required.' });
     }
 
     const parsedPrice = Number(price);
     if (isNaN(parsedPrice) || parsedPrice < 0) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'price must be a non-negative number.' });
     }
 
     // Check if price exists
     let outletPrice = await OutletProductPrice.findOne({
       where: { outlet_id: outletId, product_id: productId },
+      transaction,
     });
 
     if (outletPrice) {
-      await outletPrice.update({ price: parsedPrice });
+      // Log price update before change
+      await AuditService.logInventoryChange({
+        entityType: 'outlet_product_price',
+        entityId: outletPrice.id,
+        operation: 'UPDATE',
+        oldValues: { price: outletPrice.price },
+        newValues: { price: parsedPrice },
+        outletId,
+        productId,
+        metadata: { operation: 'manual_price_update' }
+      }, req, transaction);
+
+      await outletPrice.update({ price: parsedPrice }, { transaction });
     } else {
+      // Create new price record
       outletPrice = await OutletProductPrice.create({
         outlet_id: outletId,
         product_id: productId,
         price: parsedPrice,
-      });
+      }, { transaction });
+
+      // Log price creation
+      await AuditService.logInventoryChange({
+        entityType: 'outlet_product_price',
+        entityId: outletPrice.id,
+        operation: 'CREATE',
+        newValues: { outlet_id: outletId, product_id: productId, price: parsedPrice },
+        outletId,
+        productId,
+        metadata: { operation: 'manual_price_creation' }
+      }, req, transaction);
     }
 
+    await transaction.commit();
     return res.json({ success: true, data: outletPrice });
   } catch (err) {
+    await transaction.rollback();
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }
@@ -243,20 +380,42 @@ const saveOutletProductPrice = async (req, res) => {
 
 // Delete outlet product price
 const deleteOutletProductPrice = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
   try {
     const { outletId, productId } = req.params;
 
     const outletPrice = await OutletProductPrice.findOne({
       where: { outlet_id: outletId, product_id: productId },
+      transaction,
     });
 
     if (!outletPrice) {
+      await transaction.rollback();
       return res.status(404).json({ message: 'Outlet product price not found.' });
     }
 
-    await outletPrice.destroy();
+    // Log price deletion before removal
+    await AuditService.logInventoryChange({
+      entityType: 'outlet_product_price',
+      entityId: outletPrice.id,
+      operation: 'DELETE',
+      oldValues: { 
+        id: outletPrice.id,
+        outlet_id: outletPrice.outlet_id,
+        product_id: outletPrice.product_id,
+        price: outletPrice.price
+      },
+      outletId,
+      productId,
+      metadata: { operation: 'manual_price_deletion' }
+    }, req, transaction);
+
+    await outletPrice.destroy({ transaction });
+    await transaction.commit();
     return res.json({ message: 'Outlet product price deleted successfully.' });
   } catch (err) {
+    await transaction.rollback();
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
   }

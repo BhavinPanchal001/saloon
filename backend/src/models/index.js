@@ -24,6 +24,7 @@ const ServiceCategory = require('./ServiceCategory');
 const PackageService = require('./PackageService');
 const Bill = require('./Bill');
 const BillLineItem = require('./BillLineItem');
+const InventoryAuditLog = require('./InventoryAuditLog');
 
 // Define associations
 OutletInventory.belongsTo(Product, { foreignKey: 'product_id' });
@@ -60,6 +61,9 @@ Bank.hasMany(Payment, { foreignKey: 'bank_account_id' });
 
 Bill.hasMany(BillLineItem, { foreignKey: 'bill_id', as: 'lineItems', onDelete: 'CASCADE' });
 BillLineItem.belongsTo(Bill, { foreignKey: 'bill_id' });
+
+Bill.hasMany(Payment, { foreignKey: 'bill_id', as: 'payments' });
+Payment.belongsTo(Bill, { foreignKey: 'bill_id' });
 
 Bill.belongsTo(Outlet, { foreignKey: 'outlet_id' });
 Outlet.hasMany(Bill, { foreignKey: 'outlet_id' });
@@ -104,4 +108,5 @@ module.exports = {
   Expense,
   MonthlyBudget,
   BudgetHistory,
+  InventoryAuditLog,
 };

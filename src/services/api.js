@@ -828,3 +828,41 @@ export const fetchAvailableMonthsFromAPI = async () => {
   });
   return handleResponse(res);
 };
+
+// ─── Audit Logs ────────────────────────────────────────────────────────────────
+
+export const fetchAuditLogsFromAPI = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const url = `${API_BASE}/audit-logs${query ? `?${query}` : ""}`;
+  const res = await fetch(url, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchEntityAuditTrailFromAPI = async (entityType, entityId, params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const url = `${API_BASE}/audit-logs/entity/${entityType}/${entityId}${query ? `?${query}` : ""}`;
+  const res = await fetch(url, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchAuditSummaryFromAPI = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const url = `${API_BASE}/audit-logs/summary${query ? `?${query}` : ""}`;
+  const res = await fetch(url, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchStockMovementsFromAPI = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const url = `${API_BASE}/audit-logs/stock-movements${query ? `?${query}` : ""}`;
+  const res = await fetch(url, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};

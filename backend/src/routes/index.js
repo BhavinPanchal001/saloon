@@ -15,6 +15,7 @@ const paymentRoutes = require('./payments');
 const posRoutes = require('./pos');
 const bankRoutes = require('./banks');
 const budgetRoutes = require('./budgets');
+const auditLogRoutes = require('./auditLogRoutes');
 
 router.get('/', (req, res) => {
   res.json({ message: 'Glowy Saloon API v1' });
@@ -34,5 +35,6 @@ router.use('/payments', paymentRoutes);
 router.use('/pos', posRoutes);
 router.use('/banks', bankRoutes);
 router.use('/budgets', budgetRoutes);
+router.use('/audit-logs', auditLogRoutes);
 
 module.exports = router;

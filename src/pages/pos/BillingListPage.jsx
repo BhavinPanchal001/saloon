@@ -1,22 +1,25 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchBillsFromAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 import { InvoiceModal } from "./InvoiceModal";
-import { BillDetailModal } from "./BillDetailModal";
-import { Search, Download, Filter, FileText, Eye, Calendar } from "lucide-react";
+import { Search, Download, Filter, FileText, Eye, Calendar, CreditCard } from "lucide-react";
 
 const paymentFilters = ["All", "Cash", "Card", "UPI"];
 
 const formatDate = (iso) => {
+  if (!iso) return "—";
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 };
 
 const formatTime = (iso) => {
+  if (!iso) return "";
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 };
 
@@ -29,8 +32,8 @@ export default function BillingListPage() {
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const navigate = useNavigate();
   const [selectedBill, setSelectedBill] = useState(null);
-  const [viewBill, setViewBill] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -234,13 +237,23 @@ export default function BillingListPage() {
                     </span>
                   </td>
                   <td>
-                    <span className={`status-badge ${
-                      bill.paymentMethod === "Cash" ? "bg-emerald-50 text-emerald-700" :
-                      bill.paymentMethod === "Card" ? "bg-indigo-50 text-indigo-700" :
-                      "bg-violet-50 text-violet-700"
-                    }`}>
-                      {bill.paymentMethod}
-                    </span>
+                    {bill.payments && bill.payments.length > 0 && bill.payments.some(p => p.details?.length > 1 || (bill.payments.length > 1)) ? (
+                      <div className="flex flex-wrap gap-1">
+                        {bill.payments.flatMap(p => p.details || []).map((d, i) => (
+                          <span key={i} className="inline-flex items-center gap-1 rounded-full bg-navy-50 px-2 py-0.5 text-[10px] font-bold text-navy-700 capitalize">
+                            {d.paymentMode?.replace("_", " ")}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className={`status-badge ${
+                        bill.paymentMethod === "Cash" ? "bg-emerald-50 text-emerald-700" :
+                        bill.paymentMethod === "Card" ? "bg-indigo-50 text-indigo-700" :
+                        "bg-violet-50 text-violet-700"
+                      }`}>
+                        {bill.paymentMethod}
+                      </span>
+                    )}
                   </td>
                   <td>
                     <span className={`status-badge ${
@@ -255,7 +268,7 @@ export default function BillingListPage() {
                   <td className="text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
-                        onClick={() => setViewBill(bill)}
+                        onClick={() => navigate(`/pos/bills/${bill.id}`)}
                         className="group inline-flex items-center gap-1.5 rounded-2xl border border-navy-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-widest text-navy-600 transition-all hover:bg-navy-900 hover:text-white hover:border-navy-900"
                         title="View Details"
                       >
@@ -284,13 +297,6 @@ export default function BillingListPage() {
         <InvoiceModal bill={selectedBill} onClose={() => setSelectedBill(null)} />
       )}
 
-      {/* View Bill Details Modal */}
-      {viewBill && (
-        <BillDetailModal 
-          bill={viewBill} 
-          onClose={() => setViewBill(null)} 
-        />
-      )}
     </div>
   );
 }
