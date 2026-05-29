@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Expense, MonthlyBudget, BudgetHistory, Outlet } = require('../models');
+const { Expense, MonthlyBudget, BudgetHistory, Outlet, Payment, PaymentDetail, Bank, sequelize } = require('../models');
 
 // Helper to get current month key (YYYY-MM)
 const getCurrentMonthKey = () => {
@@ -28,6 +28,12 @@ const getExpenses = async (req, res) => {
           model: Outlet,
           attributes: ['id', 'name', 'code'],
         },
+        {
+          model: Payment,
+          as: 'payments',
+          include: [{ model: PaymentDetail, as: 'details' }],
+          required: false,
+        },
       ],
       order: [['created_at', 'DESC']],
     });
@@ -41,20 +47,25 @@ const getExpenses = async (req, res) => {
 
 // Create new expense with budget validation
 const createExpense = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
-    const { item_name, qty, price, total_amount, bill_no, outlet_id, month_key } = req.body;
+    const { item_name, qty, price, total_amount, bill_no, outlet_id, month_key, payment } = req.body;
 
     // Validation
     if (!item_name || !item_name.trim()) {
+      await t.rollback();
       return res.status(400).json({ message: 'item_name is required.' });
     }
     if (!price || Number(price) <= 0) {
+      await t.rollback();
       return res.status(400).json({ message: 'price must be greater than 0.' });
     }
     if (!total_amount || Number(total_amount) <= 0) {
+      await t.rollback();
       return res.status(400).json({ message: 'total_amount must be greater than 0.' });
     }
     if (!outlet_id) {
+      await t.rollback();
       return res.status(400).json({ message: 'outlet_id is required.' });
     }
 
@@ -82,6 +93,7 @@ const createExpense = async (req, res) => {
       const remainingBudget = budget.amount - currentTotal;
 
       if (expenseAmount > remainingBudget) {
+        await t.rollback();
         return res.status(400).json({
           message: `Expense amount (${expenseAmount}) exceeds remaining budget (${remainingBudget}) for this outlet in ${expenseMonth}. Please increase the budget or reduce the expense amount.`,
         });
@@ -97,22 +109,76 @@ const createExpense = async (req, res) => {
       bill_no: bill_no ? bill_no.trim() : null,
       outlet_id: Number(outlet_id),
       month_key: expenseMonth,
-    });
+    }, { transaction: t });
 
-    // Return with outlet info
-    const expenseWithOutlet = await Expense.findByPk(expense.id, {
+    // Create payment if provided
+    if (payment && Array.isArray(payment.details) && payment.details.length > 0) {
+      const validModes = ['cash', 'card', 'upi', 'bank_transfer', 'cheque'];
+      let totalPaymentAmount = 0;
+      const detailRows = payment.details.map((d) => {
+        const amount = Math.max(0, Number(d.amount) || 0);
+        totalPaymentAmount += amount;
+        if (!validModes.includes(d.paymentMode)) {
+          throw new Error(`Invalid payment mode: ${d.paymentMode}. Must be one of: ${validModes.join(', ')}`);
+        }
+        return { amount, payment_mode: d.paymentMode };
+      });
+
+      if (payment.bankAccountId) {
+        const bank = await Bank.findByPk(payment.bankAccountId, { transaction: t });
+        if (!bank) {
+          await t.rollback();
+          return res.status(400).json({ message: 'Selected bank account not found.' });
+        }
+      }
+
+      if (totalPaymentAmount > 0) {
+        const paymentStatus = totalPaymentAmount >= expenseAmount ? 'completed' : 'pending';
+        const createdPayment = await Payment.create({
+          expense_id: expense.id,
+          purchase_order_id: null,
+          pos_id: null,
+          total_amount: totalPaymentAmount,
+          status: payment.status || paymentStatus,
+          transaction_reference: (payment.transactionReference || '').trim() || null,
+          notes: (payment.notes || '').trim() || null,
+          payment_date: payment.paymentDate || new Date().toISOString().split('T')[0],
+          bank_account_id: payment.bankAccountId || null,
+        }, { transaction: t });
+
+        await PaymentDetail.bulkCreate(
+          detailRows.map((row) => ({ ...row, payment_id: createdPayment.id })),
+          { transaction: t }
+        );
+      }
+    }
+
+    await t.commit();
+
+    // Return with outlet info and payments
+    const expenseWithDetails = await Expense.findByPk(expense.id, {
       include: [
         {
           model: Outlet,
           attributes: ['id', 'name', 'code'],
         },
+        {
+          model: Payment,
+          as: 'payments',
+          include: [
+            { model: PaymentDetail, as: 'details' },
+            { model: Bank, as: 'bankAccount' },
+          ],
+          required: false,
+        },
       ],
     });
 
-    return res.status(201).json(expenseWithOutlet);
+    return res.status(201).json(expenseWithDetails);
   } catch (err) {
+    await t.rollback();
     console.error('Error creating expense:', err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: err.message || 'Server error.' });
   }
 };
 

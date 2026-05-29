@@ -400,6 +400,13 @@ export function InventoryPage() {
       setFeedback(
         `${issuedStock.qty} units of ${issuedStock.itemName} issued to ${issuedStock.outletName}.`,
       );
+      if (issuedStock.lowStockWarning) {
+        const { productName, outletName, currentStock, isOutOfStock } = issuedStock.lowStockWarning;
+        const warningMsg = isOutOfStock
+          ? `⚠️ ${productName} is now OUT OF STOCK at ${outletName}.`
+          : `⚠️ Low stock alert: ${productName} has only ${currentStock} units left at ${outletName}.`;
+        setErrorMessage(warningMsg);
+      }
       await loadInventoryPage();
     } catch (error) {
       setErrorMessage(error.message || "Unable to issue stock to outlet.");

@@ -729,22 +729,34 @@ export const fetchExpensesFromAPI = async ({ outletId, monthKey } = {}) => {
           code: e.Outlet.code,
         }
       : null,
+    payments: (e.payments || []).map((p) => ({
+      id: p.id,
+      totalAmount: Number(p.total_amount),
+      status: p.status,
+      details: (p.details || []).map((d) => ({
+        id: d.id,
+        amount: Number(d.amount),
+        paymentMode: d.payment_mode,
+      })),
+    })),
   }));
 };
 
 export const createExpenseAPI = async (payload) => {
+  const body = {
+    item_name: payload.itemName,
+    qty: payload.qty,
+    price: payload.price,
+    total_amount: payload.totalAmount,
+    bill_no: payload.billNo,
+    outlet_id: payload.outletId,
+    month_key: payload.monthKey,
+  };
+  if (payload.payment) body.payment = payload.payment;
   const res = await fetch(`${API_BASE}/expenses`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({
-      item_name: payload.itemName,
-      qty: payload.qty,
-      price: payload.price,
-      total_amount: payload.totalAmount,
-      bill_no: payload.billNo,
-      outlet_id: payload.outletId,
-      month_key: payload.monthKey,
-    }),
+    body: JSON.stringify(body),
   });
   return handleResponse(res);
 };
@@ -862,6 +874,48 @@ export const fetchStockMovementsFromAPI = async (params = {}) => {
   const query = new URLSearchParams(params).toString();
   const url = `${API_BASE}/audit-logs/stock-movements${query ? `?${query}` : ""}`;
   const res = await fetch(url, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export const fetchNotificationsAPI = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/notifications${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const markNotificationReadAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/notifications/${id}/read`, {
+    method: "PATCH",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const markAllNotificationsReadAPI = async () => {
+  const res = await fetch(`${API_BASE}/notifications/read-all`, {
+    method: "PATCH",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const deleteNotificationAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/notifications/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const clearAllNotificationsAPI = async () => {
+  const res = await fetch(`${API_BASE}/notifications/clear-all`, {
+    method: "DELETE",
     headers: authHeaders(),
   });
   return handleResponse(res);

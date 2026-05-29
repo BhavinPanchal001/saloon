@@ -1,6 +1,8 @@
 const { Op } = require('sequelize');
-const { sequelize, OutletInventory, StockIssue, OutletProductPrice, Product, Outlet } = require('../models');
+const { sequelize, OutletInventory, StockIssue, OutletProductPrice, Product, Outlet, Notification } = require('../models');
 const AuditService = require('../services/auditService');
+
+const LOW_STOCK_THRESHOLD = 5;
 
 // Get inventory for outlets (with optional outlet filter)
 const getInventory = async (req, res) => {
@@ -246,6 +248,40 @@ const issueProduct = async (req, res) => {
 
     await transaction.commit();
 
+    // Check for low stock after commit and create notification if needed
+    let lowStockWarning = null;
+    const updatedInventory = await OutletInventory.findOne({
+      where: { outlet_id: outletId, product_id: productId },
+    });
+    if (updatedInventory) {
+      const finalStock = parseFloat(updatedInventory.current_stock);
+      if (finalStock <= LOW_STOCK_THRESHOLD) {
+        const isOutOfStock = finalStock <= 0;
+        const notificationTitle = isOutOfStock
+          ? 'Out of Stock'
+          : 'Low Stock Alert';
+        const notificationMessage = isOutOfStock
+          ? `${product.item_name} is out of stock at ${outlet.name}`
+          : `${product.item_name} is running low at ${outlet.name} (${finalStock} units remaining)`;
+
+        await Notification.create({
+          type: isOutOfStock ? 'alert' : 'warning',
+          title: notificationTitle,
+          message: notificationMessage,
+          outlet_id: outletId,
+          product_id: productId,
+          read: false,
+        });
+
+        lowStockWarning = {
+          productName: product.item_name,
+          outletName: outlet.name,
+          currentStock: finalStock,
+          isOutOfStock,
+        };
+      }
+    }
+
     return res.status(201).json({
       id: stockIssue.id,
       outletId: outlet.id,
@@ -254,6 +290,7 @@ const issueProduct = async (req, res) => {
       itemName: product.item_name,
       qty: parsedQty,
       createdAt: stockIssue.created_at,
+      lowStockWarning,
     });
   } catch (err) {
     await transaction.rollback();

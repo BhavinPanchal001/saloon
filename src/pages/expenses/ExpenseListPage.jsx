@@ -40,9 +40,13 @@ export function ExpenseListPage() {
     setIsLoading(true);
     setError(null);
     try {
+      // Use current month consistently
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
       const [budgetSummary, expenseList] = await Promise.all([
-        fetchBudgetSummaryFromAPI({ outletId: selectedOutletId }),
-        fetchExpensesFromAPI({ outletId: selectedOutletId }),
+        fetchBudgetSummaryFromAPI({ outletId: selectedOutletId, monthKey: currentMonthKey }),
+        fetchExpensesFromAPI({ outletId: selectedOutletId, monthKey: currentMonthKey }),
       ]);
 
       setBudget(budgetSummary);
@@ -279,13 +283,14 @@ export function ExpenseListPage() {
               <th className="text-right">Quantity</th>
               <th className="text-right">Unit Price</th>
               <th className="text-right">Net Amount</th>
+              <th className="text-center">Payment</th>
               <th className="w-20"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="py-20 text-center">
+                <td colSpan={7} className="py-20 text-center">
                   <div className="flex flex-col items-center gap-3 opacity-50">
                     <div className="w-8 h-8 border-2 border-navy-300 border-t-navy-600 rounded-full animate-spin" />
                     <p className="text-sm font-medium">Loading expenses...</p>
@@ -294,7 +299,7 @@ export function ExpenseListPage() {
               </tr>
             ) : expenses.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-20 text-center">
+                <td colSpan={7} className="py-20 text-center">
                   <div className="flex flex-col items-center gap-3 opacity-30">
                     <History size={48} />
                     <p className="text-sm font-medium">No expense records found for this cycle</p>
@@ -325,6 +330,32 @@ export function ExpenseListPage() {
                   <td className="text-right text-navy-600">{formatCurrency(expense.price)}</td>
                   <td className="text-right">
                     <span className="font-black text-navy-900">{formatCurrency(expense.totalAmount)}</span>
+                  </td>
+                  <td className="text-center">
+                    {(() => {
+                      const payments = expense.payments || [];
+                      const paid = payments.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+                      const total = Number(expense.totalAmount || expense.total_amount || 0);
+                      if (paid <= 0) {
+                        return (
+                          <span className="status-badge bg-slate-100 text-slate-500 border border-slate-200">
+                            Unpaid
+                          </span>
+                        );
+                      }
+                      if (paid >= total) {
+                        return (
+                          <span className="status-badge bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Paid
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="status-badge bg-amber-50 text-amber-700 border border-amber-200">
+                          Partial
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="text-right">
                     <button

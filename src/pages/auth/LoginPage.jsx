@@ -41,7 +41,11 @@ export function LoginPage() {
 
     try {
       const result = await login(form);
-      navigate(result.redirectTo);
+      if (result.requires2FA) {
+        navigate("/verify-otp", { state: { email: result.email, twoFaMethod: result.twoFaMethod } });
+      } else {
+        navigate(result.redirectTo);
+      }
     } catch (error) {
       return error;
     }

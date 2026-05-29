@@ -3,7 +3,7 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchSettings, saveSettings } from '../../services/mockApi';
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
-import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone } from "lucide-react";
+import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound } from "lucide-react";
 
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user);
@@ -17,6 +17,74 @@ export function SettingsPage() {
     security: { twoFactorEnabled: false, sessionTimeout: 30 },
   });
   const [activeTab, setActiveTab] = useState("profile");
+
+  const setupTOTP = useAuthStore((state) => state.setupTOTP);
+  const confirmTOTP = useAuthStore((state) => state.confirmTOTP);
+  const disableTOTP = useAuthStore((state) => state.disableTOTP);
+
+  const [totpStep, setTotpStep] = useState("idle");
+  const [totpQrCode, setTotpQrCode] = useState(null);
+  const [totpSecret, setTotpSecret] = useState(null);
+  const [totpToken, setTotpToken] = useState("");
+  const [totpEnabled, setTotpEnabled] = useState(false);
+  const [totpError, setTotpError] = useState(null);
+  const [totpLoading, setTotpLoading] = useState(false);
+  const [disablePassword, setDisablePassword] = useState("");
+
+  const handleSetupTOTP = async () => {
+    setTotpLoading(true);
+    setTotpError(null);
+    try {
+      const data = await setupTOTP();
+      setTotpQrCode(data.qrCode);
+      setTotpSecret(data.secret);
+      setTotpStep("scan");
+    } catch (err) {
+      setTotpError(err.message);
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
+  const handleConfirmTOTP = async () => {
+    if (!totpToken || totpToken.length !== 6) {
+      setTotpError("Enter the 6-digit code from your app.");
+      return;
+    }
+    setTotpLoading(true);
+    setTotpError(null);
+    try {
+      await confirmTOTP(totpToken);
+      setTotpEnabled(true);
+      setTotpStep("enabled");
+      setTotpToken("");
+      toast.success("Authenticator app enabled!");
+    } catch (err) {
+      setTotpError(err.message);
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
+  const handleDisableTOTP = async () => {
+    if (!disablePassword) {
+      setTotpError("Enter your password to confirm.");
+      return;
+    }
+    setTotpLoading(true);
+    setTotpError(null);
+    try {
+      await disableTOTP(disablePassword);
+      setTotpEnabled(false);
+      setTotpStep("idle");
+      setDisablePassword("");
+      toast.success("Authenticator app disabled.");
+    } catch (err) {
+      setTotpError(err.message);
+    } finally {
+      setTotpLoading(false);
+    }
+  };
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -335,30 +403,143 @@ export function SettingsPage() {
                 </div>
 
                 <div className="space-y-4">
+                  {/* Email 2FA — always on */}
                   <div className="rounded-xl border border-slate-100 bg-white/50 p-4">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50">
+                        <Mail className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900">Email OTP</p>
+                        <p className="text-sm text-slate-500">A 6-digit code is sent to your email on every login.</p>
+                      </div>
+                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        Always on
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Authenticator App (TOTP) */}
+                  <div className="rounded-xl border border-slate-100 bg-white/50 p-5 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-navy-50">
-                          <Lock className="h-5 w-5 text-navy-600" />
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${totpEnabled ? "bg-brand-50" : "bg-navy-50"}`}>
+                          <QrCode className={`h-5 w-5 ${totpEnabled ? "text-brand-600" : "text-navy-600"}`} />
                         </div>
                         <div>
-                          <p className="font-medium text-slate-900">Two-Factor Authentication</p>
-                          <p className="text-sm text-slate-500">Add an extra layer of security</p>
+                          <p className="font-medium text-slate-900">Authenticator App (TOTP)</p>
+                          <p className="text-sm text-slate-500">
+                            {totpEnabled
+                              ? "Google Authenticator / Authy is active. Email OTP is bypassed."
+                              : "Use Google Authenticator or Authy instead of email OTP."}
+                          </p>
                         </div>
                       </div>
-                      <button
-                        onClick={() =>
-                          setSettings({ ...settings, security: { ...settings.security, twoFactorEnabled: !settings.security.twoFactorEnabled } })
-                        }
-                        className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                          settings.security.twoFactorEnabled
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {settings.security.twoFactorEnabled ? "Enabled" : "Disabled"}
-                      </button>
+                      {totpEnabled ? (
+                        <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">Active</span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Inactive</span>
+                      )}
                     </div>
+
+                    {totpError && (
+                      <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                        {totpError}
+                      </div>
+                    )}
+
+                    {/* Step: idle — not yet set up */}
+                    {totpStep === "idle" && !totpEnabled && (
+                      <button
+                        onClick={handleSetupTOTP}
+                        disabled={totpLoading}
+                        className="btn-premium-primary"
+                      >
+                        {totpLoading ? "Loading..." : "Set up authenticator app"}
+                      </button>
+                    )}
+
+                    {/* Step: scan QR */}
+                    {totpStep === "scan" && (
+                      <div className="space-y-4">
+                        <p className="text-sm text-slate-600">
+                          Scan this QR code with <strong>Google Authenticator</strong> or <strong>Authy</strong>, then enter the 6-digit code to confirm.
+                        </p>
+                        <div className="flex justify-center">
+                          <img src={totpQrCode} alt="TOTP QR Code" className="h-48 w-48 rounded-xl border border-slate-200" />
+                        </div>
+                        <details className="text-xs text-slate-400">
+                          <summary className="cursor-pointer select-none">Can't scan? Enter key manually</summary>
+                          <p className="mt-2 break-all font-mono text-slate-600 bg-slate-50 rounded-lg p-3">{totpSecret}</p>
+                        </details>
+                        <div className="flex gap-3">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            value={totpToken}
+                            onChange={(e) => { setTotpToken(e.target.value.replace(/\D/g, "")); setTotpError(null); }}
+                            placeholder="000000"
+                            className="input-field w-40 text-center font-mono tracking-widest text-lg"
+                          />
+                          <button
+                            onClick={handleConfirmTOTP}
+                            disabled={totpLoading || totpToken.length !== 6}
+                            className="btn-premium-primary flex items-center gap-2"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            {totpLoading ? "Verifying..." : "Confirm & Enable"}
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => { setTotpStep("idle"); setTotpError(null); setTotpToken(""); }}
+                          className="text-sm text-slate-500 hover:text-slate-700"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Step: enabled — show disable option */}
+                    {(totpStep === "enabled" || (totpEnabled && totpStep === "idle")) && (
+                      <div className="space-y-3">
+                        {totpStep !== "disabling" && (
+                          <button
+                            onClick={() => { setTotpStep("disabling"); setTotpError(null); }}
+                            className="rounded-lg border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50"
+                          >
+                            Disable authenticator app
+                          </button>
+                        )}
+                        {totpStep === "disabling" && (
+                          <div className="space-y-3">
+                            <p className="text-sm text-slate-600">Enter your password to confirm removal.</p>
+                            <div className="flex gap-3">
+                              <input
+                                type="password"
+                                value={disablePassword}
+                                onChange={(e) => { setDisablePassword(e.target.value); setTotpError(null); }}
+                                placeholder="Your password"
+                                className="input-field flex-1"
+                              />
+                              <button
+                                onClick={handleDisableTOTP}
+                                disabled={totpLoading}
+                                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                              >
+                                {totpLoading ? "Disabling..." : "Confirm"}
+                              </button>
+                              <button
+                                onClick={() => { setTotpStep("enabled"); setTotpError(null); setDisablePassword(""); }}
+                                className="text-sm text-slate-500 hover:text-slate-700 px-2"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-xl border border-slate-100 bg-white/50 p-4">

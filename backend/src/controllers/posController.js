@@ -15,6 +15,7 @@ const {
   PaymentDetail,
   Bank,
 } = require('../models');
+const { printReceipt } = require('../utils/thermalPrinter');
 
 // Ensure Service is available for package consumption validation
 
@@ -655,6 +656,11 @@ const checkout = async (req, res) => {
         })),
       })),
     };
+
+    // Fire-and-forget: print thermal receipt (errors logged, never block response)
+    printReceipt(response).catch((printErr) => {
+      console.warn('[Checkout] Thermal print failed (non-blocking):', printErr.message);
+    });
 
     return res.status(201).json(response);
   } catch (err) {

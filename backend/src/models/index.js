@@ -25,6 +25,7 @@ const PackageService = require('./PackageService');
 const Bill = require('./Bill');
 const BillLineItem = require('./BillLineItem');
 const InventoryAuditLog = require('./InventoryAuditLog');
+const Notification = require('./Notification');
 
 // Define associations
 OutletInventory.belongsTo(Product, { foreignKey: 'product_id' });
@@ -72,11 +73,17 @@ Outlet.hasMany(Bill, { foreignKey: 'outlet_id' });
 Expense.belongsTo(Outlet, { foreignKey: 'outlet_id' });
 Outlet.hasMany(Expense, { foreignKey: 'outlet_id' });
 
+Expense.hasMany(Payment, { foreignKey: 'expense_id', as: 'payments' });
+Payment.belongsTo(Expense, { foreignKey: 'expense_id' });
+
 MonthlyBudget.belongsTo(Outlet, { foreignKey: 'outlet_id' });
 Outlet.hasMany(MonthlyBudget, { foreignKey: 'outlet_id' });
 
 BudgetHistory.belongsTo(Outlet, { foreignKey: 'outlet_id' });
 Outlet.hasMany(BudgetHistory, { foreignKey: 'outlet_id' });
+
+Notification.belongsTo(Outlet, { foreignKey: 'outlet_id' });
+Notification.belongsTo(Product, { foreignKey: 'product_id' });
 
 Bank.hasMany(BankTransaction, { foreignKey: 'bank_id', as: 'transactions', onDelete: 'CASCADE' });
 BankTransaction.belongsTo(Bank, { foreignKey: 'bank_id', as: 'bank' });
@@ -109,4 +116,5 @@ module.exports = {
   MonthlyBudget,
   BudgetHistory,
   InventoryAuditLog,
+  Notification,
 };

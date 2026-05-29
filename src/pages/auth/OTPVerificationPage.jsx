@@ -1,19 +1,25 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useToastStore } from "../../stores/toastStore";
+import { useAuthStore } from "../../stores/authStore";
 
 export function OTPVerificationPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToastStore();
+  const verifyOTP = useAuthStore((state) => state.verifyOTP);
+  const resendOTP = useAuthStore((state) => state.resendOTP);
+  const pendingEmail = useAuthStore((state) => state.pendingEmail);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [otpError, setOtpError] = useState(null);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timer, setTimer] = useState(60);
   const inputRefs = useRef([]);
 
-  // Get email from location state or fallback
-  const email = location.state?.email || "your email";
+  const email = location.state?.email || pendingEmail || "your email";
+  const twoFaMethod = location.state?.twoFaMethod || "email";
+  const isTOTP = twoFaMethod === "totp";
 
   // Countdown timer for resend
   useEffect(() => {
@@ -98,43 +104,43 @@ export function OTPVerificationPage() {
     const codeToVerify = otpString || otp.join("");
 
     if (codeToVerify.length !== 6) {
-      toast.error("Please enter all 6 digits");
+      setOtpError("Please enter all 6 digits.");
       return;
     }
 
     setIsLoading(true);
+    setOtpError(null);
 
-    // Simulate API verification
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Mock success (in real app, verify against backend)
-    if (codeToVerify === "123456" || codeToVerify.length === 6) {
+    try {
+      const result = await verifyOTP({ email, otp: codeToVerify });
       toast.success("Verification successful!");
-      navigate("/login", { state: { verified: true } });
-    } else {
-      toast.error("Invalid verification code. Please try again.");
+      navigate(result.redirectTo);
+    } catch (error) {
+      setOtpError(error.message || "Invalid verification code. Please try again.");
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   const handleResend = async () => {
     if (timer > 0) return;
 
     setIsResending(true);
+    setOtpError(null);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    setTimer(60);
-    toast.success(`New verification code sent to ${email}`);
-    setIsResending(false);
-
-    // Clear inputs and focus first
-    setOtp(["", "", "", "", "", ""]);
-    inputRefs.current[0]?.focus();
+    try {
+      await resendOTP(email);
+      setTimer(60);
+      toast.success(`New verification code sent to ${email}`);
+      setOtp(["", "", "", "", "", ""]);
+      inputRefs.current[0]?.focus();
+    } catch (error) {
+      toast.error(error.message || "Could not resend code. Please try again.");
+    } finally {
+      setIsResending(false);
+    }
   };
 
   const handleSubmit = (event) => {
@@ -186,11 +192,18 @@ export function OTPVerificationPage() {
               Two-Factor Authentication
             </p>
             <h2 className="mt-4 text-4xl text-slate-900">Verify your identity</h2>
-            <p className="mt-4 text-sm leading-7 text-slate-600">
-              We've sent a 6-digit verification code to{" "}
-              <span className="font-semibold text-slate-900">{email}</span>. Enter the
-              code below to continue.
-            </p>
+            {isTOTP ? (
+              <p className="mt-4 text-sm leading-7 text-slate-600">
+                Open your authenticator app (Google Authenticator, Authy, etc.) and enter the{" "}
+                <span className="font-semibold text-slate-900">6-digit code</span> for Glowy Saloon.
+              </p>
+            ) : (
+              <p className="mt-4 text-sm leading-7 text-slate-600">
+                We've sent a 6-digit verification code to{" "}
+                <span className="font-semibold text-slate-900">{email}</span>. Enter the
+                code below to continue.
+              </p>
+            )}
 
             <form className="mt-8" onSubmit={handleSubmit}>
               {/* OTP Input Fields */}
@@ -212,26 +225,34 @@ export function OTPVerificationPage() {
                 ))}
               </div>
 
-              {/* Timer and Resend */}
-              <div className="mt-6 text-center">
-                {timer > 0 ? (
-                  <p className="text-sm text-slate-500">
-                    Resend code in{" "}
-                    <span className="font-semibold text-brand-700">
-                      {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, "0")}
-                    </span>
-                  </p>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleResend}
-                    disabled={isResending}
-                    className="text-sm font-medium text-brand-700 transition-colors hover:text-brand-800 disabled:opacity-50"
-                  >
-                    {isResending ? "Sending..." : "Didn't receive it? Resend code"}
-                  </button>
-                )}
-              </div>
+              {/* Timer and Resend — email only */}
+              {!isTOTP && (
+                <div className="mt-6 text-center">
+                  {timer > 0 ? (
+                    <p className="text-sm text-slate-500">
+                      Resend code in{" "}
+                      <span className="font-semibold text-brand-700">
+                        {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, "0")}
+                      </span>
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      disabled={isResending}
+                      className="text-sm font-medium text-brand-700 transition-colors hover:text-brand-800 disabled:opacity-50"
+                    >
+                      {isResending ? "Sending..." : "Didn't receive it? Resend code"}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {otpError ? (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {otpError}
+                </div>
+              ) : null}
 
               {/* Verify Button */}
               <button
@@ -243,7 +264,7 @@ export function OTPVerificationPage() {
               </button>
 
               {/* Alternative Options */}
-              <div className="mt-6 space-y-3 text-center">
+              <div className="mt-6 text-center">
                 <p className="text-sm text-slate-500">
                   Wrong email?{" "}
                   <Link
@@ -252,10 +273,6 @@ export function OTPVerificationPage() {
                   >
                     Start over
                   </Link>
-                </p>
-
-                <p className="text-xs text-slate-400">
-                  For demo purposes, use code: <span className="font-mono font-semibold text-slate-600">123456</span>
                 </p>
               </div>
             </form>

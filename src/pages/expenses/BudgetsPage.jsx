@@ -117,9 +117,9 @@ export function BudgetsPage() {
 
   const selectedOutletData = selectedOutlet === "all"
     ? null
-    : outlets.find(o => o.id === selectedOutlet);
+    : outlets.find(o => String(o.id) === String(selectedOutlet));
   const selectedOutletName = selectedOutletData?.name;
-  const selectedOutletBudget = budgetData?.budgets?.find(b => b.outletId === selectedOutlet)?.amount || 0;
+  const selectedOutletBudget = budgetData?.budgets?.find(b => String(b.outletId) === String(selectedOutlet))?.amount || 0;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">

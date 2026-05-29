@@ -5,6 +5,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { ConfirmModal } from "../ui/Modal";
 import { fetchOutlets } from "../../services/mockApi";
+import { fetchNotificationsAPI } from "../../services/api";
 
 const pageTitles = {
   "/dashboard": "Dashboard",
@@ -41,7 +42,21 @@ export function Navbar({ onOpenSidebar }) {
   const toast = useToastStore();
   const [outletName, setOutletName] = useState("");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [notificationCount] = useState(3); // Mock notification count
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    const loadUnreadCount = async () => {
+      try {
+        const data = await fetchNotificationsAPI({ read: false });
+        setNotificationCount(data.unreadCount ?? 0);
+      } catch {
+        // silently ignore
+      }
+    };
+    loadUnreadCount();
+    const interval = setInterval(loadUnreadCount, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch outlet name
   useEffect(() => {

@@ -1,10 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { useToastStore } from "../../stores/toastStore";
-import { Bell, Check, Trash2, AlertCircle, Info, CheckCircle, Clock } from "lucide-react";
+import { Bell, Check, Trash2, AlertCircle, Info, CheckCircle, Clock, Loader2 } from "lucide-react";
+import {
+  fetchNotificationsAPI,
+  markNotificationReadAPI,
+  markAllNotificationsReadAPI,
+  deleteNotificationAPI,
+  clearAllNotificationsAPI,
+} from "../../services/api";
 
 const notificationIcons = {
   alert: AlertCircle,
+  low_stock: AlertCircle,
   info: Info,
   success: CheckCircle,
   warning: Clock,
@@ -12,6 +20,7 @@ const notificationIcons = {
 
 const notificationColors = {
   alert: "text-rose-600 bg-rose-50",
+  low_stock: "text-rose-600 bg-rose-50",
   info: "text-blue-600 bg-blue-50",
   success: "text-emerald-600 bg-emerald-50",
   warning: "text-amber-600 bg-amber-50",
@@ -19,71 +28,68 @@ const notificationColors = {
 
 export function NotificationsPage() {
   const toast = useToastStore();
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: "Low Stock Alert",
-      message: "Product 'Hair Color - Premium Black' is running low (5 units remaining)",
-      type: "alert",
-      read: false,
-      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 mins ago
-    },
-    {
-      id: 2,
-      title: "Purchase Order Approved",
-      message: "PO #PO-2024-001 has been approved by admin",
-      type: "success",
-      read: false,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-    },
-    {
-      id: 3,
-      title: "Staff Schedule Updated",
-      message: "Employee Priya Sharma's schedule has been updated for next week",
-      type: "info",
-      read: true,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-    },
-    {
-      id: 4,
-      title: "Contract Expiring Soon",
-      message: "Employee contract for 'Rahul Kumar' expires in 7 days",
-      type: "warning",
-      read: false,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
-    },
-    {
-      id: 5,
-      title: "New Employee Added",
-      message: "Welcome! New employee 'Anjali Patel' has been onboarded",
-      type: "success",
-      read: true,
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(), // 3 days ago
-    },
-  ]);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState("all");
 
-  const [filter, setFilter] = useState("all"); // all, unread, read
+  const loadNotifications = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fetchNotificationsAPI();
+      setNotifications(data.notifications || []);
+    } catch (err) {
+      setError(err.message || "Failed to load notifications");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const markAsRead = (id) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    );
-    toast.success("Notification marked as read");
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  const markAsRead = async (id) => {
+    try {
+      await markNotificationReadAPI(id);
+      setNotifications(prev =>
+        prev.map(n => (n.id === id ? { ...n, read: true } : n))
+      );
+      toast.success("Notification marked as read");
+    } catch {
+      toast.error("Failed to mark as read");
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    toast.success("All notifications marked as read");
+  const markAllAsRead = async () => {
+    try {
+      await markAllNotificationsReadAPI();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      toast.success("All notifications marked as read");
+    } catch {
+      toast.error("Failed to mark all as read");
+    }
   };
 
-  const deleteNotification = (id) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-    toast.success("Notification deleted");
+  const deleteNotification = async (id) => {
+    try {
+      await deleteNotificationAPI(id);
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      toast.success("Notification deleted");
+    } catch {
+      toast.error("Failed to delete notification");
+    }
   };
 
-  const clearAll = () => {
-    setNotifications([]);
-    toast.success("All notifications cleared");
+  const clearAll = async () => {
+    try {
+      await clearAllNotificationsAPI();
+      setNotifications([]);
+      toast.success("All notifications cleared");
+    } catch {
+      toast.error("Failed to clear notifications");
+    }
   };
 
   const filteredNotifications = notifications.filter(n => {
@@ -176,7 +182,18 @@ export function NotificationsPage() {
 
       {/* Notifications List */}
       <div className="space-y-3">
-        {filteredNotifications.length === 0 ? (
+        {loading ? (
+          <div className="glass-card py-16 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-400" />
+            <p className="mt-3 text-slate-500">Loading notifications...</p>
+          </div>
+        ) : error ? (
+          <div className="glass-card py-16 text-center">
+            <AlertCircle className="mx-auto h-8 w-8 text-rose-400" />
+            <p className="mt-3 text-rose-600">{error}</p>
+            <button onClick={loadNotifications} className="mt-3 btn-secondary text-sm">Retry</button>
+          </div>
+        ) : filteredNotifications.length === 0 ? (
           <div className="glass-card py-16 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
               <Bell className="h-8 w-8 text-slate-400" />
@@ -228,7 +245,7 @@ export function NotificationsPage() {
                           {notification.message}
                         </p>
                         <p className="mt-2 text-xs text-slate-400">
-                          {formatTime(notification.timestamp)}
+                          {formatTime(notification.created_at || notification.timestamp)}
                         </p>
                       </div>
 

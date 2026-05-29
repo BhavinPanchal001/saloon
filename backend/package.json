@@ -16,13 +16,18 @@
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "escpos": "^3.0.0-alpha.6",
+    "escpos-usb": "^3.0.0-alpha.4",
     "express": "^4.19.2",
     "express-validator": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.1.1",
     "mysql2": "^3.9.7",
-    "sequelize": "^6.37.3"
+    "nodemailer": "^8.0.8",
+    "qrcode": "^1.5.4",
+    "sequelize": "^6.37.3",
+    "speakeasy": "^2.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0",
