@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { execSync } = require('child_process');
+const os = require('os');
 const app = require('./app');
 const { sequelize } = require('./models');
 
@@ -7,11 +8,33 @@ const PORT = process.env.PORT || 5001;
 
 const killPortIfBusy = (port) => {
   try {
-    const pid = execSync(`lsof -t -i:${port}`, { stdio: 'pipe' }).toString().trim();
-    if (pid) {
-      console.log(`Port ${port} in use by PID ${pid}. Killing...`);
-      execSync(`kill -9 ${pid}`, { stdio: 'pipe' });
-      console.log(`PID ${pid} killed. Port ${port} is now free.`);
+    if (os.platform() === 'win32') {
+      // Windows: use netstat + taskkill
+      const result = execSync(
+        `netstat -ano | findstr :${port} | findstr LISTENING`,
+        { stdio: 'pipe' }
+      ).toString().trim();
+      if (result) {
+        const lines = result.split('\n');
+        const pids = [...new Set(lines.map(l => l.trim().split(/\s+/).pop()).filter(Boolean))];
+        for (const pid of pids) {
+          if (pid && pid !== '0') {
+            console.log(`Port ${port} in use by PID ${pid}. Killing...`);
+            try {
+              execSync(`taskkill /F /PID ${pid}`, { stdio: 'pipe' });
+              console.log(`PID ${pid} killed. Port ${port} is now free.`);
+            } catch (_) { /* process may have already exited */ }
+          }
+        }
+      }
+    } else {
+      // macOS / Linux: use lsof + kill
+      const pid = execSync(`lsof -t -i:${port}`, { stdio: 'pipe' }).toString().trim();
+      if (pid) {
+        console.log(`Port ${port} in use by PID ${pid}. Killing...`);
+        execSync(`kill -9 ${pid}`, { stdio: 'pipe' });
+        console.log(`PID ${pid} killed. Port ${port} is now free.`);
+      }
     }
   } catch (_) {
     // Port is already free — nothing to do

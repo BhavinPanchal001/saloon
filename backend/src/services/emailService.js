@@ -13,6 +13,20 @@ const createTransporter = () => {
 };
 
 const sendOTPEmail = async (toEmail, adminName, otpCode) => {
+  // Mock email sending if credentials are not provided (useful for local development)
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.log('\n========================================================');
+    console.log(`[MOCK EMAIL] To: ${toEmail}`);
+    console.log(`[MOCK EMAIL] Subject: Your Glowy Login Verification Code`);
+    console.log(`[MOCK EMAIL] OTP Code: ${otpCode}`);
+    console.log('========================================================\n');
+    
+    if (process.env.NODE_ENV === 'production') {
+      console.warn("WARNING: Email credentials are not configured in production!");
+    }
+    return;
+  }
+
   const transporter = createTransporter();
 
   const mailOptions = {

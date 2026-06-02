@@ -102,6 +102,7 @@ export interface ContractGroup {
   name: string;
   startDate: string;
   endDate?: string;
+  employeeId?: string;
 }
 
 // Master Data Types

@@ -39,8 +39,7 @@ export default function Hero() {
             transition={{ duration: 0.9, delay: 0.3 }}
             className="mt-8 max-w-lg text-base md:text-lg text-muted-foreground leading-relaxed"
           >
-            A sanctuary of soft light, premium care, and quiet luxury. Curated
-            beauty rituals designed to let your most radiant self step forward.
+            Premium beauty rituals crafted with personalized care, quiet luxury, and radiant selfcare designed to help you glow with confidence
           </motion.p>
 
           <motion.div

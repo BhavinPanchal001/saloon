@@ -1,32 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { Save, X, ChevronRight, User, Users, Briefcase, DollarSign, Calendar, Clock, Edit, Plus, Building2, Heart, Baby, Umbrella, AlertCircle, Shield, FileCheck, FileUp, Upload } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Save, X, ChevronRight, User, Briefcase, DollarSign, Calendar, Clock, Edit, Plus, AlertCircle, Shield, FileCheck, CheckCircle } from 'lucide-react';
 import { useToastStore } from '../../../../stores/toastStore';
-import { fetchStaff, saveContract, fetchSalaryMasters } from '../../../../services/mockApi';
-import { Contract, ContractStatus, SalaryComponent, ComponentType, CalculationType, SalaryMaster } from '../../types';
+import { 
+  fetchStaff, saveContract, fetchSalaryMasters, 
+  fetchContractGroups, fetchContractTypes, fetchShifts, 
+  fetchWorkWeeks, fetchHolidayTemplates, fetchLeaveTypes 
+} from '../../../../services/api';
+import { ContractStatus } from '../../types';
 
 const TABS = [
-  { id: 'basic', label: 'Basic Info', icon: User },
-  { id: 'mapping', label: 'Mapping', icon: Briefcase },
-  { id: 'financials', label: 'Financials', icon: DollarSign },
-  { id: 'policies', label: 'Policies', icon: Calendar },
-  { id: 'shift', label: 'Shift & Hours', icon: Clock },
+  { id: 'basic', label: '1. Group & Type', icon: User },
+  { id: 'financials', label: '2. Salary Components', icon: DollarSign },
+  { id: 'shift', label: '3. Shift & Week', icon: Clock },
+  { id: 'policies', label: '4. Terms & Overtime', icon: Briefcase },
+  { id: 'benefits', label: '5. Holidays & Leaves', icon: Calendar },
 ];
 
 const ContractFormPage: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const toast = useToastStore();
   const [activeTab, setActiveTab] = useState('basic');
   const [isSaving, setIsSaving] = useState(false);
-  const [staffList, setStaffList] = useState<any[]>([]);
-  const [salaryMasters, setSalaryMasters] = useState<SalaryMaster[]>([]);
-  const [showSalaryModal, setShowSalaryModal] = useState(false);
-  const [selectedSalaryMaster, setSelectedSalaryMaster] = useState<SalaryMaster | null>(null);
-  const [customAmount, setCustomAmount] = useState<string>('');
-  const navigate = useNavigate();
-  const toast = useToastStore();
 
-  // Form state
-  const [formData, setFormData] = useState<Partial<Contract>>({
-    code: '',
+  // Master collections loaded dynamically
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [groupsList, setGroupsList] = useState<any[]>([]);
+  const [contractTypesList, setContractTypesList] = useState<any[]>([]);
+  const [shiftsList, setShiftsList] = useState<any[]>([]);
+  const [workWeeksList, setWorkWeeksList] = useState<any[]>([]);
+  const [salaryMasters, setSalaryMasters] = useState<any[]>([]);
+  const [holidayTemplates, setHolidayTemplates] = useState<any[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<any[]>([]);
+
+  // Selected templates inside contract type
+  const [linkedTemplates, setLinkedTemplates] = useState<any[]>([]);
+
+  // Salary modal helper state
+  const [showSalaryModal, setShowSalaryModal] = useState(false);
+  const [selectedSalaryMaster, setSelectedSalaryMaster] = useState<any>(null);
+  const [customAmount, setCustomAmount] = useState<string>('');
+
+  // Form State
+  const [formData, setFormData] = useState<any>({
+    code: 'CON-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
     title: '',
     employeeId: '',
     groupId: '',
@@ -34,106 +52,200 @@ const ContractFormPage: React.FC = () => {
     templateId: '',
     startDate: '',
     endDate: '',
-    status: ContractStatus.DRAFT,
+    status: 'draft',
+    notes: '',
+    
+    // Compensation
     salaryComponents: [],
+    
+    // Overtime
     overtime: {
       enabled: false,
-      type: 'none',
+      type: '1.5x',
       rateCalculation: 'fixed_hourly',
-      rateValue: 0,
+      rateValue: 150
     },
-    holidayRate: '1x',
-    weekendRate: '1x',
-    overtimeRate: '1.5x',
-    holidayGroupIds: [],
-    leaveAllocations: [],
+
+    // Shifts
     shiftId: '',
-    shiftEffectiveDate: '',
-    weeklyOffPattern: [],
-    revisions: [],
-    currentVersion: 1,
-    notes: '',
+    workWeekId: '',
+
+    // Relational selected arrays
+    holidayGroupIds: [], // Selected holiday template IDs
+    leaveAllocations: [], // Selected leave type IDs
   });
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadMasters = async () => {
       try {
-        const [staff, salaryMastersData] = await Promise.all([
+        const [staff, groups, cTypes, shifts, wWeeks, salaryComps, hTemplates, leaves] = await Promise.all([
           fetchStaff(),
-          fetchSalaryMasters()
+          fetchContractGroups(),
+          fetchContractTypes(),
+          fetchShifts(),
+          fetchWorkWeeks(),
+          fetchSalaryMasters(),
+          fetchHolidayTemplates(),
+          fetchLeaveTypes()
         ]);
+
         setStaffList(staff);
-        setSalaryMasters(salaryMastersData.filter((sm: SalaryMaster) => sm.isActive));
-      } catch (error) {
-        console.error('Failed to load data:', error);
+        setGroupsList(groups);
+        setContractTypesList(cTypes.filter((c: any) => c.isActive));
+        setShiftsList(shifts.filter((s: any) => s.isActive));
+        setWorkWeeksList(wWeeks.filter((w: any) => w.isActive));
+        setSalaryMasters(salaryComps.filter((s: any) => s.isActive));
+        setHolidayTemplates(hTemplates.filter((h: any) => h.isActive));
+        setLeaveTypes(leaves);
+      } catch (err) {
+        console.error('Failed to load form master options:', err);
       }
     };
-    loadData();
+    loadMasters();
   }, []);
 
-  const handleInputChange = (field: keyof Contract, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  // Parse query parameters to pre-fill Employee & Contract Group
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlGroupId = params.get('groupId');
+    const urlEmployeeId = params.get('employeeId');
+    
+    if (urlGroupId) {
+      handleInputChange('groupId', urlGroupId);
+    }
+    if (urlEmployeeId) {
+      handleInputChange('employeeId', urlEmployeeId);
+      
+      // Auto-select the matching group if it exists
+      if (groupsList.length > 0) {
+        const matchingGroup = groupsList.find(g => g.employeeId === urlEmployeeId);
+        if (matchingGroup) {
+          handleInputChange('groupId', matchingGroup.id);
+        }
+      }
+    }
+  }, [location.search, groupsList]);
+
+  // Synchronize Employee and Group selections dynamically
+  useEffect(() => {
+    if (!formData.employeeId) return;
+    
+    const matchingGroup = groupsList.find(g => g.employeeId === formData.employeeId);
+    if (matchingGroup) {
+      handleInputChange('groupId', matchingGroup.id);
+    } else {
+      // If employee doesn't match current group, reset group selection
+      const currentGroup = groupsList.find(g => g.id === formData.groupId);
+      if (currentGroup && currentGroup.employeeId && currentGroup.employeeId !== formData.employeeId) {
+        handleInputChange('groupId', '');
+      }
+    }
+  }, [formData.employeeId, groupsList]);
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
+  const handleNestedInputChange = (section: string, field: string, value: any) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value
+      }
+    }));
+  };
+
+  // When Contract Type changes, dynamically load its templates
+  const handleContractTypeChange = (typeId: string) => {
+    handleInputChange('typeId', typeId);
+    handleInputChange('templateId', '');
+    const selectedType = contractTypesList.find(t => t.id === typeId);
+    if (selectedType && selectedType.requiredDocuments) {
+      setLinkedTemplates(selectedType.requiredDocuments);
+    } else {
+      setLinkedTemplates([]);
+    }
+  };
+
+  // Salary Component handling
   const handleAddSalaryComponent = () => {
     if (!selectedSalaryMaster || !customAmount) {
-      toast.error('Please select a salary component and enter amount');
+      toast.error('Select a component and input amount/percentage');
       return;
     }
-    
-    const component: SalaryComponent = {
-      id: Date.now().toString(),
+    const exists = formData.salaryComponents.some((c: any) => c.masterId === selectedSalaryMaster.id);
+    if (exists) {
+      toast.error('Component is already added to this contract');
+      return;
+    }
+
+    const component = {
+      id: `comp_${Date.now()}`,
+      masterId: selectedSalaryMaster.id,
       name: selectedSalaryMaster.name,
-      type: selectedSalaryMaster.type as ComponentType,
-      calculationType: selectedSalaryMaster.calculationType as CalculationType,
-      amount: Number(customAmount) || 0,
+      type: selectedSalaryMaster.type,
+      calculationType: selectedSalaryMaster.calculationType,
+      amount: Number(customAmount)
     };
-    
-    setFormData(prev => ({
+
+    setFormData((prev: any) => ({
       ...prev,
-      salaryComponents: [...(prev.salaryComponents || []), component],
+      salaryComponents: [...prev.salaryComponents, component]
     }));
-    
+    setShowSalaryModal(false);
     setSelectedSalaryMaster(null);
     setCustomAmount('');
-    setShowSalaryModal(false);
-    toast.success('Salary component added');
+    toast.success('Salary component mapped');
   };
 
-  const handleRemoveSalaryComponent = (componentId: string) => {
-    setFormData(prev => ({
+  const handleRemoveSalaryComponent = (id: string) => {
+    setFormData((prev: any) => ({
       ...prev,
-      salaryComponents: prev.salaryComponents?.filter(c => c.id !== componentId) || [],
+      salaryComponents: prev.salaryComponents.filter((c: any) => c.id !== id)
     }));
-    toast.success('Salary component removed');
+    toast.success('Salary component unmapped');
   };
 
-  const handleSaveDraft = async () => {
-    setIsSaving(true);
-    try {
-      const contractData = { ...formData, status: ContractStatus.DRAFT };
-      await saveContract(contractData);
-      toast.success('Contract saved as draft');
-    } catch (error) {
-      toast.error('Failed to save contract');
-    } finally {
-      setIsSaving(false);
+  // Multi-select for Holidays
+  const handleHolidayToggle = (templateId: string) => {
+    const current = formData.holidayGroupIds || [];
+    let next = [];
+    if (current.includes(templateId)) {
+      next = current.filter((id: string) => id !== templateId);
+    } else {
+      next = [...current, templateId];
     }
+    handleInputChange('holidayGroupIds', next);
   };
 
-  const handleFinalize = async () => {
-    if (!formData.employeeId) {
-      toast.error('Please select an employee before finalizing');
+  // Multi-select for Leaves
+  const handleLeaveToggle = (leaveId: string) => {
+    const current = formData.leaveAllocations || [];
+    let next = [];
+    if (current.includes(leaveId)) {
+      next = current.filter((id: string) => id !== leaveId);
+    } else {
+      next = [...current, leaveId];
+    }
+    handleInputChange('leaveAllocations', next);
+  };
+
+  const handleSave = async (status: string) => {
+    if (!formData.title || !formData.employeeId || !formData.groupId || !formData.typeId) {
+      toast.error('Please fill in all required fields on the first tab');
+      setActiveTab('basic');
       return;
     }
+
     setIsSaving(true);
     try {
-      const contractData = { ...formData, status: ContractStatus.ACTIVE };
-      await saveContract(contractData);
-      toast.success('Contract finalized successfully');
+      const payload = { ...formData, status };
+      await saveContract(payload);
+      toast.success(status === 'active' ? 'Contract finalized and active!' : 'Contract saved as draft');
       navigate('/contracts/list');
-    } catch (error) {
-      toast.error('Failed to finalize contract');
+    } catch (err) {
+      toast.error('Failed to save contract');
     } finally {
       setIsSaving(false);
     }
@@ -142,35 +254,35 @@ const ContractFormPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-cream flex flex-col">
       {/* Form Header */}
-      <div className="bg-white/80 backdrop-blur-xl border-b border-navy-100/50 px-8 py-4 sticky top-0 z-10 shadow-sm">
+      <div className="bg-white border-b border-slate-200 px-8 py-4 sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
-              className="p-2 hover:bg-navy-50 rounded-xl transition-colors"
+              className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
             >
-              <X className="w-5 h-5 text-navy-500" />
+              <X className="w-5 h-5 text-slate-500" />
             </button>
             <div>
-              <h1 className="text-xl font-bold text-navy-900 leading-tight">Create New Contract</h1>
-              <p className="text-sm text-navy-500">Drafting version 1.0 of the agreement.</p>
+              <h1 className="text-xl font-bold text-slate-900 leading-tight">Draft New Employee Contract</h1>
+              <p className="text-sm text-slate-500">Drafting agreement terms with masters association.</p>
             </div>
           </div>
           <div className="flex gap-3">
             <button
-              onClick={handleSaveDraft}
+              onClick={() => handleSave('draft')}
               disabled={isSaving}
               className="btn-premium-outline !py-2 !px-4 disabled:opacity-50"
             >
               Save as Draft
             </button>
             <button
-              onClick={handleFinalize}
+              onClick={() => handleSave('active')}
               disabled={isSaving}
               className="btn-premium-primary flex items-center gap-2 disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              {isSaving ? 'Processing...' : 'Finalize Contract'}
+              {isSaving ? 'Saving...' : 'Finalize & Activate'}
             </button>
           </div>
         </div>
@@ -184,13 +296,13 @@ const ContractFormPage: React.FC = () => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl border-2 transition-all duration-200
+                w-full flex items-center gap-3 px-4 py-3.5 text-sm font-bold rounded-xl border-2 transition-all duration-200
                 ${activeTab === tab.id
-                  ? 'bg-navy-50 border-navy-600 text-navy-700 shadow-sm'
-                  : 'bg-transparent border-transparent text-navy-400 hover:bg-white hover:text-navy-900'}
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm'
+                  : 'bg-transparent border-transparent text-slate-500 hover:bg-white hover:text-slate-900'}
               `}
             >
-              <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-navy-600' : 'text-navy-300'}`} />
+              <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-indigo-600' : 'text-slate-400'}`} />
               {tab.label}
               {activeTab === tab.id && <ChevronRight className="w-4 h-4 ml-auto" />}
             </button>
@@ -198,653 +310,443 @@ const ContractFormPage: React.FC = () => {
         </aside>
 
         {/* Form Content Area */}
-        <div className="flex-1 space-y-8 glass-card p-8 min-h-[600px]">
+        <div className="flex-1 space-y-8 glass-card p-8 bg-white border border-slate-200 rounded-3xl shadow-sm min-h-[600px]">
+          
+          {/* TAB 1: BASIC INFO */}
           {activeTab === 'basic' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="space-y-6 animate-in fade-in duration-200">
               <section>
-                <h2 className="text-lg font-bold text-navy-900 mb-1">General Information</h2>
-                <p className="text-sm text-navy-500 mb-6">Enter the primary details for this contract.</p>
+                <h2 className="text-lg font-bold text-slate-900 mb-1">General Mapping</h2>
+                <p className="text-sm text-slate-500 mb-6">Enter timeline dates and map contract template parameters.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-navy-700">Contract Title *</label>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700">Contract Code *</label>
                     <input 
                       type="text" 
-                      placeholder="e.g. Senior Hair Stylist Agreement" 
-                      className="premium-input"
-                      value={formData.title || ''}
-                      onChange={(e) => handleInputChange('title', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-navy-700">Contract Code *</label>
-                    <input 
-                      type="text" 
-                      placeholder="CON-XXXXX" 
-                      className="premium-input"
-                      value={formData.code || ''}
+                      className="premium-input w-full"
+                      value={formData.code}
                       onChange={(e) => handleInputChange('code', e.target.value)}
+                      required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-navy-700">Start Date *</label>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700">Contract Agreement Title *</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Senior Hair Stylist Contract 2026" 
+                      className="premium-input w-full"
+                      value={formData.title}
+                      onChange={(e) => handleInputChange('title', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700">Select Employee *</label>
+                    <select
+                      className="premium-input w-full"
+                      value={formData.employeeId}
+                      onChange={(e) => handleInputChange('employeeId', e.target.value)}
+                      required
+                    >
+                      <option value="">Select Employee...</option>
+                      {staffList.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700">Parent Contract Group *</label>
+                    <select
+                      className="premium-input w-full"
+                      value={formData.groupId}
+                      onChange={(e) => handleInputChange('groupId', e.target.value)}
+                      required
+                    >
+                      <option value="">Select Contract Group...</option>
+                      {groupsList
+                        .filter(g => !formData.employeeId || g.employeeId === formData.employeeId || !g.employeeId)
+                        .map((g) => (
+                          <option key={g.id} value={g.id}>{g.name} ({g.duration})</option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700">Contract Type *</label>
+                    <select
+                      className="premium-input w-full"
+                      value={formData.typeId}
+                      onChange={(e) => handleContractTypeChange(e.target.value)}
+                      required
+                    >
+                      <option value="">Choose Contract Type...</option>
+                      {contractTypesList.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700">Contract Template (Linked Masters)</label>
+                    <select
+                      className="premium-input w-full"
+                      value={formData.templateId}
+                      onChange={(e) => handleInputChange('templateId', e.target.value)}
+                      disabled={!formData.typeId}
+                    >
+                      <option value="">Select Template...</option>
+                      {linkedTemplates.map((t, idx) => (
+                        <option key={idx} value={t.templateName}>{t.templateName} (v{t.version})</option>
+                      ))}
+                      {linkedTemplates.length === 0 && formData.typeId && (
+                        <option disabled>No templates linked to this type</option>
+                      )}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700">Start Date *</label>
                     <input 
                       type="date" 
-                      className="premium-input"
-                      value={formData.startDate || ''}
+                      className="premium-input w-full"
+                      value={formData.startDate}
                       onChange={(e) => handleInputChange('startDate', e.target.value)}
+                      required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-navy-700">End Date (Optional)</label>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700">End Date</label>
                     <input 
                       type="date" 
-                      className="premium-input"
-                      value={formData.endDate || ''}
+                      className="premium-input w-full"
+                      value={formData.endDate}
                       onChange={(e) => handleInputChange('endDate', e.target.value)}
                     />
                   </div>
                 </div>
               </section>
 
-              <section>
-                <label className="text-sm font-semibold text-navy-700 block mb-2">Contract Remarks (Internal)</label>
+              <section className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-700">Internal Remarks / Notes</label>
                 <textarea 
-                  rows={4} 
-                  placeholder="Add any special conditions or notes here..." 
-                  className="premium-input"
-                  value={formData.notes || ''}
+                  rows={3} 
+                  placeholder="Specify any internal remarks for HR..." 
+                  className="premium-input w-full"
+                  value={formData.notes}
                   onChange={(e) => handleInputChange('notes', e.target.value)}
                 />
               </section>
             </div>
           )}
 
+          {/* TAB 2: SALARY COMPONENTS */}
           {activeTab === 'financials' && (
-             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                <h2 className="text-lg font-bold text-navy-900">Salary Components</h2>
-                <p className="text-sm text-navy-500">Configure earnings and deductions for this contract.</p>
-
-                <div className="space-y-4">
-                   {/* Dynamic salary components list */}
-                   {formData.salaryComponents?.map((component) => (
-                     <div key={component.id} className="flex items-center justify-between p-4 bg-navy-50/50 border border-navy-100 rounded-xl">
-                        <div className="flex gap-4 items-center">
-                          <div className={`p-2 rounded-lg font-bold text-xs ${component.type === ComponentType.EARNING ? 'bg-navy-100 text-navy-600' : 'bg-rose-100 text-rose-600'}`}>
-                            {component.type === ComponentType.EARNING ? 'EARNING' : 'DEDUCTION'}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-navy-900">{component.name}</p>
-                            <p className="text-xs text-navy-500">{component.calculationType} • Monthly</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <span className={`text-lg font-extrabold ${component.type === ComponentType.EARNING ? 'text-navy-900' : 'text-rose-600'}`}>
-                            {component.type === ComponentType.EARNING ? '' : '-'}₹{component.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                          </span>
-                          <button 
-                            onClick={() => handleRemoveSalaryComponent(component.id)}
-                            className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-lg transition-all"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                     </div>
-                   ))}
-                   {(!formData.salaryComponents || formData.salaryComponents.length === 0) && (
-                     <div className="text-center py-8 text-navy-400">
-                       <p className="text-sm">No salary components added yet.</p>
-                       <p className="text-xs mt-1">Click below to add your first component.</p>
-                     </div>
-                   )}
-
-                   <button
-                      onClick={() => setShowSalaryModal(true)}
-                      className="w-full py-4 border-2 border-dashed border-navy-200 rounded-xl text-navy-500 hover:border-navy-500 hover:text-navy-600 hover:bg-navy-50/50 transition-all font-semibold flex items-center justify-center gap-2"
-                   >
-                      <DollarSign className="w-4 h-4" />
-                      Choose from Salary Components
-                   </button>
-                </div>
-
-                <div className="mt-8 p-6 rounded-2xl border border-navy-100 bg-gradient-to-br from-navy-50/50 to-navy-100/30">
-                   {(() => {
-                     const totalEarnings = formData.salaryComponents?.filter(c => c.type === ComponentType.EARNING).reduce((sum, c) => sum + c.amount, 0) || 0;
-                     const totalDeductions = formData.salaryComponents?.filter(c => c.type === ComponentType.DEDUCTION).reduce((sum, c) => sum + c.amount, 0) || 0;
-                     const netPayable = totalEarnings - totalDeductions;
-                     return (
-                       <>
-                         <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-navy-600">Total Earnings</span>
-                            <span className="font-bold text-navy-900">₹{totalEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                         </div>
-                         <div className="flex justify-between items-center mb-4 text-rose-600">
-                            <span className="text-sm">Total Deductions</span>
-                            <span className="font-bold">-₹{totalDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                         </div>
-                         <div className="h-px bg-navy-200 my-4" />
-                         <div className="flex justify-between items-center">
-                            <span className="text-base font-bold text-navy-900">Net Payable</span>
-                            <span className="text-xl font-extrabold text-gold-600">₹{netPayable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                         </div>
-                       </>
-                     );
-                   })()}
-                </div>
-             </div>
-          )}
-
-          {activeTab === 'policies' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <div>
-                <h2 className="text-lg font-bold text-navy-900">Contract Policies</h2>
-                <p className="text-sm text-navy-500">Define notice period, probation, overtime, and termination rules for this contract.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-navy-700">Probation Period</label>
-                  <select className="premium-input">
-                    <option value="">Select probation period</option>
-                    <option value="1">1 Month</option>
-                    <option value="2">2 Months</option>
-                    <option value="3">3 Months</option>
-                    <option value="6">6 Months</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-navy-700">Notice Period</label>
-                  <select className="premium-input">
-                    <option value="">Select notice period</option>
-                    <option value="7">7 Days</option>
-                    <option value="14">14 Days</option>
-                    <option value="30">30 Days</option>
-                    <option value="60">60 Days</option>
-                    <option value="90">90 Days</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-navy-700">Overtime Policy</label>
-                  <select className="premium-input">
-                    <option value="">Select overtime policy</option>
-                    <option value="none">No Overtime</option>
-                    <option value="1x">1x Rate</option>
-                    <option value="1.5x">1.5x Rate</option>
-                    <option value="2x">2x Rate</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-navy-700">Late Arrival Policy</label>
-                  <select className="premium-input">
-                    <option value="">Select late arrival policy</option>
-                    <option value="none">No Penalty</option>
-                    <option value="warning">Warning After 3 Times</option>
-                    <option value="deduct">Salary Deduction</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Pay Rate Multipliers */}
-              <div className="space-y-4">
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="text-sm font-bold text-navy-900">Pay Rate Multipliers</h3>
-                  <p className="text-xs text-navy-500 mt-0.5">Set the pay multiplier applied when staff work on holidays, weekends, or overtime hours.</p>
+                  <h2 className="text-lg font-bold text-slate-900">Salary Mapping</h2>
+                  <p className="text-sm text-slate-500">Configure salary components applicable to this contract.</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSalaryModal(true)}
+                  className="btn-premium-primary flex items-center gap-1.5 text-xs"
+                >
+                  <Plus className="w-4 h-4" />
+                  Map Component
+                </button>
+              </div>
 
-                {(
-                  [
-                    { key: 'holidayRate', label: 'Holiday Pay Rate', description: 'Applied when working on a public holiday' },
-                    { key: 'weekendRate', label: 'Weekend Pay Rate', description: 'Applied when working on a weekend day' },
-                    { key: 'overtimeRate', label: 'Overtime Pay Rate', description: 'Applied for hours worked beyond the contracted shift' },
-                  ] as { key: 'holidayRate' | 'weekendRate' | 'overtimeRate'; label: string; description: string }[]
-                ).map(({ key, label, description }) => (
-                  <div key={key} className="p-4 rounded-2xl border border-navy-100 bg-navy-50/30 space-y-3">
+              <div className="space-y-3">
+                {formData.salaryComponents.map((component: any) => (
+                  <div key={component.id} className="flex items-center justify-between p-4 bg-indigo-50/30 border border-indigo-100 rounded-2xl">
                     <div>
-                      <p className="text-sm font-semibold text-navy-800">{label}</p>
-                      <p className="text-xs text-navy-500">{description}</p>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        component.type === 'earning' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                      }`}>
+                        {component.type}
+                      </span>
+                      <p className="text-sm font-bold text-slate-800 mt-1">{component.name}</p>
+                      <p className="text-xs text-slate-400 capitalize">{component.calculationType} component</p>
                     </div>
-                    <div className="flex gap-3">
-                      {(['1x', '1.5x', '2x'] as const).map((rate) => (
-                        <button
-                          key={rate}
-                          type="button"
-                          onClick={() => handleInputChange(key, rate)}
-                          className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-bold transition-all duration-200
-                            ${formData[key] === rate
-                              ? 'bg-navy-600 border-navy-600 text-white shadow-md shadow-navy-200'
-                              : 'bg-white border-navy-200 text-navy-500 hover:border-navy-400 hover:text-navy-700'
-                            }`}
-                        >
-                          {rate}
-                        </button>
-                      ))}
+                    <div className="flex items-center gap-4">
+                      <span className="text-base font-extrabold text-slate-900">
+                        {component.calculationType === 'percentage' ? `${component.amount ?? 0}%` : `₹${Number(component.amount ?? 0).toLocaleString('en-IN')}`}
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveSalaryComponent(component.id)}
+                        className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
-              </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-navy-700">Termination Clause</label>
-                <textarea rows={4} placeholder="Describe the terms under which this contract may be terminated by either party..." className="premium-input" />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-navy-700">Confidentiality & Non-Compete</label>
-                <textarea rows={3} placeholder="Specify any confidentiality or non-compete obligations..." className="premium-input" />
-              </div>
-
-              <div className="p-5 rounded-2xl border border-gold-100 bg-gold-50/30 flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-gold-600 mt-0.5 shrink-0" />
-                <p className="text-sm text-gold-700">
-                  Policies defined here will be legally binding. Ensure all terms comply with local labor regulations before finalizing the contract.
-                </p>
+                {formData.salaryComponents.length === 0 && (
+                  <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400">
+                    <p className="text-sm font-bold">No salary components mapped yet.</p>
+                    <p className="text-xs mt-1">Click the Map Component button to start building the payout.</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
+          {/* TAB 3: SHIFT & WEEK */}
           {activeTab === 'shift' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-               <div>
-                  <h2 className="text-lg font-bold text-navy-900">Shift & Working Hours</h2>
-                  <p className="text-sm text-navy-500">Assign a shift pattern and define working hours for this contract.</p>
-               </div>
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Shift Pattern & Working Days</h2>
+                <p className="text-sm text-slate-500">Link operational shifts and work week constraints to this contract.</p>
+              </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {[
-                    { name: 'Standard Day Shift', time: '09:00 AM - 06:00 PM', days: 'Mon - Sat' },
-                    { name: 'Evening Shift', time: '02:00 PM - 10:00 PM', days: 'Mon - Sat' },
-                  ].map((shift, i) => (
-                    <div key={i} className="p-4 border border-navy-100 rounded-2xl hover:border-navy-600 hover:bg-navy-50/50 cursor-pointer transition-all group relative">
-                       <div className="flex justify-between items-start mb-2">
-                          <div className="p-2 bg-navy-50 rounded-lg group-hover:bg-navy-100 group-hover:text-navy-600 transition-colors">
-                             <Clock className="w-4 h-4" />
-                          </div>
-                          <input type="radio" name="shift" className="w-4 h-4 accent-navy-600" defaultChecked={i === 0} />
-                       </div>
-                       <p className="text-sm font-bold text-navy-900">{shift.name}</p>
-                       <p className="text-xs text-navy-500 mt-1">{shift.time}</p>
-                       <p className="text-xs font-semibold text-gold-600 mt-2">{shift.days}</p>
-                    </div>
-                  ))}
-
-                  <div className="p-6 bg-navy-50/50 rounded-2xl border border-navy-100 md:col-span-2">
-                     <h4 className="text-sm font-bold text-navy-900 mb-2 flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-navy-600" />
-                        Shift Configuration
-                     </h4>
-                     <p className="text-xs text-navy-500 leading-relaxed">
-                        Select a shift from the list above. Shifts are managed by administrators in the Global Masters section. If you don't see the shift you need, please contact your administrator.
-                     </p>
-                  </div>
-               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-slate-700">Select Shift*</label>
+                  <select
+                    className="premium-input w-full"
+                    value={formData.shiftId}
+                    onChange={(e) => handleInputChange('shiftId', e.target.value)}
+                    required
+                  >
+                    <option value="">Select Operational Shift...</option>
+                    {shiftsList.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.startTime} - {s.endTime})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-slate-700">Select Work Week*</label>
+                  <select
+                    className="premium-input w-full"
+                    value={formData.workWeekId}
+                    onChange={(e) => handleInputChange('workWeekId', e.target.value)}
+                    required
+                  >
+                    <option value="">Select Work Week...</option>
+                    {workWeeksList.map((w) => (
+                      <option key={w.id} value={w.id}>{w.name} ({(w.operationalDays || []).length} days)</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Mapping Tab */}
-          {activeTab === 'mapping' && (
-            <div className="p-6 space-y-6">
-              {/* Employee Assignment */}
-              <div className="flex items-start gap-4 rounded-2xl border border-navy-100 bg-navy-50/30 p-5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy-100">
-                  <User className="h-5 w-5 text-navy-600" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-navy-900">Employee Assignment *</h4>
-                  <p className="text-sm text-navy-600">Link this contract to a specific employee</p>
-                  <div className="mt-4">
-                    <select 
-                      className="premium-input w-full max-w-md"
-                      value={formData.employeeId || ''}
-                      onChange={(e) => {
-                        const selectedId = e.target.value;
-                        const selectedStaff = staffList.find(s => s.id === selectedId);
-                        handleInputChange('employeeId', selectedId);
-                        handleInputChange('employeeName', selectedStaff?.name || '');
-                      }}
-                    >
-                      <option value="">Select Employee</option>
-                      {staffList.map((staff) => (
-                        <option key={staff.id} value={staff.id}>
-                          {staff.name} - {staff.role} ({staff.assignedOutletName})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {formData.employeeId && (
-                    <div className="mt-4 p-4 bg-white rounded-xl border border-navy-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-navy-200 flex items-center justify-center">
-                          <User className="w-5 h-5 text-navy-600" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-navy-900">
-                            {staffList.find(s => s.id === formData.employeeId)?.name}
-                          </p>
-                          <p className="text-sm text-navy-500">
-                            {staffList.find(s => s.id === formData.employeeId)?.role} • {staffList.find(s => s.id === formData.employeeId)?.assignedOutletName}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+          {/* TAB 4: TERMS & OVERTIME */}
+          {activeTab === 'policies' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Contract Overtime & Status</h2>
+                <p className="text-sm text-slate-500">Configure overtime details and current drafting status.</p>
               </div>
 
-              <div className="flex items-start gap-4 rounded-2xl border border-navy-100 bg-navy-50/30 p-5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy-100">
-                  <Building2 className="h-5 w-5 text-navy-600" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-6 rounded-3xl border border-slate-200">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-slate-700">Contract Status*</label>
+                  <select
+                    className="premium-input w-full bg-white"
+                    value={formData.status}
+                    onChange={(e) => handleInputChange('status', e.target.value)}
+                    required
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="active">Active</option>
+                    <option value="terminated">Terminated</option>
+                  </select>
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-navy-900">Outlet Mapping</h4>
-                  <p className="text-sm text-navy-600">Assign contract to specific outlet locations</p>
-                  <div className="mt-4">
-                    <select className="premium-input w-full max-w-md">
-                      <option value="">Select Primary Outlet</option>
-                      <option value="hsr">HSR Layout</option>
-                      <option value="koramangala">Koramangala</option>
-                      <option value="indiranagar">Indiranagar</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          )}
-
-          {/* Leaves Tab */}
-          {activeTab === 'leaves' && (
-            <div className="p-6 space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-navy-100 bg-white/60 p-5">
-                  <h4 className="font-semibold text-navy-900 flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-navy-500" />
-                    Annual Leave
-                  </h4>
-                  <div className="mt-4 space-y-3">
-                    <div>
-                      <label className="label-text">Entitled Days</label>
-                      <input type="number" className="premium-input" defaultValue={12} />
-                    </div>
-                    <div>
-                      <label className="label-text">Carry Forward (Max)</label>
-                      <input type="number" className="premium-input" defaultValue={5} />
-                    </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 block">Overtime Policy</label>
+                  <div className="flex gap-4 items-center pt-2">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={formData.overtime?.enabled}
+                        onChange={() => handleNestedInputChange('overtime', 'enabled', !formData.overtime?.enabled)}
+                        className="w-4 h-4 rounded text-indigo-600 accent-indigo-600"
+                      />
+                      Is Overtime Allowed?
+                    </label>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-navy-100 bg-white/60 p-5">
-                  <h4 className="font-semibold text-navy-900 flex items-center gap-2">
-                    <Heart className="h-5 w-5 text-rose-500" />
-                    Sick Leave
-                  </h4>
-                  <div className="mt-4 space-y-3">
-                    <div>
-                      <label className="label-text">Entitled Days</label>
-                      <input type="number" className="premium-input" defaultValue={14} />
-                    </div>
-                    <div>
-                      <label className="label-text">Medical Certificate Required</label>
-                      <select className="premium-input">
-                        <option>After 2 consecutive days</option>
-                        <option>Always required</option>
-                        <option>Not required</option>
+                {formData.overtime?.enabled && (
+                  <>
+                    <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-200">
+                      <label className="text-sm font-bold text-slate-700">Overtime Multiplier Per Hour*</label>
+                      <select
+                        className="premium-input w-full bg-white"
+                        value={formData.overtime?.type || '1.5x'}
+                        onChange={(e) => handleNestedInputChange('overtime', 'type', e.target.value)}
+                      >
+                        <option value="1x">1x Normal Hourly Rate</option>
+                        <option value="1.5x">1.5x Normal Hourly Rate</option>
+                        <option value="2x">2x Normal Hourly Rate</option>
                       </select>
                     </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-navy-100 bg-white/60 p-5">
-                  <h4 className="font-semibold text-navy-900 flex items-center gap-2">
-                    <Baby className="h-5 w-5 text-gold-500" />
-                    Maternity Leave
-                  </h4>
-                  <div className="mt-4">
-                    <label className="label-text">Entitled Days</label>
-                    <input type="number" className="premium-input" defaultValue={90} />
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-navy-100 bg-white/60 p-5">
-                  <h4 className="font-semibold text-navy-900 flex items-center gap-2">
-                    <Umbrella className="h-5 w-5 text-blue-500" />
-                    Emergency Leave
-                  </h4>
-                  <div className="mt-4">
-                    <label className="label-text">Entitled Days (Per Year)</label>
-                    <input type="number" className="premium-input" defaultValue={3} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-gold-100 bg-gold-50/30 p-5">
-                <h4 className="font-semibold text-gold-800 flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  Leave Policy Notes
-                </h4>
-                <p className="mt-2 text-sm text-gold-700">
-                  Configure leave entitlements according to local labor laws and company policy. 
-                  Changes will apply to all staff under this contract.
-                </p>
+                    <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-200">
+                      <label className="text-sm font-bold text-slate-700">Fixed Overtime Rate (INR/Hr)</label>
+                      <input 
+                        type="number"
+                        placeholder="150"
+                        className="premium-input w-full bg-white"
+                        value={formData.overtime?.rateValue || ''}
+                        onChange={(e) => handleNestedInputChange('overtime', 'rateValue', e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
 
-          {/* Compliance Tab */}
-          {activeTab === 'compliance' && (
-            <div className="p-6 space-y-6">
-              <div className="rounded-2xl border border-navy-100 bg-white/60 p-5">
-                <h4 className="font-semibold text-navy-900 mb-4">Statutory Contributions</h4>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between rounded-xl border border-navy-50 bg-navy-50/30 p-4">
-                    <div className="flex items-center gap-3">
-                      <Shield className="h-5 w-5 text-navy-600" />
-                      <div>
-                        <p className="font-medium text-navy-900">EPF (Employees Provident Fund)</p>
-                        <p className="text-xs text-slate-500">Employer contribution: 12% | Employee: 11%</p>
-                      </div>
-                    </div>
-                    <label className="relative inline-flex cursor-pointer items-center">
-                      <input type="checkbox" checked className="peer sr-only" />
-                      <div className="h-6 w-11 rounded-full bg-slate-200 peer-checked:bg-navy-600"></div>
-                      <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-all peer-checked:left-6"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-xl border border-navy-50 bg-navy-50/30 p-4">
-                    <div className="flex items-center gap-3">
-                      <Shield className="h-5 w-5 text-navy-600" />
-                      <div>
-                        <p className="font-medium text-navy-900">SOCSO (Social Security)</p>
-                        <p className="text-xs text-slate-500">Employer contribution: 1.75% | Employee: 0.5%</p>
-                      </div>
-                    </div>
-                    <label className="relative inline-flex cursor-pointer items-center">
-                      <input type="checkbox" checked className="peer sr-only" />
-                      <div className="h-6 w-11 rounded-full bg-slate-200 peer-checked:bg-navy-600"></div>
-                      <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-all peer-checked:left-6"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-xl border border-navy-50 bg-navy-50/30 p-4">
-                    <div className="flex items-center gap-3">
-                      <Shield className="h-5 w-5 text-navy-600" />
-                      <div>
-                        <p className="font-medium text-navy-900">EIS (Employment Insurance)</p>
-                        <p className="text-xs text-slate-500">Employer contribution: 0.2% | Employee: 0.2%</p>
-                      </div>
-                    </div>
-                    <label className="relative inline-flex cursor-pointer items-center">
-                      <input type="checkbox" checked className="peer sr-only" />
-                      <div className="h-6 w-11 rounded-full bg-slate-200 peer-checked:bg-navy-600"></div>
-                      <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-all peer-checked:left-6"></div>
-                    </label>
-                  </div>
-                </div>
+          {/* TAB 5: HOLIDAYS & LEAVES */}
+          {activeTab === 'benefits' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Holidays & Leave Allocation</h2>
+                <p className="text-sm text-slate-500">Check multiple holiday templates and leave types to map them onto the employee contract.</p>
               </div>
 
-              <div className="rounded-2xl border border-navy-100 bg-white/60 p-5">
-                <h4 className="font-semibold text-navy-900 mb-4">Tax Configuration</h4>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="label-text">Tax Category</label>
-                    <select className="premium-input">
-                      <option>Resident Individual</option>
-                      <option>Non-Resident</option>
-                      <option>Expatriate</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label-text">PCB (Monthly Tax Deduction)</label>
-                    <select className="premium-input">
-                      <option>Schedule 1 - Normal</option>
-                      <option>Schedule 2 - Arrears</option>
-                      <option>Schedule 3 - Bonus</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Documents Tab */}
-          {activeTab === 'documents' && (
-            <div className="p-6 space-y-6">
-              <div className="rounded-2xl border border-navy-100 bg-white/60 p-5">
-                <h4 className="font-semibold text-navy-900 mb-4">Required Documents</h4>
-                <div className="space-y-3">
-                  {[
-                    { name: 'Employment Contract', required: true, status: 'uploaded' },
-                    { name: 'IC/Passport Copy', required: true, status: 'missing' },
-                    { name: 'Bank Account Details', required: true, status: 'uploaded' },
-                    { name: 'Emergency Contact Form', required: true, status: 'uploaded' },
-                    { name: 'Medical Certificate (if applicable)', required: false, status: 'missing' },
-                  ].map((doc, idx) => (
-                    <div key={idx} className="flex items-center justify-between rounded-xl border border-navy-50 bg-navy-50/30 p-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${doc.status === 'uploaded' ? 'bg-emerald-100' : 'bg-amber-100'}`}>
-                          {doc.status === 'uploaded' ? (
-                            <FileCheck className="h-5 w-5 text-emerald-600" />
-                          ) : (
-                            <FileUp className="h-5 w-5 text-amber-600" />
-                          )}
-                        </div>
+              {/* Holidays list */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">1. Select Holiday Groups / Templates*</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {holidayTemplates.map((template) => {
+                    const isSelected = formData.holidayGroupIds.includes(template.id);
+                    return (
+                      <div 
+                        key={template.id} 
+                        onClick={() => handleHolidayToggle(template.id)}
+                        className={`p-4 border rounded-2xl cursor-pointer transition-all flex items-start justify-between ${
+                          isSelected 
+                            ? 'bg-indigo-50/50 border-indigo-600 shadow-sm'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
                         <div>
-                          <p className="font-medium text-navy-900">{doc.name}</p>
-                          <p className="text-xs text-slate-500">
-                            {doc.required ? 'Required' : 'Optional'} • {doc.status === 'uploaded' ? 'Uploaded' : 'Pending'}
-                          </p>
+                          <p className="text-sm font-bold text-slate-900">{template.name}</p>
+                          <p className="text-xs text-slate-500 mt-1">{template.type} • {template.isRecurring ? 'Recurring' : 'One-off'}</p>
                         </div>
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="w-4 h-4 accent-indigo-600 mt-1"
+                        />
                       </div>
-                      <button className={`btn-premium-outline !py-1.5 !px-3 text-xs ${doc.status === 'uploaded' ? '' : 'animate-pulse'}`}>
-                        {doc.status === 'uploaded' ? 'Replace' : 'Upload'}
-                      </button>
-                    </div>
-                  ))}
+                    )})}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-dashed border-navy-300 bg-navy-50/20 p-8 text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-navy-100">
-                  <Upload className="h-8 w-8 text-navy-600" />
+              {/* Leaves list */}
+              <div className="space-y-3 pt-4">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">2. Map Leave Types*</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {leaveTypes.map((leave) => {
+                    const isSelected = formData.leaveAllocations.includes(leave.id);
+                    return (
+                      <div 
+                        key={leave.id} 
+                        onClick={() => handleLeaveToggle(leave.id)}
+                        className={`p-4 border rounded-2xl cursor-pointer transition-all flex items-start justify-between ${
+                          isSelected 
+                            ? 'bg-indigo-50/50 border-indigo-600 shadow-sm'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{leave.name} ({leave.code})</p>
+                          <p className="text-xs text-slate-500 mt-1">{leave.daysAllowed} days/yr • {leave.isPaid ? 'Paid' : 'Unpaid'}</p>
+                        </div>
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="w-4 h-4 accent-indigo-600 mt-1"
+                        />
+                      </div>
+                    )})}
                 </div>
-                <h4 className="mt-4 font-semibold text-navy-900">Upload Additional Documents</h4>
-                <p className="mt-2 text-sm text-slate-500">Drag and drop files here or click to browse</p>
-                <button className="btn-premium-outline mt-4">
-                  Select Files
-                </button>
               </div>
             </div>
           )}
+
         </div>
       </div>
 
       {/* Add Salary Component Modal */}
       {showSalaryModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-6">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 space-y-6 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-navy-900">Add Salary Component</h3>
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900">Map Salary Component</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Link an active salary component to the contract.</p>
+              </div>
               <button
-                onClick={() => setShowSalaryModal(false)}
-                className="p-2 hover:bg-navy-50 rounded-lg transition-colors"
+                onClick={() => { setShowSalaryModal(false); setSelectedSalaryMaster(null); }}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <X className="w-5 h-5 text-navy-500" />
+                <X className="w-5 h-5 text-slate-500" />
               </button>
             </div>
 
             <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-navy-700">Select Salary Component *</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Choose Component*</label>
                 <select
                   className="premium-input w-full"
                   value={selectedSalaryMaster?.id || ''}
                   onChange={(e) => {
-                    const master = salaryMasters.find((sm: SalaryMaster) => sm.id === e.target.value);
-                    setSelectedSalaryMaster(master || null);
+                    const master = salaryMasters.find(s => s.id === e.target.value);
+                    setSelectedSalaryMaster(master);
                     setCustomAmount(master?.defaultAmount?.toString() || '');
                   }}
                 >
-                  <option value="">Choose a salary component...</option>
-                  {salaryMasters.map((master: SalaryMaster) => (
-                    <option key={master.id} value={master.id}>
-                      {master.name} ({master.code}) - {master.type}
-                    </option>
+                  <option value="">Choose Component...</option>
+                  {salaryMasters.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
                   ))}
                 </select>
               </div>
 
               {selectedSalaryMaster && (
-                <>
-                  <div className="p-3 bg-navy-50 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`px-2 py-1 rounded text-xs font-bold ${
-                        selectedSalaryMaster.type === 'earning' 
-                          ? 'bg-emerald-100 text-emerald-700' 
-                          : 'bg-rose-100 text-rose-700'
-                      }`}>
-                        {selectedSalaryMaster.type.toUpperCase()}
-                      </div>
-                      <span className="text-xs text-navy-600">
-                        {selectedSalaryMaster.calculationType}
-                      </span>
-                    </div>
-                    <p className="text-sm text-navy-700">{selectedSalaryMaster.description}</p>
-                    <p className="text-xs text-navy-500 mt-1">
-                      Default: {selectedSalaryMaster.calculationType === 'percentage' 
-                        ? `${selectedSalaryMaster.defaultAmount || 0}%` 
-                        : `₹${(selectedSalaryMaster.defaultAmount || 0).toLocaleString('en-IN')}`
-                      }
+                <div className="space-y-4 animate-in slide-in-from-top-2 duration-200">
+                  <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl">
+                    <span className="text-xs font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
+                      {selectedSalaryMaster.type.toUpperCase()}
+                    </span>
+                    <p className="text-xs text-slate-500 mt-2">{selectedSalaryMaster.description || 'No description provided'}</p>
+                    <p className="text-xs text-slate-500 font-semibold mt-1">
+                      Calculation Logic: {selectedSalaryMaster.calculationType} (default: {selectedSalaryMaster.defaultAmount})
                     </p>
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-navy-700">
-                      Amount ({selectedSalaryMaster.calculationType === 'percentage' ? '%' : '₹'}) *
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                      Custom Payout Value ({selectedSalaryMaster.calculationType === 'percentage' ? '%' : 'INR'})*
                     </label>
-                    <input
+                    <input 
                       type="number"
-                      placeholder={selectedSalaryMaster.defaultAmount?.toString() || '0.00'}
+                      placeholder="e.g. 30000"
                       className="premium-input w-full"
                       value={customAmount}
                       onChange={(e) => setCustomAmount(e.target.value)}
                     />
                   </div>
-                </>
+                </div>
               )}
             </div>
 
             <div className="flex gap-3 pt-2">
               <button
-                onClick={() => setShowSalaryModal(false)}
-                className="flex-1 btn-premium-outline"
+                onClick={() => { setShowSalaryModal(false); setSelectedSalaryMaster(null); }}
+                className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-all"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddSalaryComponent}
-                className="flex-1 btn-premium-primary flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-6 flex items-center justify-center gap-2 text-sm font-bold text-white bg-indigo-600 rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all"
               >
                 <Plus className="w-4 h-4" />
                 Add Component

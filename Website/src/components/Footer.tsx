@@ -19,6 +19,14 @@ const Tiktok = ({ size = 24, ...props }: { size?: number } & React.SVGProps<SVGS
   </svg>
 );
 
+const LotusIcon = ({ size = 24, className = "" }: { size?: number, className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 22s-4-6-4-10c0-3 2-5 4-5s4 2 4 5c0 4-4 10-4 10z" />
+    <path d="M12 22s-6-3-8-8c-2-4 0-7 0-7s2 1 4 4c2 3 4 11 4 11z" />
+    <path d="M12 22s6-3 8-8c2-4 0-7 0-7s-2 1-4 4c-2 3-4 11-4 11z" />
+  </svg>
+);
+
 // ==========================================
 // UPDATE YOUR SOCIAL MEDIA LINKS HERE:
 // ==========================================
@@ -42,16 +50,21 @@ const SOCIAL_LINKS = [
 
 export default function Footer() {
   return (
-    <footer id="contact" className="bg-primary text-primary-foreground pt-24 pb-10 mt-12 relative overflow-hidden">
+    <footer id="contact" className="bg-primary text-primary-foreground pt-16 pb-8 mt-12 relative overflow-hidden">
       <div className="absolute -top-32 -right-32 w-[30rem] h-[30rem] rounded-full bg-gold/10 blur-3xl" />
       <div className="mx-auto max-w-7xl px-6 relative">
-        <div className="grid lg:grid-cols-12 gap-12">
+        <div className="grid lg:grid-cols-12 gap-8 lg:gap-12">
           <div className="lg:col-span-4">
-            <img src="/GLOWY LOGO (Without BG).png" alt="Glowy" className="h-10 w-auto" />
-            <p className="mt-6 text-primary-foreground/70 leading-relaxed max-w-sm">
-              A sanctuary of soft light and considered beauty. Glow to go, with Glowy.
+            <img src="/GLOWY LOGO (Without BG).png" alt="Glowy" className="h-10 w-auto mb-5" />
+            <p className="text-primary-foreground/90 leading-relaxed max-w-sm text-[15px]">
+              A sanctuary of soft light and
+              <br />
+              considered beauty.
             </p>
-            <div className="mt-6 flex gap-3">
+            <p className="mt-5 text-primary-foreground/90 font-medium text-[15px]">
+              Glow To Go With Glowy <span className="text-gold ml-1">✨</span>
+            </p>
+            <div className="mt-6 flex gap-4">
               {SOCIAL_LINKS.map((social, i) => {
                 const Icon = social.icon;
                 return (
@@ -72,22 +85,34 @@ export default function Footer() {
 
           <div className="lg:col-span-2">
             <h4 className="text-sm uppercase tracking-widest text-gold">Explore</h4>
-            <ul className="mt-5 space-y-3 text-sm text-primary-foreground/75">
+            <ul className="mt-6 space-y-4 text-[15px] text-primary-foreground/80">
               <li><a href="#about" className="hover:text-gold transition-colors">About</a></li>
               <li><a href="#services" className="hover:text-gold transition-colors">Services</a></li>
-              {/* <li><a href="#gallery" className="hover:text-gold transition-colors">Gallery</a></li> */}
-              <li><a href="#pricing" className="hover:text-gold transition-colors">Pricing</a></li>
-              {/* <li><a href="#testimonials" className="hover:text-gold transition-colors">Testimonials</a></li> */}
+              <li><a href="#packages" className="hover:text-gold transition-colors">Packages</a></li>
+              <li><a href="#products" className="hover:text-gold transition-colors">Products</a></li>
+              <li><a href="#contact" className="hover:text-gold transition-colors">Contact</a></li>
             </ul>
           </div>
 
           <div className="lg:col-span-3">
             <h4 className="text-sm uppercase tracking-widest text-gold">Contact</h4>
-            <ul className="mt-5 space-y-4 text-sm text-primary-foreground/80">
-              <li className="flex gap-3"><MapPin size={16} className="text-gold mt-0.5 shrink-0" /> 15, Jalan Telawi, Bangsar, 59100 Kuala Lumpur, Malaysia</li>
-              <li className="flex gap-3"><Phone size={16} className="text-gold mt-0.5 shrink-0" /> +60 3-2282 1234</li>
-              <li className="flex gap-3"><Mail size={16} className="text-gold mt-0.5 shrink-0" /> glowy.beautyspasb@gmail.com</li>
-              <li className="flex gap-3"><Clock size={16} className="text-gold mt-0.5 shrink-0" /> Sun – Sat · 10am – 8pm</li>
+            <ul className="mt-6 space-y-4 text-[15px] text-primary-foreground/80">
+              <li className="flex gap-3 items-start">
+                <MapPin size={18} className="text-gold shrink-0 mt-0.5" />
+                <span className="leading-relaxed">15, Jalan Telawi, Bangsar, 59100<br />Kuala Lumpur, Malaysia</span>
+              </li>
+              <li className="flex gap-3 items-center">
+                <Phone size={18} className="text-gold shrink-0" />
+                <span>+60 3-2282 1234</span>
+              </li>
+              <li className="flex gap-3 items-center">
+                <Mail size={18} className="text-gold shrink-0" />
+                <span>glowy.beautyspasb@gmail.com</span>
+              </li>
+              <li className="flex gap-3 items-center">
+                <Clock size={18} className="text-gold shrink-0" />
+                <span>Sun – Sat · 10am – 8pm</span>
+              </li>
             </ul>
           </div>
 
@@ -107,13 +132,26 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-16 pt-8 border-t border-white/10 flex flex-col md:flex-row gap-4 items-center justify-between text-xs text-primary-foreground/50">
-          <p>© {new Date().getFullYear()} Glowy. Crafted with quiet care.</p>
-          <div className="flex gap-6">
-            <Link to="/privacy-policy" className="hover:text-gold transition-colors">Privacy Policy</Link>
-            <Link to="/terms-conditions" className="hover:text-gold transition-colors">Terms & Conditions</Link>
+        <div className="mt-12 flex flex-col gap-6">
+          <div className="flex items-center justify-center gap-3 w-full">
+            <div className="h-px bg-gold/40 flex-1 max-w-[45%]"></div>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-gold/70"></div>
+              <LotusIcon size={24} className="text-gold" />
+              <div className="w-1.5 h-1.5 rounded-full bg-gold/70"></div>
+            </div>
+            <div className="h-px bg-gold/40 flex-1 max-w-[45%]"></div>
           </div>
-          <p>Glow To Go With Glowy ✦</p>
+
+          <div className="flex flex-col md:flex-row items-center justify-between text-[13px] text-primary-foreground/70 w-full">
+            <p className="flex-1 text-center md:text-left mb-4 md:mb-0">© {new Date().getFullYear()} Glowy. Crafted with quiet care.</p>
+            <div className="flex gap-4 items-center justify-center flex-none">
+              <Link to="/privacy-policy" className="hover:text-primary-foreground transition-colors">Privacy Policy</Link>
+              <span className="text-primary-foreground/30">|</span>
+              <Link to="/terms-conditions" className="hover:text-primary-foreground transition-colors">Terms & Conditions</Link>
+            </div>
+
+          </div>
         </div>
       </div>
     </footer>

@@ -18,6 +18,19 @@ const budgetRoutes = require('./budgets');
 const auditLogRoutes = require('./auditLogRoutes');
 const notificationRoutes = require('./notifications');
 
+// HR and Contract routes
+const staffRoutes = require('./staff');
+const contractRoutes = require('./contracts');
+const roleRoutes = require('./roles');
+const shiftRoutes = require('./shifts');
+const leaveTypeRoutes = require('./leaveTypes');
+const workWeekRoutes = require('./workWeeks');
+const contractTypeRoutes = require('./contractTypes');
+const holidayTemplateRoutes = require('./holidayTemplates');
+const holidayRoutes = require('./holidays');
+const contractGroupRoutes = require('./contractGroups');
+const salaryMasterRoutes = require('./salaryMasters');
+
 router.get('/', (req, res) => {
   res.json({ message: 'Glowy Saloon API v1' });
 });
@@ -38,5 +51,18 @@ router.use('/banks', bankRoutes);
 router.use('/budgets', budgetRoutes);
 router.use('/audit-logs', auditLogRoutes);
 router.use('/notifications', notificationRoutes);
+
+// Register HR and Contract routes
+router.use('/staff', staffRoutes);
+router.use('/contracts', contractRoutes);
+router.use('/roles', roleRoutes);
+router.use('/shifts', shiftRoutes);
+router.use('/leave-types', leaveTypeRoutes);
+router.use('/work-weeks', workWeekRoutes);
+router.use('/contract-types', contractTypeRoutes);
+router.use('/holiday-templates', holidayTemplateRoutes);
+router.use('/holidays', holidayRoutes);
+router.use('/contract-groups', contractGroupRoutes);
+router.use('/salary-masters', salaryMasterRoutes);
 
 module.exports = router;

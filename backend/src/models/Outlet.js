@@ -40,6 +40,10 @@ const Outlet = sequelize.define('Outlet', {
     type: DataTypes.STRING(150),
     allowNull: true,
   },
+  employee_code_prefix: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
   status: {
     type: DataTypes.ENUM('active', 'inactive'),
     defaultValue: 'active',

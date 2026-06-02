@@ -161,7 +161,6 @@
   gap: 1rem;
   margin-bottom: 2rem;
   border-bottom: 1px solid var(--emp-border);
-  padding-bottom: 1px;
 }
 
 .tab-btn {
@@ -172,10 +171,16 @@
   color: var(--emp-text-muted);
   cursor: pointer;
   position: relative;
+  transition: all 0.2s ease-in-out;
+}
+
+.tab-btn:hover {
+  color: var(--emp-primary-light);
 }
 
 .tab-btn.active {
   color: var(--emp-primary);
+  font-weight: 600;
 }
 
 .tab-btn.active::after {

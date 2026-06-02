@@ -4,7 +4,7 @@ import { Loader2, Users } from 'lucide-react';
 import { EmployeeFilters } from '../components/EmployeeFilters';
 import { EmployeeTable } from '../components/EmployeeTable/EmployeeTable';
 import { EmployeeBulkImport } from '../components/EmployeeBulkImport';
-import { fetchStaff, deleteEmployee } from '../../../services/mockApi';
+import { fetchStaff, deleteEmployee } from '../../../services/api';
 import { useToastStore } from '../../../stores/toastStore';
 import { ConfirmModal } from '../../../components/ui/Modal';
 import { EmptyTable } from '../../../components/ui/EmptyState';

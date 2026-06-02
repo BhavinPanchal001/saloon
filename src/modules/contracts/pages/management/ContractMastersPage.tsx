@@ -1,96 +1,202 @@
-import React, { useState } from 'react';
-import { Plus, Search, Edit, Trash2, DollarSign, Clock, Calendar, Shield, Briefcase, FileText, BookOpen } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Search, Edit, Trash2, DollarSign, Clock, Calendar, Shield, Briefcase, FileText, Check, AlertCircle } from 'lucide-react';
 import ContractModuleLayout from '../../components/ContractModuleLayout';
 import MasterFormModal from '../../components/masters/MasterFormModal';
-import { ComponentType, CalculationType } from '../../types';
+import { 
+  fetchRoles, deleteRole, toggleRoleStatus,
+  fetchShifts, deleteShift, toggleShiftStatus,
+  fetchLeaveTypes, deleteLeaveType,
+  fetchWorkWeeks, deleteWorkWeek, toggleWorkWeekStatus,
+  fetchContractTypes, deleteContractType, toggleContractTypeStatus,
+  fetchHolidayTemplates, deleteHolidayTemplate,
+  fetchHolidays, deleteHoliday,
+  fetchSalaryMasters, deleteSalaryMaster, toggleSalaryMasterStatus
+} from '../../../../services/api';
+import { useToastStore } from '../../../../stores/toastStore';
 
-// Master categories
+// Master categories tabs
 const MASTER_TABS = [
-  { id: 'salary', label: 'Salary Components', icon: DollarSign },
+  { id: 'roles', label: 'Roles', icon: Shield },
   { id: 'shifts', label: 'Shifts', icon: Clock },
   { id: 'leaves', label: 'Leave Types', icon: Calendar },
-  { id: 'holidays', label: 'Holiday Groups', icon: Shield },
+  { id: 'workweeks', label: 'Work Weeks', icon: Calendar },
+  { id: 'holidays', label: 'Holidays', icon: Shield },
   { id: 'types', label: 'Contract Types', icon: Briefcase },
-  { id: 'templates', label: 'Templates', icon: FileText },
+  { id: 'salary', label: 'Salary Components', icon: DollarSign },
 ];
 
-// Mock master data
-const MOCK_MASTERS: Record<string, any[]> = {
-  salary: [
-    { id: 's1', name: 'Basic Salary', code: 'SAL-BAS', type: 'earning', calculationType: 'fixed', defaultAmount: 3000, isActive: true },
-    { id: 's2', name: 'Housing Allowance', code: 'SAL-HSG', type: 'earning', calculationType: 'percentage', defaultAmount: 500, isActive: true },
-    { id: 's3', name: 'EPF Deduction', code: 'SAL-EPF', type: 'deduction', calculationType: 'percentage', defaultAmount: 11, isActive: true },
-    { id: 's4', name: 'SOCSO', code: 'SAL-SOC', type: 'deduction', calculationType: 'fixed', defaultAmount: 30, isActive: true },
-  ],
-  shifts: [
-    { id: 'sh1', name: 'Morning Shift', code: 'SH-AM', startTime: '08:00', endTime: '16:00', workingHours: 8, isActive: true },
-    { id: 'sh2', name: 'Afternoon Shift', code: 'SH-PM', startTime: '12:00', endTime: '20:00', workingHours: 8, isActive: true },
-    { id: 'sh3', name: 'Full Day', code: 'SH-FD', startTime: '09:00', endTime: '18:00', workingHours: 9, isActive: true },
-  ],
-  leaves: [
-    { id: 'l1', name: 'Annual Leave', code: 'LV-ANN', defaultCount: 14, isPaid: true, isActive: true },
-    { id: 'l2', name: 'Sick Leave', code: 'LV-SCK', defaultCount: 14, isPaid: true, isActive: true },
-    { id: 'l3', name: 'Maternity Leave', code: 'LV-MAT', defaultCount: 60, isPaid: true, isActive: true },
-    { id: 'l4', name: 'Unpaid Leave', code: 'LV-UNP', defaultCount: 0, isPaid: false, isActive: true },
-  ],
-  holidays: [
-    { id: 'h1', name: 'National Holidays 2025', code: 'HOL-NAT', date: '2025-01-01', isRecurring: true, isActive: true },
-    { id: 'h2', name: 'Company Holidays', code: 'HOL-CMP', date: '2025-03-01', isRecurring: false, isActive: true },
-  ],
-  types: [
-    { id: 't1', name: 'Full-Time Employment', code: 'CT-FTE', description: 'Standard full-time employment contract', isActive: true },
-    { id: 't2', name: 'Part-Time Employment', code: 'CT-PTE', description: 'Part-time employment contract', isActive: true },
-    { id: 't3', name: 'Internship', code: 'CT-INT', description: 'Internship/training contract', isActive: true },
-  ],
-  templates: [
-    { id: 'tp1', name: 'Standard Employment', code: 'TPL-STD', description: 'Default template for full-time staff', isActive: true },
-    { id: 'tp2', name: 'Intern Template', code: 'TPL-INT', description: 'Template for internship contracts', isActive: true },
-  ],
-};
-
 const ContractMastersPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('salary');
+  const toast = useToastStore();
+  const [activeTab, setActiveTab] = useState('roles');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const currentItems = MOCK_MASTERS[activeTab] || [];
-  const filteredItems = currentItems.filter(item =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Dynamic masters collections
+  const [mastersList, setMastersList] = useState<any[]>([]);
+
+  // Holidays specific dual list
+  const [occasionsList, setOccasionsList] = useState<any[]>([]);
+
+  const loadMastersData = async () => {
+    setLoading(true);
+    try {
+      if (activeTab === 'roles') {
+        const data = await fetchRoles();
+        setMastersList(data);
+      } else if (activeTab === 'shifts') {
+        const data = await fetchShifts();
+        setMastersList(data);
+      } else if (activeTab === 'leaves') {
+        const data = await fetchLeaveTypes();
+        setMastersList(data);
+      } else if (activeTab === 'workweeks') {
+        const data = await fetchWorkWeeks();
+        setMastersList(data);
+      } else if (activeTab === 'types') {
+        const data = await fetchContractTypes();
+        setMastersList(data);
+      } else if (activeTab === 'salary') {
+        const data = await fetchSalaryMasters();
+        setMastersList(data);
+      } else if (activeTab === 'holidays') {
+        const [templates, occasions] = await Promise.all([
+          fetchHolidayTemplates(),
+          fetchHolidays()
+        ]);
+        setMastersList(templates);
+        setOccasionsList(occasions);
+      }
+    } catch (err) {
+      toast.error('Failed to load master records');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMastersData();
+  }, [activeTab]);
 
   const getTabLabel = () => MASTER_TABS.find(t => t.id === activeTab)?.label || '';
 
+  // Handle toggling Active status of records
+  const handleToggleStatus = async (item: any) => {
+    try {
+      let updated = null;
+      if (activeTab === 'roles') {
+        updated = await toggleRoleStatus(item.id);
+      } else if (activeTab === 'shifts') {
+        updated = await toggleShiftStatus(item.id);
+      } else if (activeTab === 'workweeks') {
+        updated = await toggleWorkWeekStatus(item.id);
+      } else if (activeTab === 'types') {
+        updated = await toggleContractTypeStatus(item.id);
+      } else if (activeTab === 'salary') {
+        updated = await toggleSalaryMasterStatus(item.id);
+      }
+      
+      if (updated) {
+        toast.success(`${getTabLabel().replace(/s$/, '')} status toggled`);
+        loadMastersData();
+      }
+    } catch (err) {
+      toast.error('Failed to toggle status');
+    }
+  };
+
+  // Handle delete actions
+  const handleDeleteItem = async (id: string, isOccasion = false) => {
+    if (!window.confirm('Are you sure you want to delete this master record? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      if (activeTab === 'roles') {
+        await deleteRole(id);
+      } else if (activeTab === 'shifts') {
+        await deleteShift(id);
+      } else if (activeTab === 'leaves') {
+        await deleteLeaveType(id);
+      } else if (activeTab === 'workweeks') {
+        await deleteWorkWeek(id);
+      } else if (activeTab === 'types') {
+        await deleteContractType(id);
+      } else if (activeTab === 'salary') {
+        await deleteSalaryMaster(id);
+      } else if (activeTab === 'holidays') {
+        if (isOccasion) {
+          await deleteHoliday(id);
+        } else {
+          await deleteHolidayTemplate(id);
+        }
+      }
+      
+      toast.success('Master record deleted successfully');
+      loadMastersData();
+    } catch (err) {
+      toast.error('Failed to delete master record');
+    }
+  };
+
+  // Filtered items based on search query
+  const filteredItems = mastersList.filter(item => {
+    const nameStr = item.name || item.occasionName || '';
+    const codeStr = item.code || '';
+    return nameStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           codeStr.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  const filteredOccasions = occasionsList.filter(item => {
+    return (item.occasionName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (item.occasionType || '').toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
   const renderItemDetails = (item: any) => {
     switch (activeTab) {
+      case 'roles':
+        return (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-600">{item.description || 'No description provided'}</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+              item.isEmployee 
+                ? 'bg-indigo-50 text-indigo-700 border-indigo-200' 
+                : 'bg-slate-50 text-slate-500 border-slate-200'
+            }`}>
+              {item.isEmployee ? 'Employee Role' : 'Vendor/Other'}
+            </span>
+          </div>
+        );
       case 'salary':
         return (
           <div className="flex items-center gap-3">
-            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
               item.type === 'earning' 
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                 : 'bg-rose-50 text-rose-700 border-rose-200'
             }`}>
               {item.type === 'earning' ? 'Earning' : 'Deduction'}
             </span>
-            <span className="text-xs text-slate-500 capitalize">{item.calculationType}</span>
-            <span className="text-sm font-semibold text-slate-700">
-              {item.calculationType === 'percentage' ? `${item.defaultAmount}%` : `RM ${item.defaultAmount}`}
+            <span className="text-xs text-slate-500 font-bold capitalize">{item.calculationType}</span>
+            <span className="text-sm font-extrabold text-slate-700">
+              {item.calculationType === 'percentage' ? `${item.defaultAmount ?? 0}%` : `₹${Number(item.defaultAmount ?? 0).toLocaleString('en-IN')}`}
             </span>
           </div>
         );
       case 'shifts':
         return (
-          <div className="flex items-center gap-3 text-sm text-slate-600">
-            <span>{item.startTime} - {item.endTime}</span>
-            <span className="text-xs bg-slate-100 px-2 py-0.5 rounded">{item.workingHours}h</span>
+          <div className="flex items-center gap-4 text-sm text-slate-600">
+            <span className="font-bold">{item.startTime} - {item.endTime}</span>
+            <span className="text-xs bg-slate-100 px-2 py-0.5 rounded">Break: {item.breakDuration || 0}m</span>
+            <span className="text-xs bg-slate-100 px-2 py-0.5 rounded">Grace: {item.gracePeriod || 0}m</span>
           </div>
         );
       case 'leaves':
         return (
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-600">{item.defaultCount} days/year</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-700 font-semibold">{item.daysAllowed} days/yr</span>
+            <span className="text-xs text-slate-400">Notice: {item.advanceNoticeDays}d</span>
             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
               item.isPaid 
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
@@ -98,21 +204,51 @@ const ContractMastersPage: React.FC = () => {
             }`}>
               {item.isPaid ? 'Paid' : 'Unpaid'}
             </span>
+            {item.allowHourly && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Hourly Limit: {item.hourlyHours}h
+              </span>
+            )}
+            {item.neededDocument && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                Requires Doc
+              </span>
+            )}
+          </div>
+        );
+      case 'workweeks':
+        return (
+          <div className="flex flex-wrap gap-1">
+            {(item.operationalDays || []).map((day: string) => (
+              <span key={day} className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs font-bold">
+                {day.substring(0, 3)}
+              </span>
+            ))}
+            {(item.operationalDays || []).length === 0 && (
+              <span className="text-xs text-slate-400">No operational days selected</span>
+            )}
+          </div>
+        );
+      case 'types':
+        return (
+          <div className="flex items-center gap-4 text-sm text-slate-600">
+            <span>{item.description || 'No description'}</span>
+            <span className="px-2 py-0.5 rounded bg-slate-100 text-xs font-semibold font-mono">
+              Templates: {(item.requiredDocuments || []).length} linked
+            </span>
           </div>
         );
       case 'holidays':
         return (
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-600">{item.date}</span>
-            {item.isRecurring && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">Recurring</span>
-            )}
+          <div className="text-sm text-slate-500">
+            <span className="px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-xs">
+              {item.type}
+            </span>
+            <span className="ml-3">{item.description}</span>
           </div>
         );
       default:
-        return item.description ? (
-          <p className="text-sm text-slate-500">{item.description}</p>
-        ) : null;
+        return null;
     }
   };
 
@@ -127,7 +263,7 @@ const ContractMastersPage: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => { setActiveTab(tab.id); setSearchTerm(''); }}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl transition-all ${
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl transition-all ${
                   activeTab === tab.id
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
                     : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
@@ -154,10 +290,15 @@ const ContractMastersPage: React.FC = () => {
           </div>
           <button
             onClick={() => { setEditingItem(null); setShowFormModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
           >
             <Plus className="w-4 h-4" />
-            Add {getTabLabel().replace(/s$/, '')}
+            Add {
+              activeTab === 'types' ? 'Contract Type' : 
+              activeTab === 'leaves' ? 'Leave Type' : 
+              activeTab === 'workweeks' ? 'Work Week' :
+              activeTab.replace(/s$/, '')
+            }
           </button>
         </div>
 
@@ -166,43 +307,54 @@ const ContractMastersPage: React.FC = () => {
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Name</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Code</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Details</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Status</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Actions</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Name</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">{activeTab === 'leaves' ? 'Code' : activeTab === 'salary' ? 'Code' : 'Info / Code'}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Details</th>
+                {activeTab !== 'leaves' && activeTab !== 'holidays' && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Status</th>}
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredItems.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                    Loading {getTabLabel().toLowerCase()}...
+                  </td>
+                </tr>
+              ) : filteredItems.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                    No {getTabLabel().toLowerCase()} found
+                    No {getTabLabel().toLowerCase()} records found
                   </td>
                 </tr>
               ) : (
                 filteredItems.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="text-sm font-semibold text-slate-900">{item.name}</p>
+                      <p className="text-sm font-bold text-slate-900">{item.name || item.occasionName}</p>
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex px-2.5 py-1 rounded-md text-xs font-mono font-medium bg-slate-100 text-slate-600">
-                        {item.code}
+                        {item.code || item.id}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       {renderItemDetails(item)}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                        item.isActive
-                          ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                          : 'bg-slate-100 text-slate-500 border-slate-200'
-                      }`}>
-                        {item.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
+                    {activeTab !== 'leaves' && activeTab !== 'holidays' && (
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => handleToggleStatus(item)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-all cursor-pointer ${
+                            item.isActive
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200'
+                              : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                          }`}
+                        >
+                          {item.isActive ? 'Active' : 'Inactive'}
+                        </button>
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1">
                         <button
@@ -213,6 +365,7 @@ const ContractMastersPage: React.FC = () => {
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
+                          onClick={() => handleDeleteItem(item.id)}
                           className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                           title="Delete"
                         >
@@ -225,12 +378,82 @@ const ContractMastersPage: React.FC = () => {
               )}
             </tbody>
           </table>
-
-          {/* Footer */}
-          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-            <p className="text-sm text-slate-500">{filteredItems.length} {getTabLabel().toLowerCase()}</p>
-          </div>
         </div>
+
+        {/* Holidays Specific Subsection: Occasion List (Holiday Master) */}
+        {activeTab === 'holidays' && !loading && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-8">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Holiday Occasions Master (Occasion Calendar)</h3>
+                <p className="text-xs text-slate-500">Occasion dates mapped to specific holiday templates.</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Occasion Name</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Start / End Date</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Template ID</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Occasion Type</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredOccasions.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                        No occasion dates found. Use the add button above and select "Holiday Occasion" to link dates!
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredOccasions.map((occ) => (
+                      <tr key={occ.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-bold text-slate-900">{occ.occasionName}</p>
+                          <p className="text-xs text-slate-400">{occ.description}</p>
+                        </td>
+                        <td className="px-6 py-4 text-sm font-semibold text-slate-700">
+                          {occ.startDate} {occ.endDate && occ.endDate !== occ.startDate ? `to ${occ.endDate}` : ''}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600 font-mono font-medium">
+                            {mastersList.find(t => t.id === occ.templateId)?.name || occ.templateId}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700">
+                            {occ.occasionType}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-1">
+                            <button
+                              onClick={() => { setEditingItem(occ); setShowFormModal(true); }}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                              title="Edit"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteItem(occ.id, true)}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Master Form Modal */}
@@ -239,7 +462,7 @@ const ContractMastersPage: React.FC = () => {
         onClose={() => { setShowFormModal(false); setEditingItem(null); }}
         masterType={activeTab}
         initialData={editingItem}
-        onSave={() => { setShowFormModal(false); setEditingItem(null); }}
+        onSave={() => { setShowFormModal(false); setEditingItem(null); loadMastersData(); }}
       />
     </ContractModuleLayout>
   );

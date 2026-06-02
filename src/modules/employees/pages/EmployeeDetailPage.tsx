@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, Building, UserCheck, Loader2 } from 'lucide-react';
-import { fetchStaffProfile, updateStaffStatus, resetStaffPassword } from "../../../services/mockApi";
+import { fetchStaffProfile, updateStaffStatus, resetStaffPassword } from "../../../services/api";
 import { useToastStore } from '../../../stores/toastStore';
 import { ConfirmModal } from '../../../components/ui/Modal';
 import { ErrorState } from '../../../components/ui/EmptyState';

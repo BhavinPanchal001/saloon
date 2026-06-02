@@ -272,7 +272,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 bg-navy-900 text-white shadow-2xl transition md:static md:translate-x-0 md:rounded-r-[2rem] flex flex-col ${
+        className={`fixed inset-y-0 left-0 z-40 bg-navy-900 text-white shadow-2xl transition md:sticky md:top-0 md:h-screen md:translate-x-0 md:rounded-r-[2rem] flex flex-col ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } ${collapsed ? "w-[80px] px-3 py-6" : "w-[280px] px-5 py-6"}`}
       >
@@ -338,7 +338,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
         )}
 
         {/* ── Navigation ── */}
-        <nav className={`mt-6 flex-1 overflow-y-auto pb-4 ${collapsed ? "space-y-4" : "space-y-3 pr-1"}`}>
+        <nav className={`mt-6 flex-1 overflow-y-auto no-scrollbar pb-4 ${collapsed ? "space-y-4" : "space-y-3 pr-1"}`}>
           {navigation.map((group) => (
             <NavSection
               key={group.section}

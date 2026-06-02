@@ -26,13 +26,11 @@ export default function About() {
           <FadeIn delay={0.1}>
             <div className="gold-divider my-8" />
             <p className="text-muted-foreground leading-relaxed text-lg">
-              Founded by master stylist Aanya Rao, Glowy is a slow-beauty house
-              built on the belief that softness is strength. Every treatment is
-              composed like a poem — deliberate, gentle, transformative.
+              Founded by master stylist Aanya Rao, Glowy is a luxury beauty house dedicated to personalized care, premium rituals, and modern self-care experiences.
+              Every treatment is thoughtfully crafted to deliver relaxation, confidence, and radiant beauty.
             </p>
             <p className="text-muted-foreground leading-relaxed mt-4">
-              We blend organic botanicals with Japanese precision and Parisian
-              finesse, delivered in a space that feels like sunlight through linen.
+              We blend organic botanicals with refined techniques in a calm and elegant environment designed to make every client feel cared for, confident, and renewed.
             </p>
           </FadeIn>
           <FadeIn delay={0.2}>

@@ -89,6 +89,57 @@ Bank.hasMany(BankTransaction, { foreignKey: 'bank_id', as: 'transactions', onDel
 BankTransaction.belongsTo(Bank, { foreignKey: 'bank_id', as: 'bank' });
 BankTransaction.belongsTo(Bank, { foreignKey: 'related_bank_id', as: 'relatedBank' });
 
+// ─── NEW HR, EMPLOYEE & CONTRACT ASSOCIATIONS ────────────────────────────────
+const Role = require('./Role');
+const Shift = require('./Shift');
+const LeaveType = require('./LeaveType');
+const WorkWeek = require('./WorkWeek');
+const ContractType = require('./ContractType');
+const ContractTypeTemplate = require('./ContractTypeTemplate');
+const HolidayTemplate = require('./HolidayTemplate');
+const HolidayOccasion = require('./HolidayOccasion');
+const SalaryComponentMaster = require('./SalaryComponentMaster');
+const ContractGroup = require('./ContractGroup');
+const Staff = require('./Staff');
+const Contract = require('./Contract');
+const ContractSalaryMapping = require('./ContractSalaryMapping');
+
+// Staff associations
+Staff.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
+Role.hasMany(Staff, { foreignKey: 'role_id' });
+
+Staff.belongsTo(Outlet, { foreignKey: 'assigned_outlet_id', as: 'outlet' });
+Outlet.hasMany(Staff, { foreignKey: 'assigned_outlet_id' });
+
+// Contract type templates
+ContractType.hasMany(ContractTypeTemplate, { foreignKey: 'contract_type_id', as: 'templates', onDelete: 'CASCADE' });
+ContractTypeTemplate.belongsTo(ContractType, { foreignKey: 'contract_type_id' });
+
+// Holiday occasions
+HolidayTemplate.hasMany(HolidayOccasion, { foreignKey: 'holiday_template_id', as: 'occasions', onDelete: 'CASCADE' });
+HolidayOccasion.belongsTo(HolidayTemplate, { foreignKey: 'holiday_template_id' });
+
+// Contract Group associations
+ContractGroup.belongsTo(Staff, { foreignKey: 'employee_id', as: 'employee' });
+Staff.hasMany(ContractGroup, { foreignKey: 'employee_id', as: 'contractGroups' });
+
+// Contract associations
+Contract.belongsTo(Staff, { foreignKey: 'employee_id', as: 'employee' });
+Staff.hasMany(Contract, { foreignKey: 'employee_id', as: 'contracts', onDelete: 'CASCADE' });
+
+Contract.belongsTo(ContractGroup, { foreignKey: 'group_id', as: 'group' });
+ContractGroup.hasMany(Contract, { foreignKey: 'group_id', as: 'contracts' });
+
+Contract.belongsTo(ContractType, { foreignKey: 'type_id', as: 'contractType' });
+Contract.belongsTo(ContractTypeTemplate, { foreignKey: 'template_id', as: 'documentTemplate' });
+Contract.belongsTo(Shift, { foreignKey: 'shift_id', as: 'shift' });
+Contract.belongsTo(WorkWeek, { foreignKey: 'work_week_id', as: 'workWeek' });
+
+// Contract Salary component mappings
+Contract.hasMany(ContractSalaryMapping, { foreignKey: 'contract_id', as: 'salaryComponents', onDelete: 'CASCADE' });
+ContractSalaryMapping.belongsTo(Contract, { foreignKey: 'contract_id' });
+ContractSalaryMapping.belongsTo(SalaryComponentMaster, { foreignKey: 'salary_component_id', as: 'masterComponent' });
+
 module.exports = {
   sequelize,
   Sequelize,
@@ -117,4 +168,19 @@ module.exports = {
   BudgetHistory,
   InventoryAuditLog,
   Notification,
+  
+  // Export new models
+  Role,
+  Shift,
+  LeaveType,
+  WorkWeek,
+  ContractType,
+  ContractTypeTemplate,
+  HolidayTemplate,
+  HolidayOccasion,
+  SalaryComponentMaster,
+  ContractGroup,
+  Staff,
+  Contract,
+  ContractSalaryMapping,
 };

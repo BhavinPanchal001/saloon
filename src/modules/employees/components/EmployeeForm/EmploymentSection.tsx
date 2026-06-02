@@ -1,80 +1,140 @@
-import React from 'react';
-import { Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { fetchOutlets, fetchRoles } from '../../../../services/api';
 
-export const EmploymentSection: React.FC = () => {
+interface EmploymentSectionProps {
+  formData: any;
+  onChange: (field: string, value: any) => void;
+}
+
+export const EmploymentSection: React.FC<EmploymentSectionProps> = ({ 
+  formData, 
+  onChange 
+}) => {
+  const [outletsList, setOutletsList] = useState<any[]>([]);
+  const [rolesList, setRolesList] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadMasters = async () => {
+      try {
+        const [outletsData, rolesData] = await Promise.all([
+          fetchOutlets(),
+          fetchRoles()
+        ]);
+        setOutletsList(outletsData);
+        setRolesList(rolesData.filter((r: any) => r.isActive));
+      } catch (err) {
+        console.error('Failed to load masters in EmploymentSection:', err);
+      }
+    };
+    loadMasters();
+  }, []);
+
+  // Calculate sequential employee code when outlet changes
+  const handleOutletChange = (outletId: string) => {
+    onChange('assignedOutletId', outletId);
+    if (!outletId) {
+      onChange('employeeCode', '');
+      return;
+    }
+
+    const selectedOutlet = outletsList.find(o => o.id === outletId);
+    if (selectedOutlet) {
+      const prefix = selectedOutlet.employeeCodePrefix || selectedOutlet.code || 'EMP';
+      const nextCount = (selectedOutlet.employeeCount || 0) + 1;
+      const formattedCode = `${prefix}-${String(nextCount).padStart(3, '0')}`;
+      onChange('employeeCode', formattedCode);
+    }
+  };
+
+  const handleRoleChange = (roleId: string) => {
+    onChange('roleId', roleId);
+    const selectedRole = rolesList.find(r => r.id === roleId);
+    if (selectedRole) {
+      onChange('role', selectedRole.name);
+    } else {
+      onChange('role', '');
+    }
+  };
+
   return (
     <div>
       <h3 className="form-section-title">Job Details</h3>
       <div className="form-grid">
         <div className="form-field">
-          <label>Employee Code*</label>
-          <input type="text" placeholder="EMP-001" />
+          <label>Work Location / Outlet*</label>
+          <select 
+            value={formData.assignedOutletId || ''} 
+            onChange={(e) => handleOutletChange(e.target.value)}
+            required
+          >
+            <option value="">Select Outlet</option>
+            {outletsList.map((outlet) => (
+              <option key={outlet.id} value={outlet.id}>
+                {outlet.name} ({outlet.city})
+              </option>
+            ))}
+          </select>
         </div>
+
+        <div className="form-field">
+          <label>Employee Code* (Auto-generated)</label>
+          <input 
+            type="text" 
+            placeholder="Select outlet first" 
+            value={formData.employeeCode || ''} 
+            onChange={(e) => onChange('employeeCode', e.target.value)}
+            readOnly
+            style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed' }}
+          />
+        </div>
+
         <div className="form-field">
           <label>Biometric Code</label>
-          <input type="text" placeholder="BIO-123" />
+          <input 
+            type="text" 
+            placeholder="e.g. BIO-123" 
+            value={formData.biometricCode || ''} 
+            onChange={(e) => onChange('biometricCode', e.target.value)}
+          />
         </div>
-        <div className="form-field">
-          <label>Company Email</label>
-          <input type="email" placeholder="john.doe@company.com" />
-        </div>
+
         <div className="form-field">
           <label>Joining Date*</label>
-          <input type="date" />
+          <input 
+            type="date" 
+            value={formData.joiningDate || ''} 
+            onChange={(e) => onChange('joiningDate', e.target.value)}
+            required
+          />
         </div>
-        <div className="form-field">
-          <label>Employment Type</label>
-          <select>
-            <option value="Full-time">Full-time</option>
-            <option value="Part-time">Part-time</option>
-            <option value="Contract">Contract</option>
-            <option value="Intern">Intern</option>
-          </select>
-        </div>
-        <div className="form-field">
-          <label>Employment Status</label>
-          <select>
-            <option value="Active">Active</option>
-            <option value="On Leave">On Leave</option>
-            <option value="Probation">Probation</option>
-          </select>
-        </div>
-      </div>
 
-      <h3 className="form-section-title">Organization</h3>
-      <div className="form-grid">
         <div className="form-field">
-          <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-            Department
-            <span style={{ color: 'var(--emp-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>+ Add New</span>
-          </label>
-          <select>
-            <option value="">Select Department</option>
-            <option value="Engineering">Engineering</option>
-            <option value="Marketing">Marketing</option>
-            <option value="HR">HR</option>
+          <label>Role (from Master)*</label>
+          <select 
+            value={formData.roleId || ''} 
+            onChange={(e) => handleRoleChange(e.target.value)}
+            required
+          >
+            <option value="">Select Role</option>
+            {rolesList.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
           </select>
         </div>
+
         <div className="form-field">
-          <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-            Designation
-            <span style={{ color: 'var(--emp-primary)', cursor: 'pointer', fontSize: '0.75rem' }}>+ Add New</span>
-          </label>
-          <select>
-            <option value="">Select Designation</option>
-            <option value="Software Engineer">Software Engineer</option>
-            <option value="Manager">Manager</option>
-          </select>
-        </div>
-        <div className="form-field">
-          <label>Work Location</label>
-          <input type="text" placeholder="New York Office" />
-        </div>
-        <div className="form-field">
-          <label>Reporting Manager</label>
-          <select>
-            <option value="">Select Manager</option>
-            <option value="1">Jane Smith (Head of Engineering)</option>
+          <label>Onboarding Status*</label>
+          <select 
+            value={formData.onboardingStatus || 'pending'} 
+            onChange={(e) => onChange('onboardingStatus', e.target.value)}
+            required
+          >
+            <option value="pending">Pending</option>
+            <option value="contract_accepted">Contract Accepted</option>
+            <option value="document_uploaded">Document Uploaded</option>
+            <option value="approved">Approved</option>
           </select>
         </div>
       </div>

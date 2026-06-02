@@ -11,6 +11,7 @@ const toResponse = (outlet) => ({
   manager: outlet.manager || '',
   phone: outlet.phone || '',
   email: outlet.email || '',
+  employeeCodePrefix: outlet.employee_code_prefix || '',
   status: outlet.status,
   createdAt: outlet.createdAt,
   updatedAt: outlet.updatedAt,
@@ -56,7 +57,7 @@ const getOne = async (req, res) => {
 
 const create = async (req, res) => {
   try {
-    const { name, code, city, address, invoice_prefix, manager, phone, email, status } = req.body;
+    const { name, code, city, address, invoice_prefix, manager, phone, email, employeeCodePrefix, status } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'name is required.' });
@@ -86,6 +87,7 @@ const create = async (req, res) => {
       manager: (manager || '').trim() || null,
       phone: (phone || '').trim() || null,
       email: (email || '').trim() || null,
+      employee_code_prefix: (employeeCodePrefix || '').trim() || null,
       status: status || 'active',
     });
 
@@ -101,7 +103,7 @@ const update = async (req, res) => {
     const outlet = await Outlet.findByPk(req.params.id);
     if (!outlet) return res.status(404).json({ message: 'Outlet not found.' });
 
-    const { name, code, city, address, invoice_prefix, manager, phone, email, status } = req.body;
+    const { name, code, city, address, invoice_prefix, manager, phone, email, employeeCodePrefix, status } = req.body;
 
     if (code && code.trim().toUpperCase() !== outlet.code) {
       const dup = await Outlet.findOne({
@@ -121,6 +123,7 @@ const update = async (req, res) => {
     if (manager !== undefined) updates.manager = manager.trim() || null;
     if (phone !== undefined) updates.phone = phone.trim() || null;
     if (email !== undefined) updates.email = email.trim() || null;
+    if (employeeCodePrefix !== undefined) updates.employee_code_prefix = employeeCodePrefix.trim() || null;
     if (status !== undefined) {
       if (!['active', 'inactive'].includes(status)) {
         return res.status(400).json({ message: 'status must be active or inactive.' });

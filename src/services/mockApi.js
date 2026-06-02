@@ -88,7 +88,24 @@ const calculateCommission = (totalSales, saleCount) => {
   return { amount, badge, saleCount, totalSales };
 };
 
-let outlets = [
+const getLocalStorageItem = (key, defaultValue) => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+};
+
+const setLocalStorageItem = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.error("LocalStorage write failed:", err);
+  }
+};
+
+const defaultOutlets = [
   {
     id: "outlet_hsr",
     code: "HSR-01",
@@ -97,6 +114,8 @@ let outlets = [
     address: "Sector 2, HSR Layout, Bengaluru, Karnataka 560102",
     invoicePrefix: "HSR-",
     manager: "Meera Kapoor",
+    employeeCodePrefix: "HSR",
+    employeeCount: 2
   },
   {
     id: "outlet_indiranagar",
@@ -106,6 +125,8 @@ let outlets = [
     address: "100 Feet Road, Indiranagar, Bengaluru, Karnataka 560038",
     invoicePrefix: "IND-",
     manager: "Aarav Nair",
+    employeeCodePrefix: "IND",
+    employeeCount: 1
   },
   {
     id: "outlet_banjara",
@@ -115,8 +136,67 @@ let outlets = [
     address: "Road No. 1, Banjara Hills, Hyderabad, Telangana 500034",
     invoicePrefix: "BNJ-",
     manager: "Sara Thomas",
+    employeeCodePrefix: "BNJ",
+    employeeCount: 0
   },
 ];
+
+let outlets = getLocalStorageItem("glowy_outlets", defaultOutlets);
+
+// ─── NEW HR MASTERS DEFAULT DATA ──────────────────────────────────────────────
+const defaultRoles = [
+  { id: "role_senior_stylist", name: "Senior Stylist", description: "Experienced hair stylists with 5+ years", isActive: true, isEmployee: true },
+  { id: "role_color_specialist", name: "Color Specialist", description: "Hair coloring and treatment expert", isActive: true, isEmployee: true },
+  { id: "role_reception_lead", name: "Reception Lead", description: "Front desk reception and scheduling lead", isActive: true, isEmployee: true },
+  { id: "role_manager", name: "Manager", description: "Outlet operations manager", isActive: true, isEmployee: true },
+];
+
+const defaultShifts = [
+  { id: "shift_day", name: "Standard Day Shift", startTime: "09:00", endTime: "18:00", breakDuration: 60, gracePeriod: 15, isActive: true },
+  { id: "shift_evening", name: "Evening Shift", startTime: "14:00", endTime: "22:00", breakDuration: 45, gracePeriod: 15, isActive: true },
+  { id: "shift_full", name: "Full Day Shift", startTime: "09:00", endTime: "21:00", breakDuration: 90, gracePeriod: 15, isActive: true },
+];
+
+const defaultLeaveTypes = [
+  { id: "lv_annual", name: "Annual Leave", code: "LV-ANN", daysAllowed: 12, maxMonthly: 2, advanceNoticeDays: 7, isPaid: true, allowAnytime: true, allowHourly: false, hourlyHours: 0, neededDocument: false },
+  { id: "lv_sick", name: "Sick Leave", code: "LV-SCK", daysAllowed: 14, maxMonthly: 3, advanceNoticeDays: 0, isPaid: true, allowAnytime: true, allowHourly: true, hourlyHours: 4, neededDocument: true },
+  { id: "lv_casual", name: "Casual Leave", code: "LV-CAS", daysAllowed: 8, maxMonthly: 1, advanceNoticeDays: 2, isPaid: true, allowAnytime: false, allowHourly: false, hourlyHours: 0, neededDocument: false },
+];
+
+const defaultWorkWeeks = [
+  { id: "ww_standard", name: "Standard Operational Week", operationalDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], isActive: true },
+  { id: "ww_five_day", name: "Corporate 5-Day Week", operationalDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], isActive: true },
+];
+
+const defaultContractTypes = [
+  { id: "ct_fulltime", name: "Full-Time Employment", code: "CT-FTE", description: "Standard full-time employment contract", isActive: true, requiredDocuments: [{ templateName: "Standard Contract", version: "1.0", templateContent: "<h3>Employment Agreement</h3><p>This is a standard employment contract template...</p>" }] },
+  { id: "ct_parttime", name: "Part-Time Employment", code: "CT-PTE", description: "Part-time employment contract", isActive: true, requiredDocuments: [{ templateName: "Part-Time Contract", version: "1.0", templateContent: "<h3>Part-Time Agreement</h3><p>This is a part-time employment contract template...</p>" }] },
+];
+
+const defaultHolidayTemplates = [
+  { id: "ht_national", name: "National Holidays 2026", type: "National", description: "Official gazetted public holidays", isRecurring: true, isActive: true },
+  { id: "ht_company", name: "Company Holidays", type: "Company", description: "Company specific annual holidays", isRecurring: false, isActive: true },
+];
+
+const defaultHolidays = [
+  { id: "hol_newyear", templateId: "ht_national", occasionName: "New Year's Day", startDate: "2026-01-01", endDate: "2026-01-01", occasionType: "National", description: "Global new year celebration", isActive: true },
+  { id: "hol_republic", templateId: "ht_national", occasionName: "Republic Day", startDate: "2026-01-26", endDate: "2026-01-26", occasionType: "National", description: "National Republic day", isActive: true },
+  { id: "hol_founders", templateId: "ht_company", occasionName: "Founder's Day", startDate: "2026-03-15", endDate: "2026-03-15", occasionType: "Company", description: "Salon foundation day", isActive: true },
+];
+
+const defaultContractGroups = [
+  { id: "cg_senior", name: "Senior Stylists Group", duration: "12 Months", startDate: "2026-01-01", endDate: "2026-12-31" },
+  { id: "cg_support", name: "Support Staff Group", duration: "6 Months", startDate: "2026-01-01", endDate: "2026-06-30" },
+];
+
+let roles = getLocalStorageItem("glowy_roles", defaultRoles);
+let shifts = getLocalStorageItem("glowy_shifts", defaultShifts);
+let leaveTypes = getLocalStorageItem("glowy_leave_types", defaultLeaveTypes);
+let workWeeks = getLocalStorageItem("glowy_work_weeks", defaultWorkWeeks);
+let contractTypes = getLocalStorageItem("glowy_contract_types", defaultContractTypes);
+let holidayTemplates = getLocalStorageItem("glowy_holiday_templates", defaultHolidayTemplates);
+let holidays = getLocalStorageItem("glowy_holidays", defaultHolidays);
+let contractGroups = getLocalStorageItem("glowy_contract_groups", defaultContractGroups);
 
 let monthlyBudgets = [
   { outletId: "outlet_hsr", monthKey: currentMonth, amount: 150000 },
@@ -615,12 +695,18 @@ let packages = [
   }),
 ];
 
-let staffMembers = [
+const defaultStaffMembers = [
   {
     id: "staff_naina",
     name: "Naina Shah",
+    firstName: "Naina",
+    middleName: "",
+    lastName: "Shah",
     phone: "+91 98765 40001",
+    email: "naina.shah@glowy.com",
+    personalEmail: "naina.shah@gmail.com",
     role: "Senior Stylist",
+    roleId: "role_senior_stylist",
     assignedOutletId: "outlet_hsr",
     baseSalary: 32000,
     commissionSlab: "Tier 2",
@@ -629,12 +715,36 @@ let staffMembers = [
     taxValue: 8,
     contractFileName: "naina-contract.pdf",
     advances: [],
+    biometricCode: "BIO-101",
+    joiningDate: "2026-01-01",
+    onboardingStatus: "approved",
+    bankDetails: {
+      accountHolderName: "Naina Shah",
+      bankName: "HDFC Bank",
+      accountNumber: "50100234567890",
+      ifscCode: "HDFC0000001",
+      branchName: "HSR Layout",
+      accountType: "Savings"
+    },
+    address: {
+      street: "Sector 2, HSR Layout",
+      city: "Bengaluru",
+      state: "Karnataka",
+      country: "India",
+      pincode: "560102"
+    }
   },
   {
     id: "staff_rohan",
     name: "Rohan Iyer",
+    firstName: "Rohan",
+    middleName: "",
+    lastName: "Iyer",
     phone: "+91 98765 40002",
+    email: "rohan.iyer@glowy.com",
+    personalEmail: "rohan.iyer@gmail.com",
     role: "Color Specialist",
+    roleId: "role_color_specialist",
     assignedOutletId: "outlet_indiranagar",
     baseSalary: 36000,
     commissionSlab: "Tier 3",
@@ -651,12 +761,36 @@ let staffMembers = [
         emi: 3000,
       },
     ],
+    biometricCode: "BIO-102",
+    joiningDate: "2026-02-01",
+    onboardingStatus: "approved",
+    bankDetails: {
+      accountHolderName: "Rohan Iyer",
+      bankName: "ICICI Bank",
+      accountNumber: "000401234567",
+      ifscCode: "ICIC0000004",
+      branchName: "Indiranagar",
+      accountType: "Savings"
+    },
+    address: {
+      street: "100 Feet Road, Indiranagar",
+      city: "Bengaluru",
+      state: "Karnataka",
+      country: "India",
+      pincode: "560038"
+    }
   },
   {
     id: "staff_sia",
     name: "Sia Fernandes",
+    firstName: "Sia",
+    middleName: "",
+    lastName: "Fernandes",
     phone: "+91 98765 40003",
+    email: "sia.fernandes@glowy.com",
+    personalEmail: "sia.f@gmail.com",
     role: "Reception Lead",
+    roleId: "role_reception_lead",
     assignedOutletId: "outlet_hsr",
     baseSalary: 24000,
     commissionSlab: "Tier 1",
@@ -665,8 +799,28 @@ let staffMembers = [
     taxValue: 5,
     contractFileName: "sia-contract.pdf",
     advances: [],
+    biometricCode: "BIO-103",
+    joiningDate: "2026-01-15",
+    onboardingStatus: "approved",
+    bankDetails: {
+      accountHolderName: "Sia Fernandes",
+      bankName: "Axis Bank",
+      accountNumber: "915010023456789",
+      ifscCode: "UTIB0000010",
+      branchName: "HSR Layout",
+      accountType: "Savings"
+    },
+    address: {
+      street: "Sector 3, HSR Layout",
+      city: "Bengaluru",
+      state: "Karnataka",
+      country: "India",
+      pincode: "560102"
+    }
   },
 ];
+
+let staffMembers = getLocalStorageItem("glowy_staff_members", defaultStaffMembers);
 
 let expenses = [
   {
@@ -1175,20 +1329,40 @@ export const fetchStaff = async ({ outletId } = {}) => {
 export const saveStaff = async (payload) => {
   await delay();
 
+  // If newly created staff member, increment outlet employee count
+  if (!payload.id && payload.assignedOutletId) {
+    const oIdx = outlets.findIndex(o => o.id === payload.assignedOutletId);
+    if (oIdx >= 0) {
+      outlets[oIdx].employeeCount = (outlets[oIdx].employeeCount || 0) + 1;
+      setLocalStorageItem("glowy_outlets", outlets);
+    }
+  }
+
+  const nameValue = payload.name || `${payload.firstName || ''} ${payload.middleName ? payload.middleName + ' ' : ''}${payload.lastName || ''}`.trim();
   const staffRecord = {
-    id: payload.id || `staff_${slugFromName(payload.name) || createId("member")}`,
-    name: payload.name,
-    phone: payload.phone,
-    role: payload.role,
-    assignedOutletId: payload.assignedOutletId,
-    baseSalary: Number(payload.baseSalary),
-    commissionSlab: payload.commissionSlab,
-    pfDeduction: Number(payload.pfDeduction),
-    taxType: payload.taxType,
-    taxValue: Number(payload.taxValue),
-    contractFileName:
-      payload.contractFileName || payload.contractFile?.name || "pending-contract.pdf",
+    id: payload.id || `staff_${slugFromName(nameValue) || createId("member")}`,
+    name: nameValue,
+    firstName: payload.firstName || "",
+    middleName: payload.middleName || "",
+    lastName: payload.lastName || "",
+    phone: payload.phone || "",
+    email: payload.email || "",
+    personalEmail: payload.personalEmail || "",
+    role: payload.role || "",
+    roleId: payload.roleId || "",
+    assignedOutletId: payload.assignedOutletId || "",
+    baseSalary: Number(payload.baseSalary || 0),
+    commissionSlab: payload.commissionSlab || "Tier 1",
+    pfDeduction: Number(payload.pfDeduction || 0),
+    taxType: payload.taxType || "percentage",
+    taxValue: Number(payload.taxValue || 0),
+    contractFileName: payload.contractFileName || payload.contractFile?.name || "pending-contract.pdf",
     advances: payload.advances || [],
+    biometricCode: payload.biometricCode || "",
+    joiningDate: payload.joiningDate || "",
+    onboardingStatus: payload.onboardingStatus || "pending",
+    bankDetails: payload.bankDetails || {},
+    address: payload.address || {}
   };
 
   const existingIndex = staffMembers.findIndex((member) => member.id === staffRecord.id);
@@ -1199,6 +1373,7 @@ export const saveStaff = async (payload) => {
     staffMembers = [staffRecord, ...staffMembers];
   }
 
+  setLocalStorageItem("glowy_staff_members", staffMembers);
   return clone(withOutletName(staffRecord));
 };
 
@@ -2265,8 +2440,8 @@ let contracts = [
     title: "Senior Stylist Agreement",
     employeeId: "staff_naina",
     employeeName: "Naina Shah",
-    groupId: "grp-001",
-    groupName: "Senior Stylists",
+    groupId: "cg_senior",
+    groupName: "Senior Stylists Group",
     typeId: "type_fulltime",
     typeName: "Full-time Employment",
     templateId: "template_senior",
@@ -2293,8 +2468,8 @@ let contracts = [
     title: "Color Specialist Agreement",
     employeeId: "staff_rohan",
     employeeName: "Rohan Iyer",
-    groupId: "grp-001",
-    groupName: "Senior Stylists",
+    groupId: "cg_senior",
+    groupName: "Senior Stylists Group",
     typeId: "type_fulltime",
     typeName: "Full-time Employment",
     templateId: "template_senior",
@@ -2655,4 +2830,316 @@ export const createMultiProductPurchaseOrder = async (payload) => {
   purchaseOrders = [purchaseOrder, ...purchaseOrders];
 
   return clone(purchaseOrder);
+};
+
+// ─── DYNAMIC HR MASTERS API FUNCTIONS ────────────────────────────────────────
+
+// 1. Roles
+export const fetchRoles = async () => {
+  await delay(100);
+  return clone(roles);
+};
+
+export const saveRole = async (payload) => {
+  await delay(200);
+  const role = {
+    id: payload.id || `role_${slugFromName(payload.name) || createId("role")}`,
+    name: payload.name,
+    description: payload.description || "",
+    isActive: payload.isActive !== undefined ? payload.isActive : true,
+    isEmployee: payload.isEmployee !== undefined ? payload.isEmployee : true,
+  };
+  const existingIndex = roles.findIndex((r) => r.id === role.id);
+  if (existingIndex >= 0) {
+    roles[existingIndex] = { ...roles[existingIndex], ...role };
+  } else {
+    roles = [role, ...roles];
+  }
+  setLocalStorageItem("glowy_roles", roles);
+  return clone(role);
+};
+
+export const deleteRole = async (id) => {
+  await delay(200);
+  roles = roles.filter((r) => r.id !== id);
+  setLocalStorageItem("glowy_roles", roles);
+  return { success: true };
+};
+
+export const toggleRoleStatus = async (id) => {
+  await delay(100);
+  const idx = roles.findIndex((r) => r.id === id);
+  if (idx >= 0) {
+    roles[idx].isActive = !roles[idx].isActive;
+    setLocalStorageItem("glowy_roles", roles);
+  }
+  return clone(roles[idx]);
+};
+
+// 2. Shifts
+export const fetchShifts = async () => {
+  await delay(100);
+  return clone(shifts);
+};
+
+export const saveShift = async (payload) => {
+  await delay(200);
+  const shift = {
+    id: payload.id || `shift_${slugFromName(payload.name) || createId("shift")}`,
+    name: payload.name,
+    startTime: payload.startTime || "09:00",
+    endTime: payload.endTime || "18:00",
+    breakDuration: Number(payload.breakDuration || 0),
+    gracePeriod: Number(payload.gracePeriod || 0),
+    isActive: payload.isActive !== undefined ? payload.isActive : true,
+    workingHours: Number(payload.workingHours || 8),
+  };
+  const existingIndex = shifts.findIndex((s) => s.id === shift.id);
+  if (existingIndex >= 0) {
+    shifts[existingIndex] = { ...shifts[existingIndex], ...shift };
+  } else {
+    shifts = [shift, ...shifts];
+  }
+  setLocalStorageItem("glowy_shifts", shifts);
+  return clone(shift);
+};
+
+export const deleteShift = async (id) => {
+  await delay(200);
+  shifts = shifts.filter((s) => s.id !== id);
+  setLocalStorageItem("glowy_shifts", shifts);
+  return { success: true };
+};
+
+export const toggleShiftStatus = async (id) => {
+  await delay(100);
+  const idx = shifts.findIndex((s) => s.id === id);
+  if (idx >= 0) {
+    shifts[idx].isActive = !shifts[idx].isActive;
+    setLocalStorageItem("glowy_shifts", shifts);
+  }
+  return clone(shifts[idx]);
+};
+
+// 3. Leave Types
+export const fetchLeaveTypes = async () => {
+  await delay(100);
+  return clone(leaveTypes);
+};
+
+export const saveLeaveType = async (payload) => {
+  await delay(200);
+  const lt = {
+    id: payload.id || `lv_${slugFromName(payload.name) || createId("leave")}`,
+    name: payload.name,
+    code: payload.code || payload.name.substring(0, 3).toUpperCase(),
+    daysAllowed: Number(payload.daysAllowed || 0),
+    maxMonthly: Number(payload.maxMonthly || 0),
+    advanceNoticeDays: Number(payload.advanceNoticeDays || 0),
+    isPaid: payload.isPaid !== undefined ? payload.isPaid : true,
+    allowAnytime: payload.allowAnytime !== undefined ? payload.allowAnytime : false,
+    allowHourly: payload.allowHourly !== undefined ? payload.allowHourly : false,
+    hourlyHours: Number(payload.hourlyHours || 0),
+    neededDocument: payload.neededDocument !== undefined ? payload.neededDocument : false,
+  };
+  const existingIndex = leaveTypes.findIndex((l) => l.id === lt.id);
+  if (existingIndex >= 0) {
+    leaveTypes[existingIndex] = { ...leaveTypes[existingIndex], ...lt };
+  } else {
+    leaveTypes = [lt, ...leaveTypes];
+  }
+  setLocalStorageItem("glowy_leave_types", leaveTypes);
+  return clone(lt);
+};
+
+export const deleteLeaveType = async (id) => {
+  await delay(200);
+  leaveTypes = leaveTypes.filter((l) => l.id !== id);
+  setLocalStorageItem("glowy_leave_types", leaveTypes);
+  return { success: true };
+};
+
+// 4. Work Weeks
+export const fetchWorkWeeks = async () => {
+  await delay(100);
+  return clone(workWeeks);
+};
+
+export const saveWorkWeek = async (payload) => {
+  await delay(200);
+  const ww = {
+    id: payload.id || `ww_${slugFromName(payload.name) || createId("workweek")}`,
+    name: payload.name,
+    operationalDays: payload.operationalDays || [],
+    isActive: payload.isActive !== undefined ? payload.isActive : true,
+  };
+  const existingIndex = workWeeks.findIndex((w) => w.id === ww.id);
+  if (existingIndex >= 0) {
+    workWeeks[existingIndex] = { ...workWeeks[existingIndex], ...ww };
+  } else {
+    workWeeks = [ww, ...workWeeks];
+  }
+  setLocalStorageItem("glowy_work_weeks", workWeeks);
+  return clone(ww);
+};
+
+export const deleteWorkWeek = async (id) => {
+  await delay(200);
+  workWeeks = workWeeks.filter((w) => w.id !== id);
+  setLocalStorageItem("glowy_work_weeks", workWeeks);
+  return { success: true };
+};
+
+export const toggleWorkWeekStatus = async (id) => {
+  await delay(100);
+  const idx = workWeeks.findIndex((w) => w.id === id);
+  if (idx >= 0) {
+    workWeeks[idx].isActive = !workWeeks[idx].isActive;
+    setLocalStorageItem("glowy_work_weeks", workWeeks);
+  }
+  return clone(workWeeks[idx]);
+};
+
+// 5. Contract Types
+export const fetchContractTypes = async () => {
+  await delay(100);
+  return clone(contractTypes);
+};
+
+export const saveContractType = async (payload) => {
+  await delay(200);
+  const ct = {
+    id: payload.id || `ct_${slugFromName(payload.name) || createId("contracttype")}`,
+    name: payload.name,
+    code: payload.code || payload.name.substring(0, 3).toUpperCase(),
+    description: payload.description || "",
+    isActive: payload.isActive !== undefined ? payload.isActive : true,
+    requiredDocuments: payload.requiredDocuments || [],
+  };
+  const existingIndex = contractTypes.findIndex((c) => c.id === ct.id);
+  if (existingIndex >= 0) {
+    contractTypes[existingIndex] = { ...contractTypes[existingIndex], ...ct };
+  } else {
+    contractTypes = [ct, ...contractTypes];
+  }
+  setLocalStorageItem("glowy_contract_types", contractTypes);
+  return clone(ct);
+};
+
+export const deleteContractType = async (id) => {
+  await delay(200);
+  contractTypes = contractTypes.filter((c) => c.id !== id);
+  setLocalStorageItem("glowy_contract_types", contractTypes);
+  return { success: true };
+};
+
+export const toggleContractTypeStatus = async (id) => {
+  await delay(100);
+  const idx = contractTypes.findIndex((c) => c.id === id);
+  if (idx >= 0) {
+    contractTypes[idx].isActive = !contractTypes[idx].isActive;
+    setLocalStorageItem("glowy_contract_types", contractTypes);
+  }
+  return clone(contractTypes[idx]);
+};
+
+// 6. Holiday Templates
+export const fetchHolidayTemplates = async () => {
+  await delay(100);
+  return clone(holidayTemplates);
+};
+
+export const saveHolidayTemplate = async (payload) => {
+  await delay(200);
+  const ht = {
+    id: payload.id || `ht_${slugFromName(payload.name) || createId("holidaytemplate")}`,
+    name: payload.name,
+    type: payload.type || "National",
+    description: payload.description || "",
+    isRecurring: payload.isRecurring !== undefined ? payload.isRecurring : true,
+    isActive: payload.isActive !== undefined ? payload.isActive : true,
+  };
+  const existingIndex = holidayTemplates.findIndex((h) => h.id === ht.id);
+  if (existingIndex >= 0) {
+    holidayTemplates[existingIndex] = { ...holidayTemplates[existingIndex], ...ht };
+  } else {
+    holidayTemplates = [ht, ...holidayTemplates];
+  }
+  setLocalStorageItem("glowy_holiday_templates", holidayTemplates);
+  return clone(ht);
+};
+
+export const deleteHolidayTemplate = async (id) => {
+  await delay(200);
+  holidayTemplates = holidayTemplates.filter((h) => h.id !== id);
+  setLocalStorageItem("glowy_holiday_templates", holidayTemplates);
+  return { success: true };
+};
+
+// 7. Holiday Occasions (Holiday Master)
+export const fetchHolidays = async () => {
+  await delay(100);
+  return clone(holidays);
+};
+
+export const saveHoliday = async (payload) => {
+  await delay(200);
+  const hol = {
+    id: payload.id || `hol_${slugFromName(payload.occasionName) || createId("holiday")}`,
+    templateId: payload.templateId,
+    occasionName: payload.occasionName,
+    startDate: payload.startDate,
+    endDate: payload.endDate,
+    occasionType: payload.occasionType || "National",
+    description: payload.description || "",
+    isActive: payload.isActive !== undefined ? payload.isActive : true,
+  };
+  const existingIndex = holidays.findIndex((h) => h.id === hol.id);
+  if (existingIndex >= 0) {
+    holidays[existingIndex] = { ...holidays[existingIndex], ...hol };
+  } else {
+    holidays = [hol, ...holidays];
+  }
+  setLocalStorageItem("glowy_holidays", holidays);
+  return clone(hol);
+};
+
+export const deleteHoliday = async (id) => {
+  await delay(200);
+  holidays = holidays.filter((h) => h.id !== id);
+  setLocalStorageItem("glowy_holidays", holidays);
+  return { success: true };
+};
+
+// 8. Contract Groups
+export const fetchContractGroups = async () => {
+  await delay(100);
+  return clone(contractGroups);
+};
+
+export const saveContractGroup = async (payload) => {
+  await delay(200);
+  const cg = {
+    id: payload.id || `cg_${slugFromName(payload.name) || createId("contractgroup")}`,
+    name: payload.name,
+    duration: payload.duration || "12 Months",
+    startDate: payload.startDate,
+    endDate: payload.endDate || "",
+    employeeId: payload.employeeId || "",
+  };
+  const existingIndex = contractGroups.findIndex((g) => g.id === cg.id);
+  if (existingIndex >= 0) {
+    contractGroups[existingIndex] = { ...contractGroups[existingIndex], ...cg };
+  } else {
+    contractGroups = [cg, ...contractGroups];
+  }
+  setLocalStorageItem("glowy_contract_groups", contractGroups);
+  return clone(cg);
+};
+
+export const deleteContractGroup = async (id) => {
+  await delay(200);
+  contractGroups = contractGroups.filter((g) => g.id !== id);
+  setLocalStorageItem("glowy_contract_groups", contractGroups);
+  return { success: true };
 };

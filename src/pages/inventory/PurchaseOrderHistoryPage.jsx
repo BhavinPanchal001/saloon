@@ -39,8 +39,8 @@ export function PurchaseOrderHistoryPage() {
   const [dateRange, setDateRange] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [expandedOrder, setExpandedOrder] = useState(null);
-  
-  
+
+
   useEffect(() => {
     loadOrders();
   }, []);
@@ -132,7 +132,7 @@ export function PurchaseOrderHistoryPage() {
     totalValue: orders.reduce((sum, o) => sum + (o.totalCost || 0), 0),
   };
 
-  
+
   if (loading) {
     return (
       <div>
@@ -182,7 +182,7 @@ export function PurchaseOrderHistoryPage() {
               className="premium-input pl-10 w-full"
             />
           </div>
-                    <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-slate-400" />
             <select
               value={dateRange}
@@ -260,7 +260,7 @@ export function PurchaseOrderHistoryPage() {
                           const hasCompleted = order.payments.some(p => p.status === 'completed');
                           const totalPaid = order.payments.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
                           const isPartial = totalPaid < order.totalCost;
-                          
+
                           if (hasPending || isPartial) {
                             return (
                               <>
@@ -424,13 +424,12 @@ export function PurchaseOrderHistoryPage() {
                                       {formatCurrency(detail.amount)}
                                     </td>
                                     <td className="px-4 py-3 text-center">
-                                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-                                        payment.status === 'completed'
-                                          ? 'bg-green-50 text-green-700'
-                                          : payment.status === 'pending'
+                                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${payment.status === 'completed'
+                                        ? 'bg-green-50 text-green-700'
+                                        : payment.status === 'pending'
                                           ? 'bg-amber-50 text-amber-700'
                                           : 'bg-rose-50 text-rose-700'
-                                      }`}>
+                                        }`}>
                                         {payment.status?.charAt(0).toUpperCase() + payment.status?.slice(1)}
                                       </span>
                                     </td>

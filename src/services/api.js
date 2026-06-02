@@ -245,7 +245,7 @@ export const fetchProductsFromAPI = async (params = {}) => {
       conversionRatio: Number(p.unitMaster.conversion_ratio),
       status: p.unitMaster.status,
     } : null,
-    productMeasureLabel: p.unitMaster && p.product_measure && p.product_measure_unit 
+    productMeasureLabel: p.unitMaster && p.product_measure && p.product_measure_unit
       ? `${p.product_measure} ${p.product_measure_unit === 'primary' ? p.unitMaster.primary_abbr : p.unitMaster.secondary_abbr}`
       : null,
   }));
@@ -593,7 +593,7 @@ export const fetchBillsFromAPI = async ({ outletId, search, paymentMethod } = {}
   if (outletId) params.outletId = outletId;
   if (search) params.search = search;
   if (paymentMethod) params.paymentMethod = paymentMethod;
-  
+
   const query = new URLSearchParams(params).toString();
   const res = await fetch(`${API_BASE}/pos/bills${query ? `?${query}` : ""}`, {
     headers: authHeaders(),
@@ -724,10 +724,10 @@ export const fetchExpensesFromAPI = async ({ outletId, monthKey } = {}) => {
     updatedAt: e.updated_at,
     outlet: e.Outlet
       ? {
-          id: e.Outlet.id,
-          name: e.Outlet.name,
-          code: e.Outlet.code,
-        }
+        id: e.Outlet.id,
+        name: e.Outlet.name,
+        code: e.Outlet.code,
+      }
       : null,
     payments: (e.payments || []).map((p) => ({
       id: p.id,
@@ -920,3 +920,374 @@ export const clearAllNotificationsAPI = async () => {
   });
   return handleResponse(res);
 };
+
+// ─── HR & Employee API Wrappers ──────────────────────────────────────────────
+
+export const fetchStaff = async ({ outletId } = {}) => {
+  const params = outletId ? { outletId } : {};
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/staff${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchStaffProfile = async (id) => {
+  const res = await fetch(`${API_BASE}/staff/${id}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveStaff = async (payload) => {
+  const res = await fetch(`${API_BASE}/staff`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const updateStaffStatus = async (id, status) => {
+  const res = await fetch(`${API_BASE}/staff/${id}/status`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  return handleResponse(res);
+};
+
+export const resetStaffPassword = async (id) => {
+  const res = await fetch(`${API_BASE}/staff/${id}/reset-password`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const grantAdvance = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/staff/${id}/advances`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteEmployee = async (id) => {
+  const res = await fetch(`${API_BASE}/staff/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── Contracts API Wrappers ──────────────────────────────────────────────────
+
+export const fetchContracts = async () => {
+  const res = await fetch(`${API_BASE}/contracts`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchContractById = async (id) => {
+  const res = await fetch(`${API_BASE}/contracts/${id}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveContract = async (payload) => {
+  const res = await fetch(`${API_BASE}/contracts`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteContract = async (id) => {
+  const res = await fetch(`${API_BASE}/contracts/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── HR Masters API Wrappers ──────────────────────────────────────────────────
+
+// 1. Roles
+export const fetchRoles = async () => {
+  const res = await fetch(`${API_BASE}/roles`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveRole = async (payload) => {
+  const res = await fetch(`${API_BASE}/roles`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteRole = async (id) => {
+  const res = await fetch(`${API_BASE}/roles/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const toggleRoleStatus = async (id) => {
+  const res = await fetch(`${API_BASE}/roles/${id}/toggle`, {
+    method: "PUT",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// 2. Shifts
+export const fetchShifts = async () => {
+  const res = await fetch(`${API_BASE}/shifts`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveShift = async (payload) => {
+  const res = await fetch(`${API_BASE}/shifts`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteShift = async (id) => {
+  const res = await fetch(`${API_BASE}/shifts/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const toggleShiftStatus = async (id) => {
+  const res = await fetch(`${API_BASE}/shifts/${id}/toggle`, {
+    method: "PUT",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// 3. Leave Types
+export const fetchLeaveTypes = async () => {
+  const res = await fetch(`${API_BASE}/leave-types`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveLeaveType = async (payload) => {
+  const res = await fetch(`${API_BASE}/leave-types`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteLeaveType = async (id) => {
+  const res = await fetch(`${API_BASE}/leave-types/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// 4. Work Weeks
+export const fetchWorkWeeks = async () => {
+  const res = await fetch(`${API_BASE}/work-weeks`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveWorkWeek = async (payload) => {
+  const res = await fetch(`${API_BASE}/work-weeks`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteWorkWeek = async (id) => {
+  const res = await fetch(`${API_BASE}/work-weeks/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const toggleWorkWeekStatus = async (id) => {
+  const res = await fetch(`${API_BASE}/work-weeks/${id}/toggle`, {
+    method: "PUT",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// 5. Contract Types
+export const fetchContractTypes = async () => {
+  const res = await fetch(`${API_BASE}/contract-types`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveContractType = async (payload) => {
+  const res = await fetch(`${API_BASE}/contract-types`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteContractType = async (id) => {
+  const res = await fetch(`${API_BASE}/contract-types/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const toggleContractTypeStatus = async (id) => {
+  const res = await fetch(`${API_BASE}/contract-types/${id}/toggle`, {
+    method: "PUT",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// 6. Holiday Templates
+export const fetchHolidayTemplates = async () => {
+  const res = await fetch(`${API_BASE}/holiday-templates`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveHolidayTemplate = async (payload) => {
+  const res = await fetch(`${API_BASE}/holiday-templates`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteHolidayTemplate = async (id) => {
+  const res = await fetch(`${API_BASE}/holiday-templates/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// 7. Holidays (Occasions)
+export const fetchHolidays = async () => {
+  const res = await fetch(`${API_BASE}/holidays`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveHoliday = async (payload) => {
+  const res = await fetch(`${API_BASE}/holidays`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteHoliday = async (id) => {
+  const res = await fetch(`${API_BASE}/holidays/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// 8. Contract Groups
+export const fetchContractGroups = async () => {
+  const res = await fetch(`${API_BASE}/contract-groups`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveContractGroup = async (payload) => {
+  const res = await fetch(`${API_BASE}/contract-groups`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteContractGroup = async (id) => {
+  const res = await fetch(`${API_BASE}/contract-groups/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// 9. Salary Component Masters
+export const fetchSalaryMasters = async () => {
+  const res = await fetch(`${API_BASE}/salary-masters`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchSalaryMasterById = async (id) => {
+  const res = await fetch(`${API_BASE}/salary-masters/${id}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveSalaryMaster = async (payload) => {
+  const res = await fetch(`${API_BASE}/salary-masters`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteSalaryMaster = async (id) => {
+  const res = await fetch(`${API_BASE}/salary-masters/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const toggleSalaryMasterStatus = async (id) => {
+  const res = await fetch(`${API_BASE}/salary-masters/${id}/toggle`, {
+    method: "PUT",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// Aliases for compatibility
+export const fetchOutlets = fetchOutletsFromAPI;

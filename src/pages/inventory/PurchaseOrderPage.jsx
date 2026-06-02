@@ -218,7 +218,7 @@ export default function PurchaseOrderPage() {
     }
 
     if (enablePayment) {
-      const hasBankTransferOrCheque = paymentDetails.some(d => 
+      const hasBankTransferOrCheque = paymentDetails.some(d =>
         (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && Number(d.amount) > 0
       );
       if (hasBankTransferOrCheque && !bankAccountId.trim()) {
@@ -242,19 +242,19 @@ export default function PurchaseOrderPage() {
       // Add payment if enabled
       const payment = enablePayment
         ? {
-            status: "completed",
-            transactionReference: transactionReference.trim(),
-            notes: paymentNotes.trim(),
-            paymentDate: new Date().toISOString().split("T")[0],
-            bankAccountId: bankAccountId.trim() || null,
-            details: paymentDetails
-              .filter((d) => Number(d.amount) > 0)
-              .map((d) => ({
-                paymentMode: d.paymentMode,
-                amount: Number(d.amount),
-                bankAccountId: (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') ? bankAccountId.trim() || null : null,
-              })),
-          }
+          status: "completed",
+          transactionReference: transactionReference.trim(),
+          notes: paymentNotes.trim(),
+          paymentDate: new Date().toISOString().split("T")[0],
+          bankAccountId: bankAccountId.trim() || null,
+          details: paymentDetails
+            .filter((d) => Number(d.amount) > 0)
+            .map((d) => ({
+              paymentMode: d.paymentMode,
+              amount: Number(d.amount),
+              bankAccountId: (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') ? bankAccountId.trim() || null : null,
+            })),
+        }
         : false; // false indicates payment should be deleted
 
       if (isEditMode) {
@@ -710,13 +710,12 @@ export default function PurchaseOrderPage() {
         {enablePayment && (
           <div className="flex justify-between text-sm py-2 border-t border-slate-200 mb-4">
             <span className="text-slate-500">Balance</span>
-            <span className={`font-semibold ${
-              paymentBalance === 0 ? "text-green-600" :
+            <span className={`font-semibold ${paymentBalance === 0 ? "text-green-600" :
               paymentBalance > 0 ? "text-amber-500" : "text-rose-500"
-            }`}>
+              }`}>
               {paymentBalance === 0 ? "Fully Paid" :
-               paymentBalance > 0 ? `Due: ${formatCurrency(paymentBalance)}` :
-               `Overpaid: ${formatCurrency(Math.abs(paymentBalance))}`}
+                paymentBalance > 0 ? `Due: ${formatCurrency(paymentBalance)}` :
+                  `Overpaid: ${formatCurrency(Math.abs(paymentBalance))}`}
             </span>
           </div>
         )}
