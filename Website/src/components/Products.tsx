@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { FadeIn, SectionLabel } from "./Section";
@@ -33,11 +34,29 @@ const products = [
   },
 ];
 
+const cardVariants = {
+  hidden: { opacity: 0, y: 60, rotateY: 8 },
+  show: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    rotateY: 0,
+    transition: {
+      duration: 0.7,
+      delay: i * 0.12,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  }),
+};
+
 export default function Products() {
   return (
     <section id="products" className="py-16 md:py-24 bg-cream/30 relative overflow-hidden">
-      <div className="absolute top-40 right-0 w-[30rem] h-[30rem] rounded-full bg-gold/5 blur-3xl" />
-      
+      <motion.div
+        className="absolute top-40 right-0 w-[30rem] h-[30rem] rounded-full bg-gold/5 blur-3xl"
+        animate={{ x: [0, -20, 0], y: [0, 15, 0] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+      />
+
       <div className="mx-auto max-w-7xl px-6 relative">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-20">
           <FadeIn>
@@ -48,29 +67,58 @@ export default function Products() {
           </FadeIn>
           <FadeIn delay={0.1}>
             <p className="max-w-md text-muted-foreground leading-relaxed">
-              Our signature collection of professional-grade formulas and 
+              Our signature collection of professional-grade formulas and
               considered essentials, curated by our senior specialists.
             </p>
           </FadeIn>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8" style={{ perspective: "1200px" }}>
           {products.map((p, i) => (
-            <FadeIn key={p.name} delay={i * 0.1}>
-              <div className="group cursor-pointer">
-                <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-white shadow-soft transition-transform duration-500 group-hover:-translate-y-2">
-                  <img 
-                    src={p.image} 
-                    alt={p.name} 
-                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+            <motion.div
+              key={p.name}
+              custom={i}
+              variants={cardVariants}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, margin: "-60px" }}
+            >
+              <motion.div
+                className="group cursor-pointer"
+                whileHover={{ y: -10 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-white shadow-soft">
+                  <motion.img
+                    src={p.image}
+                    alt={p.name}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    whileHover={{ scale: 1.12 }}
+                    transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
                   />
                   <div className="absolute inset-0 bg-black/0 transition-colors duration-500 group-hover:bg-black/5" />
-                  
-                  <div className="absolute top-4 left-4">
+
+                  {/* Image reveal overlay */}
+                  <motion.div
+                    className="absolute inset-0 bg-cream origin-right"
+                    initial={{ scaleX: 1 }}
+                    whileInView={{ scaleX: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.8, delay: 0.2 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                  />
+
+                  <motion.div
+                    className="absolute top-4 left-4"
+                    initial={{ opacity: 0, x: -10 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.5 + i * 0.1 }}
+                  >
                     <span className="rounded-full bg-white/90 backdrop-blur-md px-3 py-1 text-[10px] uppercase tracking-widest text-primary font-medium border border-gold/10">
                       {p.category}
                     </span>
-                  </div>
+                  </motion.div>
                 </div>
 
                 <div className="mt-6 space-y-2">
@@ -82,19 +130,21 @@ export default function Products() {
                     {p.desc}
                   </p>
                 </div>
-              </div>
-            </FadeIn>
+              </motion.div>
+            </motion.div>
           ))}
         </div>
 
         <FadeIn delay={0.4} className="mt-20 text-center">
-          <Link 
-            to="/boutique" 
-            className="inline-flex items-center gap-3 text-sm tracking-widest uppercase text-primary hover:text-gold transition-colors group"
-          >
-            Explore Full Collection 
-            <ArrowRight size={16} className="transition-transform group-hover:translate-x-2" />
-          </Link>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Link
+              to="/boutique"
+              className="inline-flex items-center gap-3 text-sm tracking-widest uppercase text-primary hover:text-gold transition-colors group"
+            >
+              Explore Full Collection
+              <ArrowRight size={16} className="transition-transform group-hover:translate-x-2" />
+            </Link>
+          </motion.div>
         </FadeIn>
       </div>
     </section>

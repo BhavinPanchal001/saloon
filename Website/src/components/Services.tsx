@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Scissors, Sparkles, Brush, Droplets, Flower2, Hand, Crown, ArrowUpRight, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FadeIn, SectionLabel } from "./Section";
-import g2 from "@/assets/g2.jpg";
 import g3 from "@/assets/g3.jpg";
 import g4 from "@/assets/g4.jpg";
 import g5 from "@/assets/g5.jpg";
@@ -11,11 +10,11 @@ import g6 from "@/assets/g6.jpg";
 import hero from "@/assets/hero.jpg";
 
 const services = [
-  { icon: Scissors, title: "Hair Styling", desc: "Precision cuts, soft layers, editorial blowouts.", duration: "60–90 min", from: "RM 1,800", img: g2 },
-  { icon: Droplets, title: "Hair Spa", desc: "Cold-pressed botanicals to restore softness and shine.", duration: "75 min", from: "RM 2,400", img: g3 },
+  { icon: Scissors, title: "Hair Styling", desc: "Precision cuts, soft layers, editorial blowouts.", duration: "60–90 min", from: "RM 1,800", img: "/hairsytlish.jpg" },
+  { icon: Droplets, title: "Hair Spa", desc: "Cold-pressed botanicals to restore softness and shine.", duration: "75 min", from: "RM 2,400", img: "/hair spa.jpg" },
   { icon: Brush, title: "Makeup", desc: "Dewy day looks to luminous evenings.", duration: "60 min", from: "RM 2,200", img: hero },
   { icon: Flower2, title: "Facial Treatments", desc: "Lymphatic massage with hand-blended serums.", duration: "75 min", from: "RM 3,200", img: g1 },
-  { icon: Sparkles, title: "Skincare Rituals", desc: "Custom regimens for visibly luminous skin.", duration: "60 min", from: "RM 2,800", img: g6 },
+  { icon: Sparkles, title: "Skincare Rituals", desc: "Custom regimens for visibly luminous skin.", duration: "60 min", from: "RM 2,800", img: "/skincaresalon.jpg" },
   { icon: Hand, title: "Nail Art", desc: "Sculpted nails, minimalist or signature finishes.", duration: "60 min", from: "RM 1,400", img: g4 },
   { icon: Crown, title: "Signature Experience", desc: "Our curated salon ritual for a complete transformation.", duration: "Half day", from: "RM 19,999", img: "/salon_interior.png" },
 ];
@@ -61,9 +60,8 @@ export default function Services() {
                   >
                     <div className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-6 py-6 md:py-7 transition-all">
                       <span
-                        className={`font-display text-2xl transition-colors ${
-                          isActive ? "text-gold" : "text-muted-foreground/50"
-                        }`}
+                        className={`font-display text-2xl transition-colors ${isActive ? "text-gold" : "text-muted-foreground/50"
+                          }`}
                       >
                         0{i + 1}
                       </span>
@@ -75,16 +73,14 @@ export default function Services() {
                         />
                         <div className="min-w-0">
                           <h3
-                            className={`font-display text-2xl md:text-3xl transition-all ${
-                              isActive ? "text-primary translate-x-1" : "text-primary/70"
-                            }`}
+                            className={`font-display text-2xl md:text-3xl transition-all ${isActive ? "text-primary translate-x-1" : "text-primary/70"
+                              }`}
                           >
                             {s.title}
                           </h3>
                           <p
-                            className={`mt-1 text-sm text-muted-foreground transition-all ${
-                              isActive ? "opacity-100 max-h-12" : "opacity-0 max-h-0 md:opacity-60 md:max-h-12"
-                            } overflow-hidden`}
+                            className={`mt-1 text-sm text-muted-foreground transition-all ${isActive ? "opacity-100 max-h-12" : "opacity-0 max-h-0 md:opacity-60 md:max-h-12"
+                              } overflow-hidden`}
                           >
                             {s.desc}
                           </p>
@@ -96,9 +92,8 @@ export default function Services() {
                         <div className="font-display text-lg text-primary">{s.from}</div>
                         <a
                           href="#booking"
-                          className={`text-[10px] uppercase tracking-widest transition-all ${
-                            isActive ? "text-gold opacity-100" : "text-gold/60 opacity-0 group-hover:opacity-100"
-                          } hover:text-primary border-b border-gold/30`}
+                          className={`text-[10px] uppercase tracking-widest transition-all ${isActive ? "text-gold opacity-100" : "text-gold/60 opacity-0 group-hover:opacity-100"
+                            } hover:text-primary border-b border-gold/30`}
                         >
                           Book Now
                         </a>
@@ -106,9 +101,8 @@ export default function Services() {
 
                       <ArrowUpRight
                         size={18}
-                        className={`absolute right-0 top-1/2 -translate-y-1/2 sm:hidden transition-colors ${
-                          isActive ? "text-gold" : "text-muted-foreground/40"
-                        }`}
+                        className={`absolute right-0 top-1/2 -translate-y-1/2 sm:hidden transition-colors ${isActive ? "text-gold" : "text-muted-foreground/40"
+                          }`}
                       />
                     </div>
 

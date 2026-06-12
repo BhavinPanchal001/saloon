@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { Instagram, Facebook, MapPin, Phone, Mail, Clock } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
@@ -48,14 +49,39 @@ const SOCIAL_LINKS = [
   },
 ];
 
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+};
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
+};
+
 export default function Footer() {
   return (
     <footer id="contact" className="bg-primary text-primary-foreground pt-16 pb-8 mt-12 relative overflow-hidden">
-      <div className="absolute -top-32 -right-32 w-[30rem] h-[30rem] rounded-full bg-gold/10 blur-3xl" />
-      <div className="mx-auto max-w-7xl px-6 relative">
+      <motion.div
+        className="absolute -top-32 -right-32 w-[30rem] h-[30rem] rounded-full bg-gold/10 blur-3xl"
+        animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.3, 0.5] }}
+        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      <motion.div
+        className="mx-auto max-w-7xl px-6 relative"
+        variants={stagger}
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: true, margin: "-80px" }}
+      >
         <div className="grid lg:grid-cols-12 gap-8 lg:gap-12">
-          <div className="lg:col-span-4">
-            <img src="/GLOWY LOGO (Without BG).png" alt="Glowy" className="h-10 w-auto mb-5" />
+          <motion.div className="lg:col-span-4" variants={fadeUp}>
+            <motion.img
+              src="/GLOWY LOGO (Without BG).png"
+              alt="Glowy"
+              className="h-10 w-auto mb-5"
+              whileHover={{ scale: 1.05 }}
+            />
             <p className="text-primary-foreground/90 leading-relaxed max-w-sm text-[15px]">
               A sanctuary of soft light and
               <br />
@@ -68,33 +94,41 @@ export default function Footer() {
               {SOCIAL_LINKS.map((social, i) => {
                 const Icon = social.icon;
                 return (
-                  <a
+                  <motion.a
                     key={i}
                     href={social.href}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={social.label}
                     className="h-10 w-10 rounded-full border border-white/15 flex items-center justify-center hover:bg-gold hover:text-primary hover:border-gold transition-colors"
+                    whileHover={{ scale: 1.2, rotate: 5 }}
+                    whileTap={{ scale: 0.9 }}
                   >
                     <Icon size={16} />
-                  </a>
+                  </motion.a>
                 );
               })}
             </div>
-          </div>
+          </motion.div>
 
-          <div className="lg:col-span-2">
+          <motion.div className="lg:col-span-2" variants={fadeUp}>
             <h4 className="text-sm uppercase tracking-widest text-gold">Explore</h4>
             <ul className="mt-6 space-y-4 text-[15px] text-primary-foreground/80">
-              <li><a href="#about" className="hover:text-gold transition-colors">About</a></li>
-              <li><a href="#services" className="hover:text-gold transition-colors">Services</a></li>
-              <li><a href="#packages" className="hover:text-gold transition-colors">Packages</a></li>
-              <li><a href="#products" className="hover:text-gold transition-colors">Products</a></li>
-              <li><a href="#contact" className="hover:text-gold transition-colors">Contact</a></li>
+              {[
+                ["About", "#about"],
+                ["Services", "#services"],
+                ["Packages", "#packages"],
+                ["Products", "#products"],
+                ["Contact", "#contact"],
+              ].map(([label, href]) => (
+                <motion.li key={label} whileHover={{ x: 4 }} transition={{ type: "spring", stiffness: 300 }}>
+                  <a href={href} className="hover:text-gold transition-colors">{label}</a>
+                </motion.li>
+              ))}
             </ul>
-          </div>
+          </motion.div>
 
-          <div className="lg:col-span-3">
+          <motion.div className="lg:col-span-3" variants={fadeUp}>
             <h4 className="text-sm uppercase tracking-widest text-gold">Contact</h4>
             <ul className="mt-6 space-y-4 text-[15px] text-primary-foreground/80">
               <li className="flex gap-3 items-start">
@@ -114,11 +148,17 @@ export default function Footer() {
                 <span>Sun – Sat · 10am – 8pm</span>
               </li>
             </ul>
-          </div>
+          </motion.div>
 
-          <div className="lg:col-span-3">
+          <motion.div className="lg:col-span-3" variants={fadeUp}>
             <h4 className="text-sm uppercase tracking-widest text-gold">Find Us</h4>
-            <div className="mt-5 rounded-2xl overflow-hidden border border-white/10 aspect-[4/3]">
+            <motion.div
+              className="mt-5 rounded-2xl overflow-hidden border border-white/10 aspect-[4/3]"
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+            >
               <iframe
                 title="Glowy Location"
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3983.833596570648!2d101.6705626750379!3d3.131179653138863!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x31cc4974f1b88e17%3A0x633190df03772186!2s15%2C%20Jalan%20Telawi%202%2C%20Bangsar%2C%2059100%20Kuala%20Lumpur%2C%20Wilayah%20Persekutuan%20Kuala%20Lumpur%2C%20Malaysia!5e0!3m2!1sen!2smy!4v1716300000000!5m2!1sen!2smy"
@@ -128,19 +168,44 @@ export default function Footer() {
                 allowFullScreen={true}
                 referrerPolicy="no-referrer-when-downgrade"
               />
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </div>
 
-        <div className="mt-12 flex flex-col gap-6">
+        <motion.div
+          className="mt-12 flex flex-col gap-6"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.5, duration: 0.8 }}
+        >
           <div className="flex items-center justify-center gap-3 w-full">
-            <div className="h-px bg-gold/40 flex-1 max-w-[45%]"></div>
+            <motion.div
+              className="h-px bg-gold/40 flex-1 max-w-[45%]"
+              initial={{ scaleX: 0 }}
+              whileInView={{ scaleX: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+              style={{ transformOrigin: "left" }}
+            />
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-gold/70"></div>
-              <LotusIcon size={24} className="text-gold" />
+              <motion.div
+                animate={{ rotate: [0, 360] }}
+                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+              >
+                <LotusIcon size={24} className="text-gold" />
+              </motion.div>
               <div className="w-1.5 h-1.5 rounded-full bg-gold/70"></div>
             </div>
-            <div className="h-px bg-gold/40 flex-1 max-w-[45%]"></div>
+            <motion.div
+              className="h-px bg-gold/40 flex-1 max-w-[45%]"
+              initial={{ scaleX: 0 }}
+              whileInView={{ scaleX: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+              style={{ transformOrigin: "right" }}
+            />
           </div>
 
           <div className="flex flex-col md:flex-row items-center justify-between text-[13px] text-primary-foreground/70 w-full">
@@ -152,8 +217,8 @@ export default function Footer() {
             </div>
 
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </footer>
   );
 }

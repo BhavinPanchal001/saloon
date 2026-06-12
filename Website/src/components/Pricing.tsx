@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { Check, Clock, Sparkles, ArrowRight } from "lucide-react";
 import { FadeIn, SectionLabel } from "./Section";
 
@@ -58,14 +59,39 @@ export default function Pricing() {
       {/* Distinct break between Services and Packages */}
       <div className="bg-background pt-0">
         <div className="mx-auto max-w-7xl px-6 flex items-center justify-center gap-6 py-2">
-          <span className="h-px flex-1 bg-gradient-to-r from-transparent to-gold/50" />
-          <Sparkles className="text-gold" size={18} />
-          <span className="h-px flex-1 bg-gradient-to-l from-transparent to-gold/50" />
+          <motion.span
+            className="h-px flex-1 bg-gradient-to-r from-transparent to-gold/50"
+            initial={{ scaleX: 0 }}
+            whileInView={{ scaleX: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            style={{ transformOrigin: "left" }}
+          />
+          <motion.div
+            initial={{ scale: 0, rotate: -90 }}
+            whileInView={{ scale: 1, rotate: 0 }}
+            viewport={{ once: true }}
+            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.3 }}
+          >
+            <Sparkles className="text-gold" size={18} />
+          </motion.div>
+          <motion.span
+            className="h-px flex-1 bg-gradient-to-l from-transparent to-gold/50"
+            initial={{ scaleX: 0 }}
+            whileInView={{ scaleX: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            style={{ transformOrigin: "right" }}
+          />
         </div>
       </div>
 
       <section id="pricing" className="pt-0 pb-16 md:pt-0 md:pb-24 bg-background relative overflow-hidden">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[60rem] h-[60rem] rounded-full bg-gold/5 blur-3xl" />
+        <motion.div
+          className="absolute -top-40 left-1/2 -translate-x-1/2 w-[60rem] h-[60rem] rounded-full bg-gold/5 blur-3xl"
+          animate={{ scale: [1, 1.05, 1], opacity: [0.4, 0.6, 0.4] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        />
 
         <div className="relative mx-auto max-w-7xl px-6">
           <FadeIn className="text-center max-w-2xl mx-auto">
@@ -94,12 +120,30 @@ export default function Pricing() {
 
             {/* Featured center */}
             <FadeIn delay={0.15} className="lg:col-span-6 lg:order-2 order-1">
-              <div className="relative rounded-[2.5rem] bg-primary text-primary-foreground p-10 md:p-12 shadow-glow border border-gold/30 overflow-hidden">
-                <div className="absolute top-6 right-6 inline-flex items-center gap-2 rounded-full bg-gold/15 border border-gold/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-gold">
-                  <Sparkles size={11} /> Most Loved
-                </div>
+              <motion.div
+                className="relative rounded-[2.5rem] bg-primary text-primary-foreground p-10 md:p-12 shadow-glow border border-gold/30 overflow-hidden"
+                whileHover={{ y: -5 }}
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              >
+                <motion.div
+                  className="absolute top-6 right-6 inline-flex items-center gap-2 rounded-full bg-gold/15 border border-gold/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-gold"
+                  animate={{ boxShadow: ["0 0 0 0px rgba(var(--gold), 0)", "0 0 0 8px rgba(200, 170, 80, 0)", "0 0 0 0px rgba(200, 170, 80, 0)"] }}
+                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                >
+                  <motion.span
+                    animate={{ rotate: [0, 180, 360] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Sparkles size={11} />
+                  </motion.span>
+                  Most Loved
+                </motion.div>
 
-                <div className="absolute -top-32 -right-32 w-80 h-80 rounded-full bg-gold/10 blur-3xl" />
+                <motion.div
+                  className="absolute -top-32 -right-32 w-80 h-80 rounded-full bg-gold/10 blur-3xl"
+                  animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                />
 
                 <div className="relative">
                   <h3 className="font-display text-4xl md:text-5xl">{featured.name}</h3>
@@ -115,25 +159,34 @@ export default function Pricing() {
                   <div className="my-8 h-px bg-white/15" />
 
                   <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
-                    {featured.features.map((f) => (
-                      <li key={f} className="flex items-start gap-3 text-sm">
+                    {featured.features.map((f, i) => (
+                      <motion.li
+                        key={f}
+                        className="flex items-start gap-3 text-sm"
+                        initial={{ opacity: 0, x: -10 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.4 + i * 0.08 }}
+                      >
                         <Check size={16} className="text-gold mt-0.5 shrink-0" />
                         <span className="text-primary-foreground/85">{f}</span>
-                      </li>
+                      </motion.li>
                     ))}
                   </ul>
 
                   <p className="mt-8 text-xs italic text-primary-foreground/60">{featured.note}</p>
 
-                  <a
+                  <motion.a
                     href="#booking"
-                    className="mt-8 inline-flex items-center justify-center gap-2 rounded-full bg-gold text-primary px-8 py-4 text-sm hover:bg-gold-soft transition-colors w-full sm:w-auto"
+                    className="mt-8 inline-flex items-center justify-center gap-2 rounded-full bg-gold text-primary px-8 py-4 text-sm transition-colors w-full sm:w-auto"
+                    whileHover={{ scale: 1.03, boxShadow: "0 20px 60px -15px color-mix(in oklab, var(--gold) 40%, transparent)" }}
+                    whileTap={{ scale: 0.97 }}
                   >
                     Book Demo {featured.name}
                     <ArrowRight size={16} />
-                  </a>
+                  </motion.a>
                 </div>
-              </div>
+              </motion.div>
             </FadeIn>
 
             {/* Right side */}
@@ -164,10 +217,15 @@ function SideCard({
   align: "left" | "right";
 }) {
   return (
-    <div
-      className={`rounded-[1.75rem] bg-card border border-border/50 p-7 hover:shadow-soft transition-all hover:-translate-y-1 ${
+    <motion.div
+      className={`rounded-[1.75rem] bg-card border border-border/50 p-7 transition-all ${
         align === "right" ? "lg:text-right" : "lg:text-left"
       }`}
+      whileHover={{
+        y: -10,
+        boxShadow: "0 30px 80px -30px color-mix(in oklab, var(--gold) 25%, transparent)",
+      }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
     >
       <h3 className="font-display text-2xl text-primary">{tier.name}</h3>
       <p className="mt-2 text-xs text-muted-foreground">{tier.desc}</p>
@@ -200,12 +258,18 @@ function SideCard({
         )}
       </ul>
 
-      <a
+      <motion.a
         href="#booking"
-        className="mt-6 inline-flex w-full items-center justify-center rounded-full border border-primary/30 px-5 py-2.5 text-xs text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
+        className="mt-6 inline-flex w-full items-center justify-center rounded-full border border-primary/30 px-5 py-2.5 text-xs text-primary transition-colors"
+        whileHover={{
+          backgroundColor: "var(--primary)",
+          color: "var(--primary-foreground)",
+          scale: 1.03,
+        }}
+        whileTap={{ scale: 0.97 }}
       >
         Book Demo {tier.name}
-      </a>
-    </div>
+      </motion.a>
+    </motion.div>
   );
 }

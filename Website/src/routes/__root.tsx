@@ -115,6 +115,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 import SmoothScroll from "@/components/SmoothScroll";
+import FloatingWhatsApp from "@/components/FloatingWhatsApp";
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
@@ -124,6 +125,7 @@ function RootComponent() {
       <SmoothScroll>
         <Outlet />
       </SmoothScroll>
+      <FloatingWhatsApp />
     </QueryClientProvider>
   );
 }
