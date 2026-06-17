@@ -5,11 +5,11 @@ import { useAuthStore } from "../../stores/authStore";
 const demoCredentials = {
   admin: {
     email: "admin@glowy.com",
-    password: "glowy123",
+    password: "admin123",
   },
   outlet_manager: {
     email: "manager@glowy.com",
-    password: "glowy123",
+    password: "admin123",
   },
 };
 
