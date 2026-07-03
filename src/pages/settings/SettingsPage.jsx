@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchSettings, saveSettings } from '../../services/mockApi';
+import { fetchPrinterStatusAPI, togglePrinterAPI, testPrintAPI } from '../../services/api';
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
-import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound } from "lucide-react";
+import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound, Printer } from "lucide-react";
 
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user);
@@ -30,6 +31,12 @@ export function SettingsPage() {
   const [totpError, setTotpError] = useState(null);
   const [totpLoading, setTotpLoading] = useState(false);
   const [disablePassword, setDisablePassword] = useState("");
+
+  // Printer settings state
+  const [printerStatus, setPrinterStatus] = useState({ enabled: false, vid: null, pid: null, deviceDetected: false });
+  const [printerLoading, setPrinterLoading] = useState(false);
+  const [printerToggling, setPrinterToggling] = useState(false);
+  const [testPrinting, setTestPrinting] = useState(false);
 
   const handleSetupTOTP = async () => {
     setTotpLoading(true);
@@ -101,6 +108,49 @@ export function SettingsPage() {
     loadSettings();
   }, []);
 
+  // Load printer status when printer tab is active
+  useEffect(() => {
+    if (activeTab === 'printer') {
+      const loadPrinterStatus = async () => {
+        setPrinterLoading(true);
+        try {
+          const status = await fetchPrinterStatusAPI();
+          setPrinterStatus(status);
+        } catch (err) {
+          toast.error('Failed to load printer status');
+        } finally {
+          setPrinterLoading(false);
+        }
+      };
+      loadPrinterStatus();
+    }
+  }, [activeTab]);
+
+  const handlePrinterToggle = async () => {
+    setPrinterToggling(true);
+    try {
+      const result = await togglePrinterAPI(!printerStatus.enabled);
+      setPrinterStatus(result);
+      toast.success(result.message || `Printing ${result.enabled ? 'enabled' : 'disabled'}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to toggle printer');
+    } finally {
+      setPrinterToggling(false);
+    }
+  };
+
+  const handleTestPrint = async () => {
+    setTestPrinting(true);
+    try {
+      const result = await testPrintAPI();
+      toast.success(result.message || 'Test receipt printed!');
+    } catch (err) {
+      toast.error(err.message || 'Test print failed');
+    } finally {
+      setTestPrinting(false);
+    }
+  };
+
   useEffect(() => {
     if (user?.email) {
       setSettings((p) => ({
@@ -131,13 +181,14 @@ export function SettingsPage() {
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "appearance", label: "Appearance", icon: Moon },
     { id: "security", label: "Security", icon: Shield },
+    { id: "printer", label: "Printer", icon: Printer },
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Settings"
-        subtitle="Manage your account preferences and system settings"
+        description="Manage your account preferences and system settings"
       />
 
       <div className="flex flex-col gap-6 lg:flex-row">
@@ -600,6 +651,130 @@ export function SettingsPage() {
                     {saving ? "Saving..." : "Save Changes"}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Printer Tab */}
+            {activeTab === "printer" && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-semibold text-navy-900">Thermal Printer Settings</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Configure your POS thermal printer for automatic receipt printing
+                  </p>
+                </div>
+
+                {printerLoading ? (
+                  <div className="flex justify-center py-10">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-200 border-t-navy-600" />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Printer Status */}
+                    <div className="rounded-xl border border-slate-100 bg-white/50 p-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${
+                            printerStatus.enabled ? 'bg-emerald-50' : 'bg-slate-100'
+                          }`}>
+                            <Printer className={`h-6 w-6 ${printerStatus.enabled ? 'text-emerald-600' : 'text-slate-400'}`} />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-navy-900">Thermal Printing</p>
+                            <p className="text-sm text-slate-500">
+                              {printerStatus.enabled
+                                ? 'Receipts will auto-print after checkout'
+                                : 'Printing is disabled — receipts won\'t print automatically'}
+                            </p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex cursor-pointer items-center">
+                          <input
+                            type="checkbox"
+                            checked={printerStatus.enabled}
+                            onChange={handlePrinterToggle}
+                            disabled={printerToggling}
+                            className="peer sr-only"
+                          />
+                          <div className="h-6 w-11 rounded-full bg-slate-200 peer-checked:bg-emerald-500 peer-focus:ring-4 peer-focus:ring-emerald-300"></div>
+                          <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-all peer-checked:left-6"></div>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Connection Status */}
+                    <div className="rounded-xl border border-slate-100 bg-white/50 p-5">
+                      <div className="flex items-center gap-4">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                          printerStatus.deviceDetected ? 'bg-emerald-50' : 'bg-amber-50'
+                        }`}>
+                          <div className={`h-3 w-3 rounded-full ${
+                            printerStatus.deviceDetected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
+                          }`} />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">USB Connection</p>
+                          <p className="text-sm text-slate-500">
+                            {printerStatus.deviceDetected
+                              ? 'Printer detected and ready'
+                              : 'No USB printer detected — connect your printer and refresh'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Configuration Info */}
+                    <div className="rounded-xl border border-slate-100 bg-white/50 p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-3">Configuration</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-slate-500">Vendor ID (VID)</p>
+                          <p className="text-sm font-mono font-semibold text-navy-900">
+                            {printerStatus.vid || <span className="text-slate-400 font-normal">Not set</span>}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500">Product ID (PID)</p>
+                          <p className="text-sm font-mono font-semibold text-navy-900">
+                            {printerStatus.pid || <span className="text-slate-400 font-normal">Not set</span>}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-slate-400">
+                        To change VID/PID, edit the <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">.env</code> file and restart the server.
+                      </p>
+                    </div>
+
+                    {/* Test Print */}
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-slate-900">Test Print</p>
+                          <p className="text-sm text-slate-500">
+                            Send a small test receipt to verify your printer is working
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleTestPrint}
+                          disabled={testPrinting || !printerStatus.enabled}
+                          className="btn-premium-primary !py-2.5 !px-5 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {testPrinting ? (
+                            <span className="flex items-center gap-2">
+                              <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                              Printing...
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-2">
+                              <Printer className="h-4 w-4" />
+                              Print Test Page
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

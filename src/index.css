@@ -32,12 +32,12 @@
 
 @layer components {
   .glass-card {
-    @apply rounded-[2rem] border border-white/50 bg-white/60 p-6 backdrop-blur-xl transition-all duration-300;
+    @apply rounded-2xl border border-white/50 bg-white/60 p-4 backdrop-blur-xl transition-all duration-300;
     box-shadow: var(--premium-shadow);
   }
 
   .glass-card:hover {
-    @apply -translate-y-1 border-white/80 bg-white/70 shadow-2xl;
+    @apply -translate-y-0.5 border-white/80 bg-white/70 shadow-xl;
   }
 
   .stat-card {
@@ -45,15 +45,15 @@
   }
 
   .btn-premium {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-bold tracking-wide transition-all duration-300 active:scale-[0.97];
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold tracking-wide transition-all duration-300 active:scale-[0.97];
   }
 
   .btn-premium-primary {
-    @apply btn-premium bg-navy-500 text-white shadow-lg shadow-navy-500/20 hover:bg-navy-600 hover:shadow-navy-500/40;
+    @apply btn-premium bg-navy-500 text-white shadow-md shadow-navy-500/10 hover:bg-navy-600 hover:shadow-navy-500/20;
   }
 
   .btn-premium-accent {
-    @apply btn-premium bg-gold-500 text-navy-900 shadow-lg shadow-gold-500/20 hover:bg-gold-600 hover:shadow-gold-500/40;
+    @apply btn-premium bg-gold-500 text-navy-900 shadow-md shadow-gold-500/10 hover:bg-gold-600 hover:shadow-gold-500/20;
   }
 
   .btn-premium-outline {
@@ -61,7 +61,7 @@
   }
 
   .table-container {
-    @apply overflow-hidden rounded-[2rem] border border-white/50 bg-white/40 backdrop-blur-md;
+    @apply overflow-hidden rounded-2xl border border-white/50 bg-white/40 backdrop-blur-md;
     box-shadow: var(--premium-shadow);
   }
 
@@ -70,11 +70,11 @@
   }
 
   .premium-table th {
-    @apply bg-navy-900/5 px-6 py-5 text-xs font-bold uppercase tracking-[0.2em] text-navy-800;
+    @apply bg-navy-900/5 px-4 py-2.5 text-xs font-bold uppercase tracking-[0.2em] text-navy-800;
   }
 
   .premium-table td {
-    @apply border-b border-navy-50/50 px-6 py-5 text-sm transition-colors duration-200;
+    @apply border-b border-navy-50/50 px-4 py-2.5 text-sm transition-colors duration-200;
   }
 
   .premium-table tr:hover td {
@@ -82,7 +82,7 @@
   }
 
   .premium-input {
-    @apply w-full rounded-2xl border border-slate-300 bg-white px-5 py-4 text-sm transition-all focus:border-navy-500 focus:bg-white focus:ring-4 focus:ring-navy-100/50;
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm transition-all focus:border-navy-500 focus:bg-white focus:ring-4 focus:ring-navy-100/50;
   }
 
   .premium-input::placeholder {
@@ -90,7 +90,7 @@
   }
 
   .premium-label {
-    @apply mb-2.5 block text-[10px] font-black uppercase tracking-[0.3em] text-navy-800;
+    @apply mb-1.5 block text-[10px] font-black uppercase tracking-[0.3em] text-navy-800;
   }
 
   .status-badge {
@@ -114,21 +114,21 @@
 
   /* Solid white card for modals/dialogs — no transparency */
   .card-solid {
-    @apply rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl transition-all duration-300;
+    @apply rounded-2xl border border-slate-200 bg-white p-4 shadow-xl transition-all duration-300;
   }
 
   /* Legacy table classes — PayrollPage, StaffPage compatibility */
   .table-shell {
-    @apply w-full overflow-hidden rounded-2xl border border-white/50 bg-white/40 backdrop-blur-md;
+    @apply w-full overflow-hidden rounded-xl border border-white/50 bg-white/40 backdrop-blur-md;
     box-shadow: var(--premium-shadow);
   }
 
   .table-head {
-    @apply bg-navy-900/5 px-6 py-4 text-xs font-bold uppercase tracking-[0.2em] text-navy-800;
+    @apply bg-navy-900/5 px-4 py-2.5 text-xs font-bold uppercase tracking-[0.2em] text-navy-800;
   }
 
   .table-cell {
-    @apply border-b border-navy-50/50 px-6 py-4 text-sm;
+    @apply border-b border-navy-50/50 px-4 py-2.5 text-sm;
   }
 
   /* Legacy button classes — backward compatibility */

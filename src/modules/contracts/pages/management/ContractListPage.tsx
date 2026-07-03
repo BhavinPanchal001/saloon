@@ -130,16 +130,16 @@ const ContractListPage: React.FC = () => {
     <ContractModuleLayout>
       <div className="space-y-6">
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label: 'Contract Groups', value: groups.length.toString(), color: 'indigo' },
             { label: 'Total Contracts', value: contracts.length.toString(), color: 'blue' },
             { label: 'Active', value: contracts.filter(c => c.status === ContractStatus.ACTIVE).length.toString(), color: 'emerald' },
             { label: 'Expiring Soon', value: contracts.filter(c => c.endDate && new Date(c.endDate) < new Date('2026-06-01')).length.toString(), color: 'rose' },
           ].map((stat) => (
-            <div key={stat.label} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">{stat.label}</p>
-              <p className={`text-2xl font-bold text-${stat.color}-600`}>{isLoading ? '-' : stat.value}</p>
+            <div key={stat.label} className="bg-white !p-2.5 flex items-center justify-between px-3 rounded-xl border border-slate-200 shadow-sm">
+              <span className="text-xs font-semibold text-slate-600">{stat.label}</span>
+              <span className={`text-base font-bold text-${stat.color}-600`}>{isLoading ? '-' : stat.value}</span>
             </div>
           ))}
         </div>

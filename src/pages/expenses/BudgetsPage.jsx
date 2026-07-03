@@ -198,130 +198,132 @@ export function BudgetsPage() {
       {/* Budget Edit Modal */}
       {isEditingBudget && selectedOutletData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
-          <div className="card-solid w-full max-w-lg">
-            <div className="flex items-center justify-between">
+          <div className="card-solid w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <h2 className="text-3xl text-navy-900">Allocate Budget</h2>
               </div>
               <button
                 type="button"
-                className="btn-premium-outline !p-2 rounded-full"
+                className="btn-premium-outline !p-2 rounded-full flex-shrink-0"
                 onClick={() => setIsEditingBudget(false)}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form
-              className="mt-8 space-y-6"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!editAmount || !selectedMonth) return;
-                setSaving(true);
-                try {
-                  await updateMonthlyBudgetAPI({
-                    outletId: selectedOutlet,
-                    amount: Number(editAmount),
-                    monthKey: selectedMonth,
-                    reason: editReason || "Budget allocation"
-                  });
-                  await loadBudgets();
-                  await loadBudgetHistory();
-                  setIsEditingBudget(false);
-                  setEditAmount("");
-                  setEditReason("");
-                } catch (error) {
-                  console.error("Failed to update budget:", error);
-                } finally {
-                  setSaving(false);
-                }
-              }}
-            >
-              <div>
-                <label className="premium-label">Outlet</label>
-                <input
-                  className="premium-input bg-slate-50"
-                  value={selectedOutletName}
-                  disabled
-                />
-              </div>
-              <div>
-                <label className="premium-label">Fiscal Month</label>
-                <select
-                  className="premium-input appearance-none"
-                  value={selectedMonth || ""}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                >
-                  {availableMonths.map((month) => (
-                    <option key={month} value={month}>
-                      {formatMonthLabel(month)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="premium-label">Budget Amount (RM)</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="premium-input"
-                  value={editAmount}
-                  onChange={(e) => setEditAmount(e.target.value)}
-                  placeholder="Enter budget amount"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="premium-label">Reason (Optional)</label>
-                <input
-                  type="text"
-                  className="premium-input"
-                  value={editReason}
-                  onChange={(e) => setEditReason(e.target.value)}
-                  placeholder="e.g., Monthly allocation, Budget revision, Special event"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={saving || !editAmount}
-                className="btn-premium-primary w-full disabled:opacity-50"
+            <div className="overflow-y-auto flex-1 pr-1 mt-4 custom-scrollbar">
+              <form
+                className="space-y-4 pb-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!editAmount || !selectedMonth) return;
+                  setSaving(true);
+                  try {
+                    await updateMonthlyBudgetAPI({
+                      outletId: selectedOutlet,
+                      amount: Number(editAmount),
+                      monthKey: selectedMonth,
+                      reason: editReason || "Budget allocation"
+                    });
+                    await loadBudgets();
+                    await loadBudgetHistory();
+                    setIsEditingBudget(false);
+                    setEditAmount("");
+                    setEditReason("");
+                  } catch (error) {
+                    console.error("Failed to update budget:", error);
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
               >
-                {saving ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
-                ) : (
-                  "Save Budget"
-                )}
-              </button>
-            </form>
+                <div>
+                  <label className="premium-label">Outlet</label>
+                  <input
+                    className="premium-input bg-slate-50"
+                    value={selectedOutletName}
+                    disabled
+                  />
+                </div>
+                <div>
+                  <label className="premium-label">Fiscal Month</label>
+                  <select
+                    className="premium-input appearance-none"
+                    value={selectedMonth || ""}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                  >
+                    {availableMonths.map((month) => (
+                      <option key={month} value={month}>
+                        {formatMonthLabel(month)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="premium-label">Budget Amount (RM)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="premium-input"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    placeholder="Enter budget amount"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="premium-label">Reason (Optional)</label>
+                  <input
+                    type="text"
+                    className="premium-input"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    placeholder="e.g., Monthly allocation, Budget revision, Special event"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={saving || !editAmount}
+                  className="btn-premium-primary w-full disabled:opacity-50"
+                >
+                  {saving ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
+                  ) : (
+                    "Save Budget"
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
 
       {/* Budget Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Total Allocated</div>
-          <div className="text-2xl font-bold mt-1 text-emerald-600">
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-4 mb-3">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Total Allocated</span>
+          <span className="text-base font-bold text-emerald-600">
             {isLoading ? "--" : formatCurrency(budgetData?.totalMonthlyBudget || 0)}
-          </div>
+          </span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Total Spent</div>
-          <div className="text-2xl font-bold mt-1 text-navy-600">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Total Spent</span>
+          <span className="text-base font-bold text-navy-900">
             {isLoading ? "--" : formatCurrency(budgetData?.totalExpensesSoFar || 0)}
-          </div>
+          </span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Remaining</div>
-          <div className="text-2xl font-bold mt-1 text-gold-600">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Remaining</span>
+          <span className="text-base font-bold text-gold-600">
             {isLoading ? "--" : formatCurrency(budgetData?.remainingBalance || 0)}
-          </div>
+          </span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Utilization</div>
-          <div className="text-2xl font-bold mt-1 text-rose-600">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Utilization</span>
+          <span className="text-base font-bold text-rose-600">
             {isLoading ? "--" : `${budgetData?.spendPercentage?.toFixed(0) || 0}%`}
-          </div>
+          </span>
         </div>
       </div>
 

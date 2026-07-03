@@ -8,6 +8,7 @@ import { fetchStaff, deleteEmployee } from '../../../services/api';
 import { useToastStore } from '../../../stores/toastStore';
 import { ConfirmModal } from '../../../components/ui/Modal';
 import { EmptyTable } from '../../../components/ui/EmptyState';
+import { PageHeader } from '../../../components/ui/PageHeader';
 import '../styles/employees.css';
 
 interface StaffMember {
@@ -143,30 +144,28 @@ const EmployeeListPage: React.FC = () => {
 
   return (
     <div className="employee-module">
-      <header className="module-header">
-        <div className="module-title">
-          <h1>Employee Management</h1>
-          <p>Organize, view, and manage your workforce with ease.</p>
-        </div>
-      </header>
+      <PageHeader
+        title="Employee Management"
+        description="Organize, view, and manage your workforce with ease."
+      />
 
       {/* Stats Summary Panel - Now derived from actual data */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Total Employees</div>
-          <div className="text-2xl font-bold mt-1">{stats.total}</div>
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-4 mb-3">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Total Employees</span>
+          <span className="text-base font-bold text-navy-900">{stats.total}</span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Active</div>
-          <div className="text-2xl font-bold mt-1 text-emerald-600">{stats.active}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Active</span>
+          <span className="text-base font-bold text-emerald-600">{stats.active}</span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">On Leave</div>
-          <div className="text-2xl font-bold mt-1 text-amber-600">{stats.onLeave}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">On Leave</span>
+          <span className="text-base font-bold text-amber-600">{stats.onLeave}</span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Unique Roles</div>
-          <div className="text-2xl font-bold mt-1">{stats.uniqueRoles}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Unique Roles</span>
+          <span className="text-base font-bold text-navy-800">{stats.uniqueRoles}</span>
         </div>
       </div>
 

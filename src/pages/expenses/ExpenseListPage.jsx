@@ -142,97 +142,48 @@ export function ExpenseListPage() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="stat-card group">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="premium-label">Total Monthly Budget</p>
-              <h3 className="mt-2 text-3xl text-ink">
-                {budget ? formatCurrency(budget.totalMonthlyBudget) : "--"}
-              </h3>
-            </div>
-            <div className="rounded-2xl bg-gold-100 p-3 text-gold-600 transition-colors group-hover:bg-gold-500 group-hover:text-white">
-              <Wallet size={24} />
-            </div>
+      <div className="grid gap-2 grid-cols-1 md:grid-cols-3 mb-3">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-gold-600" />
+            <span className="text-xs text-navy-600 font-medium">Total Budget</span>
           </div>
-          <div className="mt-6 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-bold text-navy-400">
-              <Calendar size={14} />
-              <span>Fiscal Month: {budget?.monthKey || "April 2026"}</span>
-            </div>
-            {isAdmin && (
-              <button
-                onClick={() => navigate("/budgets")}
-                className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700"
-              >
-                Set Budgets →
-              </button>
-            )}
-          </div>
+          <span className="text-base font-bold text-navy-900">
+            {budget ? formatCurrency(budget.totalMonthlyBudget) : "--"}
+          </span>
         </div>
 
-        <div className="stat-card group">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="premium-label">Accrued Expenses</p>
-              <h3 className="mt-2 text-3xl text-ink">
-                {budget ? formatCurrency(budget.totalExpensesSoFar) : "--"}
-              </h3>
-            </div>
-            <div className="rounded-2xl bg-navy-100 p-3 text-navy-600 transition-colors group-hover:bg-navy-500 group-hover:text-white">
-              <ArrowUpRight size={24} />
-            </div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <div className="flex items-center gap-2">
+            <ArrowUpRight className={`h-4 w-4 ${budget?.spendPercentage >= 90 ? "text-rose-500" : "text-navy-600"}`} />
+            <span className="text-xs text-navy-600 font-medium">Accrued Expenses</span>
           </div>
-          <div className="mt-6 flex items-center gap-2">
-            <div className="h-1.5 flex-1 rounded-full bg-navy-50 overflow-hidden">
-              <div
-                className={`h-full transition-all duration-1000 ${
-                  budget?.spendPercentage >= 90 ? "bg-rose-500" :
-                  budget?.spendPercentage >= 75 ? "bg-amber-500" :
-                  budget?.spendPercentage >= 50 ? "bg-gold-500" : "bg-navy-500"
-                }`}
-                style={{ width: `${budget ? Math.min((budget.totalExpensesSoFar / budget.totalMonthlyBudget) * 100, 100) : 0}%` }}
-              />
-            </div>
-            <span className={`text-[10px] font-black ${
-              budget?.spendPercentage >= 90 ? "text-rose-500" :
-              budget?.spendPercentage >= 75 ? "text-amber-500" : "text-navy-500"
+          <div className="flex items-center gap-1.5">
+            <span className="text-base font-bold text-navy-900">
+              {budget ? formatCurrency(budget.totalExpensesSoFar) : "--"}
+            </span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+              budget?.spendPercentage >= 90 ? "bg-rose-100 text-rose-700" :
+              budget?.spendPercentage >= 75 ? "bg-amber-100 text-amber-700" :
+              "bg-navy-100 text-navy-700"
             }`}>
-              {budget ? Math.round((budget.totalExpensesSoFar / budget.totalMonthlyBudget) * 100) : 0}% used
+              {budget ? Math.round((budget.totalExpensesSoFar / budget.totalMonthlyBudget) * 100) : 0}%
             </span>
           </div>
         </div>
 
-        <div className="stat-card group">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="premium-label">Available Balance</p>
-              <h3 className="mt-2 text-3xl text-ink">
-                {budget ? formatCurrency(budget.remainingBalance) : "--"}
-              </h3>
-            </div>
-            <div className={`rounded-2xl p-3 transition-colors group-hover:text-white ${
-              budget?.remainingBalance <= 0 ? "bg-rose-100 text-rose-600 group-hover:bg-rose-500" :
-              budget?.remainingBalance < budget?.totalMonthlyBudget * 0.1 ? "bg-amber-100 text-amber-600 group-hover:bg-amber-500" :
-              "bg-emerald-100 text-emerald-600 group-hover:bg-emerald-500"
-            }`}>
-              <PieChart size={24} />
-            </div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <div className="flex items-center gap-2">
+            <PieChart className={`h-4 w-4 ${budget?.remainingBalance <= 0 ? "text-rose-500" : "text-emerald-600"}`} />
+            <span className="text-xs text-navy-600 font-medium">Available Balance</span>
           </div>
-          <div className={`mt-6 flex items-center gap-2 text-[10px] font-black uppercase ${
+          <span className={`text-base font-bold ${
             budget?.remainingBalance <= 0 ? "text-rose-600" :
             budget?.remainingBalance < budget?.totalMonthlyBudget * 0.1 ? "text-amber-600" :
             "text-emerald-600"
           }`}>
-            <div className={`h-2 w-2 rounded-full animate-pulse ${
-              budget?.remainingBalance <= 0 ? "bg-rose-500" :
-              budget?.remainingBalance < budget?.totalMonthlyBudget * 0.1 ? "bg-amber-500" :
-              "bg-emerald-500"
-            }`} />
-            {budget?.remainingBalance <= 0 ? "Budget Exhausted" :
-             budget?.remainingBalance < budget?.totalMonthlyBudget * 0.1 ? "Low Balance" :
-             "Healthy Runway"}
-          </div>
+            {budget ? formatCurrency(budget.remainingBalance) : "--"}
+          </span>
         </div>
       </div>
 

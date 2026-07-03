@@ -337,123 +337,125 @@ export function UnitMasterPage() {
       {/* Modal */}
       {isModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
-          <div className="card-solid w-full max-w-lg">
-            <div className="flex items-center justify-between">
+          <div className="card-solid w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <h2 className="text-3xl text-navy-900">
                   {editingId ? "Edit Unit Group" : "Create Unit Group"}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-xs text-slate-500">
                   Define a measurement group with primary and secondary units.
                 </p>
               </div>
               <button
                 type="button"
-                className="btn-premium-outline !p-2 rounded-full"
+                className="btn-premium-outline !p-2 rounded-full flex-shrink-0"
                 onClick={() => setIsModalOpen(false)}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-              <div>
-                <label className="premium-label">Unit Group Name</label>
-                <input
-                  className="premium-input"
-                  value={form.groupName}
-                  onChange={(e) => updateField("groupName", e.target.value)}
-                  placeholder="e.g. Volume – Liter / Milliliter"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            <div className="overflow-y-auto flex-1 pr-1 mt-4 custom-scrollbar">
+              <form className="space-y-4 pb-2" onSubmit={handleSubmit}>
                 <div>
-                  <label className="premium-label">Primary Unit</label>
+                  <label className="premium-label">Unit Group Name</label>
                   <input
                     className="premium-input"
-                    value={form.primaryUnit}
-                    onChange={(e) => updateField("primaryUnit", e.target.value)}
-                    placeholder="e.g. Liter"
+                    value={form.groupName}
+                    onChange={(e) => updateField("groupName", e.target.value)}
+                    placeholder="e.g. Volume – Liter / Milliliter"
                     required
                   />
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="premium-label">Primary Unit</label>
+                    <input
+                      className="premium-input"
+                      value={form.primaryUnit}
+                      onChange={(e) => updateField("primaryUnit", e.target.value)}
+                      placeholder="e.g. Liter"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="premium-label">Abbreviation</label>
+                    <input
+                      className="premium-input"
+                      value={form.primaryAbbr}
+                      onChange={(e) => updateField("primaryAbbr", e.target.value.toUpperCase())}
+                      placeholder="e.g. L"
+                      maxLength={5}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="premium-label">Secondary Unit</label>
+                    <input
+                      className="premium-input"
+                      value={form.secondaryUnit}
+                      onChange={(e) => updateField("secondaryUnit", e.target.value)}
+                      placeholder="e.g. Milliliter"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="premium-label">Abbreviation</label>
+                    <input
+                      className="premium-input"
+                      value={form.secondaryAbbr}
+                      onChange={(e) => updateField("secondaryAbbr", e.target.value.toUpperCase())}
+                      placeholder="e.g. ML"
+                      maxLength={5}
+                      required
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="premium-label">Abbreviation</label>
-                  <input
-                    className="premium-input"
-                    value={form.primaryAbbr}
-                    onChange={(e) => updateField("primaryAbbr", e.target.value.toUpperCase())}
-                    placeholder="e.g. L"
-                    maxLength={5}
-                    required
-                  />
+                  <label className="premium-label">Conversion Ratio</label>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-navy-600">
+                      1 {form.primaryAbbr || "—"}
+                    </span>
+                    <span className="text-slate-400">=</span>
+                    <input
+                      type="number"
+                      min="0.001"
+                      step="any"
+                      className="premium-input flex-1"
+                      value={form.conversionRatio}
+                      onChange={(e) => updateField("conversionRatio", e.target.value)}
+                      placeholder="e.g. 1000"
+                      required
+                    />
+                    <span className="text-sm font-semibold text-navy-600">
+                      {form.secondaryAbbr || "—"}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="premium-label">Secondary Unit</label>
-                  <input
-                    className="premium-input"
-                    value={form.secondaryUnit}
-                    onChange={(e) => updateField("secondaryUnit", e.target.value)}
-                    placeholder="e.g. Milliliter"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="premium-label">Abbreviation</label>
-                  <input
-                    className="premium-input"
-                    value={form.secondaryAbbr}
-                    onChange={(e) => updateField("secondaryAbbr", e.target.value.toUpperCase())}
-                    placeholder="e.g. ML"
-                    maxLength={5}
-                    required
-                  />
-                </div>
-              </div>
+                {form.primaryAbbr && form.secondaryAbbr && form.conversionRatio ? (
+                  <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-4 text-xs font-semibold text-navy-600">
+                    <ArrowLeftRight size={14} />
+                    <span>
+                      1 {form.primaryAbbr} = {form.conversionRatio} {form.secondaryAbbr}
+                      &nbsp;&nbsp;·&nbsp;&nbsp;
+                      1 {form.secondaryAbbr} = {(1 / Number(form.conversionRatio)).toFixed(6).replace(/\.?0+$/, "")} {form.primaryAbbr}
+                    </span>
+                  </div>
+                ) : null}
 
-              <div>
-                <label className="premium-label">Conversion Ratio</label>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-navy-600">
-                    1 {form.primaryAbbr || "—"}
-                  </span>
-                  <span className="text-slate-400">=</span>
-                  <input
-                    type="number"
-                    min="0.001"
-                    step="any"
-                    className="premium-input flex-1"
-                    value={form.conversionRatio}
-                    onChange={(e) => updateField("conversionRatio", e.target.value)}
-                    placeholder="e.g. 1000"
-                    required
-                  />
-                  <span className="text-sm font-semibold text-navy-600">
-                    {form.secondaryAbbr || "—"}
-                  </span>
-                </div>
-              </div>
-
-              {form.primaryAbbr && form.secondaryAbbr && form.conversionRatio ? (
-                <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-4 text-xs font-semibold text-navy-600">
-                  <ArrowLeftRight size={14} />
-                  <span>
-                    1 {form.primaryAbbr} = {form.conversionRatio} {form.secondaryAbbr}
-                    &nbsp;&nbsp;·&nbsp;&nbsp;
-                    1 {form.secondaryAbbr} = {(1 / Number(form.conversionRatio)).toFixed(6).replace(/\.?0+$/, "")} {form.primaryAbbr}
-                  </span>
-                </div>
-              ) : null}
-
-              <button type="submit" className="btn-premium-primary w-full">
-                {editingId ? "Update Unit Group" : "Create Unit Group"}
-              </button>
-            </form>
+                <button type="submit" className="btn-premium-primary w-full">
+                  {editingId ? "Update Unit Group" : "Create Unit Group"}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       ) : null}

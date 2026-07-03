@@ -10,11 +10,11 @@ const ContractModuleLayout: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
       {/* Module Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
+      <header className="bg-white border-b border-slate-200 px-6 py-2.5">
+        <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Contract Group</h1>
-            <p className="text-sm text-slate-500">Manage contract groups and their associated contracts.</p>
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight">Contract Group</h1>
+            <p className="text-xs text-slate-500">Manage contract groups and their associated contracts.</p>
           </div>
           <div className="flex gap-3">
              {/* Global Module Actions could go here */}
@@ -28,7 +28,7 @@ const ContractModuleLayout: React.FC<{ children: React.ReactNode }> = ({ childre
               key={item.path}
               to={item.path}
               className={({ isActive }) => `
-                px-4 py-2 text-sm font-medium rounded-md transition-all duration-200
+                px-3 py-1 text-xs font-semibold rounded-md transition-all duration-200
                 ${isActive 
                   ? 'bg-indigo-50 text-indigo-700 shadow-sm' 
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}
@@ -41,7 +41,7 @@ const ContractModuleLayout: React.FC<{ children: React.ReactNode }> = ({ childre
       </header>
 
       {/* Page Content */}
-      <main className="flex-1 overflow-auto p-6">
+      <main className="flex-1 overflow-auto p-4">
         {children}
       </main>
     </div>

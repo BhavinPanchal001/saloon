@@ -249,55 +249,55 @@ const AttendanceSummaryPage = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="glass-card p-5">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="glass-card p-3.5">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-slate-400">Working Days</p>
-              <p className="mt-2 text-3xl font-black text-navy-900">{stats.workingDays}</p>
+              <p className="mt-1.5 text-2xl font-black text-navy-900">{stats.workingDays}</p>
               <p className="text-xs text-slate-500">of {stats.totalDays} days</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              <Calendar className="h-6 w-6" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <Calendar className="h-5 w-5" />
             </div>
           </div>
         </div>
 
-        <div className="glass-card p-5">
+        <div className="glass-card p-3.5">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-slate-400">Avg Attendance</p>
-              <p className="mt-2 text-3xl font-black text-emerald-600">{attendanceRate}%</p>
+              <p className="mt-1.5 text-2xl font-black text-emerald-600">{attendanceRate}%</p>
               <p className="text-xs text-slate-500">Present rate</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-              <TrendingUp className="h-6 w-6" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <TrendingUp className="h-5 w-5" />
             </div>
           </div>
         </div>
 
-        <div className="glass-card p-5">
+        <div className="glass-card p-3.5">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-slate-400">Total Present</p>
-              <p className="mt-2 text-3xl font-black text-navy-900">{stats.totalPresent}</p>
+              <p className="mt-1.5 text-2xl font-black text-navy-900">{stats.totalPresent}</p>
               <p className="text-xs text-slate-500">Check-ins</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-              <CheckCircle className="h-6 w-6" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <CheckCircle className="h-5 w-5" />
             </div>
           </div>
         </div>
 
-        <div className="glass-card p-5">
+        <div className="glass-card p-3.5">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-slate-400">Absences</p>
-              <p className="mt-2 text-3xl font-black text-rose-600">{stats.totalAbsent + stats.totalHalfDay}</p>
+              <p className="mt-1.5 text-2xl font-black text-rose-600">{stats.totalAbsent + stats.totalHalfDay}</p>
               <p className="text-xs text-slate-500">Absent + Half-day</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
-              <XCircle className="h-6 w-6" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+              <XCircle className="h-5 w-5" />
             </div>
           </div>
         </div>

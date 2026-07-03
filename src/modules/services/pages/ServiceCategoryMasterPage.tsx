@@ -106,18 +106,18 @@ const ServiceCategoryMasterPage: React.FC = () => {
       </header>
 
       {/* Stats Summary Panel */}
-      <div className="grid gap-4 sm:grid-cols-3 mb-6">
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Total Categories</div>
-          <div className="text-2xl font-bold mt-1">{stats.total}</div>
+      <div className="grid gap-3 sm:grid-cols-3 mb-4">
+        <div className="glass-card p-3.5">
+          <div className="text-xs text-navy-500 font-medium">Total Categories</div>
+          <div className="text-xl font-bold mt-1">{stats.total}</div>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Active</div>
-          <div className="text-2xl font-bold mt-1 text-emerald-600">{stats.active}</div>
+        <div className="glass-card p-3.5">
+          <div className="text-xs text-navy-500 font-medium">Active</div>
+          <div className="text-xl font-bold mt-1 text-emerald-600">{stats.active}</div>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Inactive</div>
-          <div className="text-2xl font-bold mt-1 text-slate-500">{stats.inactive}</div>
+        <div className="glass-card p-3.5">
+          <div className="text-xs text-navy-500 font-medium">Inactive</div>
+          <div className="text-xl font-bold mt-1 text-slate-500">{stats.inactive}</div>
         </div>
       </div>
 

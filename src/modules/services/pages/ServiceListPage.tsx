@@ -5,6 +5,7 @@ import { fetchServicesFromAPI, fetchServiceCategoriesFromAPI, fetchProductsFromA
 import { formatCurrency } from '../../../utils/format';
 import { useToastStore } from '../../../stores/toastStore';
 import { EmptyTable, NoSearchResults } from '../../../components/ui/EmptyState';
+import { PageHeader } from '../../../components/ui/PageHeader';
 import '../styles/services.css';
 
 const ServiceListPage: React.FC = () => {
@@ -146,43 +147,43 @@ const ServiceListPage: React.FC = () => {
 
   return (
     <div className="services-module">
-      <header className="module-header">
-        <div className="module-title">
-          <h1>Service Management</h1>
-          <p>Define and manage your salon's service menu and product consumption.</p>
-        </div>
-        <button
-          className="btn-premium-primary"
-          onClick={() => navigate('/services/add')}
-        >
-          + Add New Service
-        </button>
-      </header>
+      <PageHeader
+        title="Service Management"
+        description="Define and manage your salon's service menu and product consumption."
+        action={
+          <button
+            className="btn-premium-primary"
+            onClick={() => navigate('/services/add')}
+          >
+            + Add New Service
+          </button>
+        }
+      />
 
       {/* Stats Summary Panel */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Total Services</div>
-          <div className="text-2xl font-bold mt-1">{stats.total}</div>
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-4 mb-3">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Total Services</span>
+          <span className="text-base font-bold text-navy-900">{stats.total}</span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Active Menu Items</div>
-          <div className="text-2xl font-bold mt-1 text-emerald-600">{stats.total}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Active Menu</span>
+          <span className="text-base font-bold text-emerald-600">{stats.total}</span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Avg. Price</div>
-          <div className="text-2xl font-bold mt-1 text-gold-600">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Avg. Price</span>
+          <span className="text-base font-bold text-gold-600">
             {formatCurrency(stats.avgPrice)}
-          </div>
+          </span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Consumption Tracked</div>
-          <div className="text-2xl font-bold mt-1">{stats.withProductLinkages}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Linked Products</span>
+          <span className="text-base font-bold text-navy-800">{stats.withProductLinkages}</span>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <div className="glass-card p-4 mb-6 space-y-3">
+      <div className="glass-card p-3 mb-4 space-y-3">
         {/* Row 1: Search + Category + Product */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">

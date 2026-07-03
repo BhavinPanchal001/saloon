@@ -13,9 +13,6 @@
 .packages-module {
   font-family: 'Manrope', -apple-system, sans-serif;
   color: var(--pkg-text-main);
-  background: var(--pkg-bg);
-  min-height: 100vh;
-  padding: 2rem;
 }
 
 .module-header {

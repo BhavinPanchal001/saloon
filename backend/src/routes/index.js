@@ -17,6 +17,7 @@ const bankRoutes = require('./banks');
 const budgetRoutes = require('./budgets');
 const auditLogRoutes = require('./auditLogRoutes');
 const notificationRoutes = require('./notifications');
+const printerRoutes = require('./printer');
 
 // HR and Contract routes
 const staffRoutes = require('./staff');
@@ -51,6 +52,7 @@ router.use('/banks', bankRoutes);
 router.use('/budgets', budgetRoutes);
 router.use('/audit-logs', auditLogRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/printer', printerRoutes);
 
 // Register HR and Contract routes
 router.use('/staff', staffRoutes);

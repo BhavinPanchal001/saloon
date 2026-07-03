@@ -145,32 +145,33 @@ export function PurchaseOrderHistoryPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-navy-900">Purchase Orders</h1>
-          <p className="text-sm text-slate-500">Track, manage and create purchase orders</p>
-        </div>
-        <div className="flex gap-3">
-          <button onClick={() => navigate("/inventory/purchase-orders/new")} className="btn-premium-primary flex items-center gap-2">
+      <PageHeader
+        title="Purchase Orders"
+        description="Track, manage and create purchase orders"
+        action={
+          <button
+            onClick={() => navigate("/inventory/purchase-orders/new")}
+            className="btn-premium-primary flex items-center gap-2"
+          >
             <Plus className="h-4 w-4" /> New PO
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="glass-card p-5">
-          <p className="text-xs font-black uppercase tracking-widest text-slate-400">Total Orders</p>
-          <p className="mt-2 text-2xl font-black text-navy-900">{stats.total}</p>
+      <div className="grid gap-2 grid-cols-2 mb-3">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Total Orders</span>
+          <span className="text-base font-bold text-navy-900">{stats.total}</span>
         </div>
-        <div className="glass-card p-5">
-          <p className="text-xs font-black uppercase tracking-widest text-slate-400">Total Value</p>
-          <p className="mt-2 text-2xl font-black text-navy-900">{formatCurrency(stats.totalValue)}</p>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Total Value</span>
+          <span className="text-base font-bold text-navy-900">{formatCurrency(stats.totalValue)}</span>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="glass-card p-4">
+      <div className="glass-card p-3">
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

@@ -22,6 +22,7 @@ import {
 import { useBankStore } from '../../../stores/bankStore';
 import { Bank, BankTransaction } from '../types';
 import { formatCurrency } from '../../../utils/format';
+import { PageHeader } from '../../../components/ui/PageHeader';
 import '../styles/bank.css';
 
 const BankListPage: React.FC = () => {
@@ -105,41 +106,41 @@ const BankListPage: React.FC = () => {
   return (
     <div className="bank-module">
       {/* Header */}
-      <header className="module-header">
-        <div className="module-title">
-          <h1>Bank Management</h1>
-          <p>Manage your bank accounts for transactions, payments, and receipts.</p>
-        </div>
-        <button
-          className="btn-premium-primary flex items-center gap-2"
-          onClick={() => navigate('/bank/new')}
-        >
-          <Plus className="w-4 h-4" />
-          Add Bank Account
-        </button>
-      </header>
+      <PageHeader
+        title="Bank Management"
+        description="Manage your bank accounts for transactions, payments, and receipts."
+        action={
+          <button
+            className="btn-premium-primary flex items-center gap-2"
+            onClick={() => navigate('/bank/new')}
+          >
+            <Plus className="w-4 h-4" />
+            Add Bank Account
+          </button>
+        }
+      />
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Total Banks</div>
-          <div className="text-2xl font-bold mt-1">{stats.total}</div>
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-5 mb-3">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Total Banks</span>
+          <span className="text-base font-bold text-navy-900">{stats.total}</span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Active Accounts</div>
-          <div className="text-2xl font-bold mt-1 text-emerald-600">{stats.active}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Active Accounts</span>
+          <span className="text-base font-bold text-emerald-600">{stats.active}</span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Default Account</div>
-          <div className="text-2xl font-bold mt-1 text-gold-600">{stats.defaultCount}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Default Account</span>
+          <span className="text-base font-bold text-gold-600">{stats.defaultCount}</span>
         </div>
-        <div className="glass-card p-5">
-          <div className="text-sm text-navy-500 font-medium">Inactive</div>
-          <div className="text-2xl font-bold mt-1 text-slate-500">{stats.total - stats.active}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Inactive</span>
+          <span className="text-base font-bold text-slate-500">{stats.total - stats.active}</span>
         </div>
-        <div className="glass-card p-5 bg-gold-50/50 border-gold-200">
-          <div className="text-sm text-navy-500 font-medium">Total Balance</div>
-          <div className="text-2xl font-bold mt-1 text-gold-700">{formatCurrency(stats.totalBalance)}</div>
+        <div className="glass-card !p-2.5 bg-gold-50/50 border-gold-200 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Total Balance</span>
+          <span className="text-base font-bold text-gold-700">{formatCurrency(stats.totalBalance)}</span>
         </div>
       </div>
 

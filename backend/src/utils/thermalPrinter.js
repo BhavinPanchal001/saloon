@@ -1,7 +1,8 @@
 const escpos = require('escpos');
 escpos.USB = require('escpos-usb');
 
-const PRINTER_ENABLED = process.env.THERMAL_PRINTER_ENABLED === 'true';
+// Runtime-toggleable state (initialized from env, can be changed via API)
+let printerEnabled = process.env.THERMAL_PRINTER_ENABLED === 'true';
 const PRINTER_VID = process.env.THERMAL_PRINTER_VID ? parseInt(process.env.THERMAL_PRINTER_VID, 16) : undefined;
 const PRINTER_PID = process.env.THERMAL_PRINTER_PID ? parseInt(process.env.THERMAL_PRINTER_PID, 16) : undefined;
 
@@ -48,26 +49,61 @@ const formatTime = (iso) => {
 };
 
 /**
+ * Try to open a USB device. Returns the device or throws.
+ */
+const openUSBDevice = () => {
+  if (PRINTER_VID && PRINTER_PID) {
+    return new escpos.USB(PRINTER_VID, PRINTER_PID);
+  }
+  return new escpos.USB();
+};
+
+/**
+ * Get current printer status.
+ */
+const getPrinterStatus = () => {
+  let deviceDetected = false;
+  try {
+    const device = openUSBDevice();
+    deviceDetected = !!device;
+  } catch (_) {
+    deviceDetected = false;
+  }
+
+  return {
+    enabled: printerEnabled,
+    vid: PRINTER_VID ? PRINTER_VID.toString(16).toUpperCase() : null,
+    pid: PRINTER_PID ? PRINTER_PID.toString(16).toUpperCase() : null,
+    deviceDetected,
+  };
+};
+
+/**
+ * Toggle printer enabled state at runtime.
+ */
+const setPrinterEnabled = (enabled) => {
+  printerEnabled = !!enabled;
+  console.log(`[ThermalPrinter] Printing ${printerEnabled ? 'ENABLED' : 'DISABLED'} (runtime toggle).`);
+  return printerEnabled;
+};
+
+/**
  * Print a receipt for the given bill data.
  * billData shape matches the checkout response:
  * { billNumber, createdAt, customer: { name, phone }, outletName, lineItems, subtotal, discountAmount, tax, total, paymentMethod }
  */
 const printReceipt = async (billData) => {
-  if (!PRINTER_ENABLED) {
+  if (!printerEnabled) {
     console.log('[ThermalPrinter] Printing disabled via env.');
-    return;
+    return { success: false, reason: 'disabled' };
   }
 
   let device;
   try {
-    if (PRINTER_VID && PRINTER_PID) {
-      device = new escpos.USB(PRINTER_VID, PRINTER_PID);
-    } else {
-      device = new escpos.USB();
-    }
+    device = openUSBDevice();
   } catch (err) {
     console.warn('[ThermalPrinter] USB printer not found or not connected:', err.message);
-    return;
+    return { success: false, reason: 'not_connected', message: err.message };
   }
 
   const options = { encoding: 'GB18030', width: LINE_WIDTH };
@@ -77,7 +113,7 @@ const printReceipt = async (billData) => {
     device.open((err) => {
       if (err) {
         console.warn('[ThermalPrinter] Failed to open printer:', err.message);
-        resolve();
+        resolve({ success: false, reason: 'open_failed', message: err.message });
         return;
       }
 
@@ -159,15 +195,78 @@ const printReceipt = async (billData) => {
           .cut()
           .close(() => {
             console.log('[ThermalPrinter] Receipt printed successfully for bill:', billData.billNumber);
-            resolve();
+            resolve({ success: true });
           });
       } catch (printErr) {
         console.error('[ThermalPrinter] Error during printing:', printErr.message);
         try { device.close(); } catch (_) { /* ignore */ }
-        resolve();
+        resolve({ success: false, reason: 'print_error', message: printErr.message });
       }
     });
   });
 };
 
-module.exports = { printReceipt };
+/**
+ * Print a small test receipt to verify the printer is working.
+ */
+const printTestReceipt = async () => {
+  if (!printerEnabled) {
+    return { success: false, reason: 'disabled' };
+  }
+
+  let device;
+  try {
+    device = openUSBDevice();
+  } catch (err) {
+    return { success: false, reason: 'not_connected', message: err.message };
+  }
+
+  const options = { encoding: 'GB18030', width: LINE_WIDTH };
+  const printer = new escpos.Printer(device, options);
+
+  return new Promise((resolve) => {
+    device.open((err) => {
+      if (err) {
+        resolve({ success: false, reason: 'open_failed', message: err.message });
+        return;
+      }
+
+      try {
+        const separator = '='.repeat(LINE_WIDTH);
+        const now = new Date();
+
+        printer
+          .font('a')
+          .align('ct')
+          .style('b')
+          .size(1, 1)
+          .text('GLOWY')
+          .style('normal')
+          .size(0, 0)
+          .text('Glow to go with Glowy')
+          .text(separator)
+          .text('')
+          .style('b')
+          .text('*** TEST PRINT ***')
+          .style('normal')
+          .text('')
+          .text(`Date: ${now.toLocaleDateString('en-IN')}`)
+          .text(`Time: ${now.toLocaleTimeString('en-IN')}`)
+          .text('')
+          .text('Your thermal printer is working!')
+          .text('')
+          .text(separator)
+          .cut()
+          .close(() => {
+            console.log('[ThermalPrinter] Test receipt printed successfully.');
+            resolve({ success: true });
+          });
+      } catch (printErr) {
+        try { device.close(); } catch (_) { /* ignore */ }
+        resolve({ success: false, reason: 'print_error', message: printErr.message });
+      }
+    });
+  });
+};
+
+module.exports = { printReceipt, getPrinterStatus, setPrinterEnabled, printTestReceipt };

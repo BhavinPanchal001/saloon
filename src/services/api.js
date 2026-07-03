@@ -608,6 +608,41 @@ export const fetchBillByIdFromAPI = async (id) => {
   return handleResponse(res);
 };
 
+// Trigger thermal print for a specific bill
+export const printReceiptAPI = async (billId) => {
+  const res = await fetch(`${API_BASE}/pos/print-receipt/${billId}`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── Printer Settings ─────────────────────────────────────────────────────────
+
+export const fetchPrinterStatusAPI = async () => {
+  const res = await fetch(`${API_BASE}/printer/status`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const togglePrinterAPI = async (enabled) => {
+  const res = await fetch(`${API_BASE}/printer/toggle`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ enabled }),
+  });
+  return handleResponse(res);
+};
+
+export const testPrintAPI = async () => {
+  const res = await fetch(`${API_BASE}/printer/test-print`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
 // ─── Banks ────────────────────────────────────────────────────────────────────
 
 export const fetchBanksFromAPI = async () => {

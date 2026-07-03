@@ -13,9 +13,6 @@
 .services-module {
   font-family: 'Manrope', -apple-system, sans-serif;
   color: var(--svc-text-main);
-  background: var(--svc-bg);
-  min-height: 100vh;
-  padding: 2rem;
 }
 
 .module-header {

@@ -41,9 +41,25 @@ const printBillReceipt = async (req, res) => {
       })),
     };
 
-    await printReceipt(billData);
+    const result = await printReceipt(billData);
 
-    return res.json({ message: 'Receipt sent to printer.' });
+    if (result && result.success) {
+      return res.json({ message: 'Receipt sent to printer.', success: true });
+    }
+
+    // Map reason to user-friendly message
+    const messages = {
+      disabled: 'Printing is disabled. Enable it in Printer Settings.',
+      not_connected: 'No USB printer detected. Check the connection.',
+      open_failed: 'Could not open the printer. It may be in use.',
+      print_error: 'Printing error: ' + (result?.message || 'Unknown'),
+    };
+
+    return res.status(422).json({
+      message: messages[result?.reason] || 'Print failed.',
+      success: false,
+      reason: result?.reason,
+    });
   } catch (err) {
     console.error('[PrintController] Error printing receipt:', err);
     return res.status(500).json({ message: 'Failed to print receipt.' });

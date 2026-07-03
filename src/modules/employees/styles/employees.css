@@ -19,9 +19,6 @@
 .employee-module {
   font-family: 'Manrope', -apple-system, sans-serif;
   color: var(--emp-text-main);
-  background: var(--emp-bg);
-  min-height: 100vh;
-  padding: 2rem;
 }
 
 /* Glass cards are handled by global index.css for consistency */

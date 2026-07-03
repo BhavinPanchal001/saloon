@@ -8,6 +8,7 @@ import {
 } from '../../../services/api';
 import { formatCurrency } from '../../../utils/format';
 import { formatPackageValue } from '../utils/packageFormUtils';
+import { PageHeader } from '../../../components/ui/PageHeader';
 import '../styles/packages.css';
 
 const PackageListPage: React.FC = () => {
@@ -80,36 +81,36 @@ const PackageListPage: React.FC = () => {
 
   return (
     <div className="packages-module">
-      <header className="module-header">
-        <div className="module-title">
-          <h1>Package Management</h1>
-          <p>Design, price, and deploy service bundles across your network.</p>
-        </div>
-        <button 
-          className="btn-premium-primary"
-          onClick={() => navigate('/packages/new')}
-        >
-          + Add New Package
-        </button>
-      </header>
+      <PageHeader
+        title="Package Management"
+        description="Design, price, and deploy service bundles across your network."
+        action={
+          <button 
+            className="btn-premium-primary"
+            onClick={() => navigate('/packages/new')}
+          >
+            + Add New Package
+          </button>
+        }
+      />
 
       {/* Stats Summary Panel */}
-      <div className="package-stats-grid">
-        <div className="glass-card" style={{ padding: '1.25rem' }}>
-          <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: '500' }}>Active Bundles</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: '700', marginTop: '0.25rem' }}>{stats.active}</div>
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-4 mb-3">
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Active Bundles</span>
+          <span className="text-base font-bold text-navy-900">{stats.active}</span>
         </div>
-        <div className="glass-card" style={{ padding: '1.25rem' }}>
-          <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: '500' }}>Online Enabled</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: '700', marginTop: '0.25rem', color: '#10b981' }}>{stats.online}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Online Enabled</span>
+          <span className="text-base font-bold text-emerald-600">{stats.online}</span>
         </div>
-        <div className="glass-card" style={{ padding: '1.25rem' }}>
-          <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: '500' }}>Featured</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: '700', marginTop: '0.25rem', color: '#f59e0b' }}>{stats.featured}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Featured</span>
+          <span className="text-base font-bold text-amber-600">{stats.featured}</span>
         </div>
-        <div className="glass-card" style={{ padding: '1.25rem' }}>
-          <div style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: '500' }}>Total Directory</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: '700', marginTop: '0.25rem' }}>{stats.total}</div>
+        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
+          <span className="text-xs text-navy-600 font-medium">Total Directory</span>
+          <span className="text-base font-bold text-navy-800">{stats.total}</span>
         </div>
       </div>
 

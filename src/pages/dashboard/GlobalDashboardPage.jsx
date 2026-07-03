@@ -225,12 +225,12 @@ export function GlobalDashboardPage() {
       </div>
 
       {/* Enhanced Summary Cards */}
-      <div className="mt-6 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <div className="stat-card !p-4">
+      <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="stat-card !p-3.5">
           <div className="flex items-start justify-between">
             <div>
-              <p className="premium-label text-sm">Total Revenue</p>
-              <p className="mt-1 text-2xl font-black text-navy-900">
+              <p className="premium-label text-xs">Total Revenue</p>
+              <p className="mt-1 text-xl font-black text-navy-900">
                 {reports ? formatCurrency(reports.summary.totalRevenue) : "--"}
               </p>
               <div className="mt-1 flex items-center gap-1 text-xs text-emerald-600">
@@ -244,11 +244,11 @@ export function GlobalDashboardPage() {
           </div>
         </div>
 
-        <div className="stat-card !p-4">
+        <div className="stat-card !p-3.5">
           <div className="flex items-start justify-between">
             <div>
-              <p className="premium-label text-sm">Total Services</p>
-              <p className="mt-1 text-2xl font-black text-navy-900">
+              <p className="premium-label text-xs">Total Services</p>
+              <p className="mt-1 text-xl font-black text-navy-900">
                 {reports?.summary.totalServices?.toLocaleString() ?? "--"}
               </p>
               <div className="mt-1 flex items-center gap-1 text-xs text-emerald-600">
@@ -262,11 +262,11 @@ export function GlobalDashboardPage() {
           </div>
         </div>
 
-        <div className="stat-card !p-4">
+        <div className="stat-card !p-3.5">
           <div className="flex items-start justify-between">
             <div>
-              <p className="premium-label text-sm">Avg Bill Value</p>
-              <p className="mt-1 text-2xl font-black text-navy-900">
+              <p className="premium-label text-xs">Avg Bill Value</p>
+              <p className="mt-1 text-xl font-black text-navy-900">
                 {reports ? formatCurrency(reports.summary.avgBillValue) : "--"}
               </p>
               <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
@@ -279,11 +279,11 @@ export function GlobalDashboardPage() {
           </div>
         </div>
 
-        <div className="stat-card !p-4">
+        <div className="stat-card !p-3.5">
           <div className="flex items-start justify-between">
             <div>
-              <p className="premium-label text-sm">Total Customers</p>
-              <p className="mt-1 text-2xl font-black text-navy-900">
+              <p className="premium-label text-xs">Total Customers</p>
+              <p className="mt-1 text-xl font-black text-navy-900">
                 {reports?.summary.customerCount?.toLocaleString() ?? "--"}
               </p>
               <div className="mt-1 flex items-center gap-1 text-xs text-emerald-600">

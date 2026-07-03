@@ -293,10 +293,10 @@ export default function PurchaseOrderPage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-3xl font-bold text-navy-900">
+          <h1 className="text-xl md:text-2xl font-bold text-navy-900">
             {isEditMode ? "Edit Purchase Order" : "New Purchase Order"}
           </h1>
-          <p className="text-sm text-slate-500">
+          <p className="text-xs text-slate-500">
             {isEditMode
               ? "Modify order details, products, and payment information"
               : "Fill in the details below to place a new purchase order"}

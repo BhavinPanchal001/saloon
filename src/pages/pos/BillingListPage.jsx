@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchBillsFromAPI } from "../../services/api";
+import { fetchBillsFromAPI, printReceiptAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
+import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { InvoiceModal } from "./InvoiceModal";
-import { Search, Download, Filter, FileText, Eye, Calendar, CreditCard } from "lucide-react";
+import { Search, Download, Filter, FileText, Eye, Calendar, CreditCard, Printer } from "lucide-react";
 
 const paymentFilters = ["All", "Cash", "Card", "UPI"];
 
@@ -25,6 +26,7 @@ const formatTime = (iso) => {
 
 export default function BillingListPage() {
   const user = useAuthStore((s) => s.user);
+  const toast = useToastStore();
   const [searchParams] = useSearchParams();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,19 @@ export default function BillingListPage() {
   const navigate = useNavigate();
   const [selectedBill, setSelectedBill] = useState(null);
   const [error, setError] = useState(null);
+  const [printingBillId, setPrintingBillId] = useState(null);
+
+  const handleThermalPrint = async (billId) => {
+    setPrintingBillId(billId);
+    try {
+      const result = await printReceiptAPI(billId);
+      toast.success(result.message || "Receipt sent to printer ✓");
+    } catch (err) {
+      toast.error(err.message || "Printer not available");
+    } finally {
+      setPrintingBillId(null);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -282,6 +297,19 @@ export default function BillingListPage() {
                       >
                         <Download size={13} />
                         Invoice
+                      </button>
+                      <button
+                        onClick={() => handleThermalPrint(bill.id)}
+                        disabled={printingBillId === bill.id}
+                        className="group inline-flex items-center gap-1.5 rounded-2xl border border-purple-300/50 bg-purple-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-purple-700 transition-all hover:bg-purple-500 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Print to Thermal Printer"
+                      >
+                        {printingBillId === bill.id ? (
+                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-purple-300 border-t-purple-700" />
+                        ) : (
+                          <Printer size={13} />
+                        )}
+                        Reprint
                       </button>
                     </div>
                   </td>
