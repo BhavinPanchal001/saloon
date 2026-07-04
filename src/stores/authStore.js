@@ -127,6 +127,10 @@ export const useAuthStore = create(
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || "Confirmation failed.");
+        
+        // Update local user state
+        set({ user: { ...user, totp_enabled: true } });
+        
         return data;
       },
       disableTOTP: async (password) => {
@@ -141,6 +145,10 @@ export const useAuthStore = create(
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || "Could not disable authenticator.");
+        
+        // Update local user state
+        set({ user: { ...user, totp_enabled: false } });
+        
         return data;
       },
       logout: () =>

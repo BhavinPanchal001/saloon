@@ -38,23 +38,21 @@ const login = async (req, res) => {
       });
     }
 
-    const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-
-    await admin.update({ otp_code: otp, otp_expires_at: expiresAt });
-
-    try {
-      await sendOTPEmail(admin.email, admin.name, otp);
-    } catch (emailErr) {
-      console.error('Failed to send OTP email:', emailErr);
-      return res.status(500).json({ message: 'Could not send verification email. Please try again.' });
-    }
+    const token = jwt.sign(
+      { id: admin.id, email: admin.email, role: admin.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
 
     return res.json({
-      requires2FA: true,
-      twoFaMethod: 'email',
-      email: admin.email,
-      message: `A verification code has been sent to ${admin.email}.`,
+      token,
+      admin: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+        totp_enabled: admin.totp_enabled,
+      },
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -117,6 +115,7 @@ const verifyOTP = async (req, res) => {
         name: admin.name,
         email: admin.email,
         role: admin.role,
+        totp_enabled: admin.totp_enabled,
       },
     });
   } catch (err) {
@@ -255,7 +254,7 @@ const resendOTP = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const admin = await Admin.findByPk(req.admin.id, {
-      attributes: ['id', 'name', 'email', 'role', 'is_active'],
+      attributes: ['id', 'name', 'email', 'role', 'is_active', 'totp_enabled'],
     });
 
     if (!admin) return res.status(404).json({ message: 'Admin not found.' });

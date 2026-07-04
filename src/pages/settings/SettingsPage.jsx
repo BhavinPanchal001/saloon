@@ -27,10 +27,16 @@ export function SettingsPage() {
   const [totpQrCode, setTotpQrCode] = useState(null);
   const [totpSecret, setTotpSecret] = useState(null);
   const [totpToken, setTotpToken] = useState("");
-  const [totpEnabled, setTotpEnabled] = useState(false);
+  const [totpEnabled, setTotpEnabled] = useState(user?.totp_enabled || false);
   const [totpError, setTotpError] = useState(null);
   const [totpLoading, setTotpLoading] = useState(false);
   const [disablePassword, setDisablePassword] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      setTotpEnabled(user.totp_enabled || false);
+    }
+  }, [user]);
 
   // Printer settings state
   const [printerStatus, setPrinterStatus] = useState({ enabled: false, vid: null, pid: null, deviceDetected: false });
@@ -453,23 +459,7 @@ export function SettingsPage() {
                   </p>
                 </div>
 
-                <div className="space-y-4">
-                  {/* Email 2FA — always on */}
-                  <div className="rounded-xl border border-slate-100 bg-white/50 p-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50">
-                        <Mail className="h-5 w-5 text-emerald-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-slate-900">Email OTP</p>
-                        <p className="text-sm text-slate-500">A 6-digit code is sent to your email on every login.</p>
-                      </div>
-                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                        Always on
-                      </span>
-                    </div>
-                  </div>
-
+                 <div className="space-y-4">
                   {/* Authenticator App (TOTP) */}
                   <div className="rounded-xl border border-slate-100 bg-white/50 p-5 space-y-4">
                     <div className="flex items-center justify-between">
@@ -481,8 +471,8 @@ export function SettingsPage() {
                           <p className="font-medium text-slate-900">Authenticator App (TOTP)</p>
                           <p className="text-sm text-slate-500">
                             {totpEnabled
-                              ? "Google Authenticator / Authy is active. Email OTP is bypassed."
-                              : "Use Google Authenticator or Authy instead of email OTP."}
+                              ? "Google Authenticator / Authy is active."
+                              : "Use Google Authenticator or Authy to add an extra layer of security."}
                           </p>
                         </div>
                       </div>
@@ -552,7 +542,7 @@ export function SettingsPage() {
                     )}
 
                     {/* Step: enabled — show disable option */}
-                    {(totpStep === "enabled" || (totpEnabled && totpStep === "idle")) && (
+                    {(totpEnabled || totpStep === "enabled" || totpStep === "disabling") && (
                       <div className="space-y-3">
                         {totpStep !== "disabling" && (
                           <button
