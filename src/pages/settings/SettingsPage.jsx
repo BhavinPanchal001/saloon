@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchSettings, saveSettings } from '../../services/mockApi';
-import { fetchPrinterStatusAPI, togglePrinterAPI, testPrintAPI } from '../../services/api';
+import { fetchPrinterStatusAPI, togglePrinterAPI, testPrintAPI, switchPrinterConnectionAPI, savePrinterSettingsAPI } from '../../services/api';
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
-import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound, Printer } from "lucide-react";
+import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound, Printer, Usb, Wifi, Save, HelpCircle, Info } from "lucide-react";
 
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user);
@@ -39,9 +39,11 @@ export function SettingsPage() {
   }, [user]);
 
   // Printer settings state
-  const [printerStatus, setPrinterStatus] = useState({ enabled: false, vid: null, pid: null, deviceDetected: false });
+  const [printerStatus, setPrinterStatus] = useState({ enabled: false, connectionType: 'usb', vid: '', pid: '', ip: '', port: 9100, paperWidth: 48, deviceDetected: false });
+  const [printerForm, setPrinterForm] = useState({ enabled: false, connectionType: 'usb', vid: '', pid: '', ip: '', port: 9100, paperWidth: 48 });
   const [printerLoading, setPrinterLoading] = useState(false);
   const [printerToggling, setPrinterToggling] = useState(false);
+  const [printerSaving, setPrinterSaving] = useState(false);
   const [testPrinting, setTestPrinting] = useState(false);
 
   const handleSetupTOTP = async () => {
@@ -122,6 +124,15 @@ export function SettingsPage() {
         try {
           const status = await fetchPrinterStatusAPI();
           setPrinterStatus(status);
+          setPrinterForm({
+            enabled: status.enabled || false,
+            connectionType: status.connectionType || 'usb',
+            vid: status.vid || '',
+            pid: status.pid || '',
+            ip: status.ip || '',
+            port: status.port || 9100,
+            paperWidth: status.paperWidth || 48,
+          });
         } catch (err) {
           toast.error('Failed to load printer status');
         } finally {
@@ -134,14 +145,31 @@ export function SettingsPage() {
 
   const handlePrinterToggle = async () => {
     setPrinterToggling(true);
+    const newEnabled = !printerForm.enabled;
+    setPrinterForm((prev) => ({ ...prev, enabled: newEnabled }));
     try {
-      const result = await togglePrinterAPI(!printerStatus.enabled);
+      const result = await togglePrinterAPI(newEnabled);
       setPrinterStatus(result);
-      toast.success(result.message || `Printing ${result.enabled ? 'enabled' : 'disabled'}`);
+      toast.success(result.message || `Printing ${newEnabled ? 'enabled' : 'disabled'}`);
     } catch (err) {
       toast.error(err.message || 'Failed to toggle printer');
+      setPrinterForm((prev) => ({ ...prev, enabled: !newEnabled }));
     } finally {
       setPrinterToggling(false);
+    }
+  };
+
+  const handleSavePrinterForm = async (e) => {
+    if (e) e.preventDefault();
+    setPrinterSaving(true);
+    try {
+      const updatedStatus = await savePrinterSettingsAPI(printerForm);
+      setPrinterStatus(updatedStatus);
+      toast.success(updatedStatus.message || 'Printer settings saved successfully!');
+    } catch (err) {
+      toast.error(err.message || 'Failed to save printer settings');
+    } finally {
+      setPrinterSaving(false);
     }
   };
 
@@ -155,6 +183,10 @@ export function SettingsPage() {
     } finally {
       setTestPrinting(false);
     }
+  };
+
+  const handleConnectionTypeSwitch = (type) => {
+    setPrinterForm((prev) => ({ ...prev, connectionType: type }));
   };
 
   useEffect(() => {
@@ -646,11 +678,11 @@ export function SettingsPage() {
 
             {/* Printer Tab */}
             {activeTab === "printer" && (
-              <div className="space-y-6">
+              <form onSubmit={handleSavePrinterForm} className="space-y-6">
                 <div>
                   <h3 className="text-xl font-semibold text-navy-900">Thermal Printer Settings</h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    Configure your POS thermal printer for automatic receipt printing
+                    Configure your POS thermal printer details directly from the web interface
                   </p>
                 </div>
 
@@ -659,29 +691,29 @@ export function SettingsPage() {
                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-navy-200 border-t-navy-600" />
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {/* Printer Status */}
+                  <div className="space-y-5">
+                    {/* Thermal Printing Enable Switch */}
                     <div className="rounded-xl border border-slate-100 bg-white/50 p-5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${
-                            printerStatus.enabled ? 'bg-emerald-50' : 'bg-slate-100'
+                            printerForm.enabled ? 'bg-emerald-50' : 'bg-slate-100'
                           }`}>
-                            <Printer className={`h-6 w-6 ${printerStatus.enabled ? 'text-emerald-600' : 'text-slate-400'}`} />
+                            <Printer className={`h-6 w-6 ${printerForm.enabled ? 'text-emerald-600' : 'text-slate-400'}`} />
                           </div>
                           <div>
-                            <p className="font-semibold text-navy-900">Thermal Printing</p>
+                            <p className="font-semibold text-navy-900">Enable Thermal Printing</p>
                             <p className="text-sm text-slate-500">
-                              {printerStatus.enabled
-                                ? 'Receipts will auto-print after checkout'
-                                : 'Printing is disabled — receipts won\'t print automatically'}
+                              {printerForm.enabled
+                                ? 'Receipts will automatically print after successful checkout'
+                                : 'Thermal printing is currently disabled'}
                             </p>
                           </div>
                         </div>
                         <label className="relative inline-flex cursor-pointer items-center">
                           <input
                             type="checkbox"
-                            checked={printerStatus.enabled}
+                            checked={printerForm.enabled}
                             onChange={handlePrinterToggle}
                             disabled={printerToggling}
                             className="peer sr-only"
@@ -692,80 +724,238 @@ export function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* Connection Status */}
+                    {/* Connection Type Selector */}
                     <div className="rounded-xl border border-slate-100 bg-white/50 p-5">
-                      <div className="flex items-center gap-4">
-                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                          printerStatus.deviceDetected ? 'bg-emerald-50' : 'bg-amber-50'
-                        }`}>
-                          <div className={`h-3 w-3 rounded-full ${
-                            printerStatus.deviceDetected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
-                          }`} />
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900">USB Connection</p>
-                          <p className="text-sm text-slate-500">
-                            {printerStatus.deviceDetected
-                              ? 'Printer detected and ready'
-                              : 'No USB printer detected — connect your printer and refresh'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Configuration Info */}
-                    <div className="rounded-xl border border-slate-100 bg-white/50 p-5">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-3">Configuration</p>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-slate-500">Vendor ID (VID)</p>
-                          <p className="text-sm font-mono font-semibold text-navy-900">
-                            {printerStatus.vid || <span className="text-slate-400 font-normal">Not set</span>}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500">Product ID (PID)</p>
-                          <p className="text-sm font-mono font-semibold text-navy-900">
-                            {printerStatus.pid || <span className="text-slate-400 font-normal">Not set</span>}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-xs text-slate-400">
-                        To change VID/PID, edit the <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">.env</code> file and restart the server.
-                      </p>
-                    </div>
-
-                    {/* Test Print */}
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-slate-900">Test Print</p>
-                          <p className="text-sm text-slate-500">
-                            Send a small test receipt to verify your printer is working
-                          </p>
-                        </div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-3">Connection Type</p>
+                      <div className="grid grid-cols-2 gap-3">
                         <button
-                          onClick={handleTestPrint}
-                          disabled={testPrinting || !printerStatus.enabled}
-                          className="btn-premium-primary !py-2.5 !px-5 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                          type="button"
+                          onClick={() => handleConnectionTypeSwitch('usb')}
+                          className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-all ${
+                            printerForm.connectionType === 'usb'
+                              ? 'border-navy-500 bg-navy-50 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
                         >
-                          {testPrinting ? (
-                            <span className="flex items-center gap-2">
-                              <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                              Printing...
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-2">
-                              <Printer className="h-4 w-4" />
-                              Print Test Page
-                            </span>
-                          )}
+                          <Usb className={`h-5 w-5 ${printerForm.connectionType === 'usb' ? 'text-navy-600' : 'text-slate-400'}`} />
+                          <div className="text-left">
+                            <p className={`text-sm font-semibold ${printerForm.connectionType === 'usb' ? 'text-navy-900' : 'text-slate-600'}`}>USB Connection</p>
+                            <p className="text-xs text-slate-400">Plugged directly into PC via USB cable</p>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleConnectionTypeSwitch('network')}
+                          className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-all ${
+                            printerForm.connectionType === 'network'
+                              ? 'border-navy-500 bg-navy-50 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <Wifi className={`h-5 w-5 ${printerForm.connectionType === 'network' ? 'text-navy-600' : 'text-slate-400'}`} />
+                          <div className="text-left">
+                            <p className={`text-sm font-semibold ${printerForm.connectionType === 'network' ? 'text-navy-900' : 'text-slate-600'}`}>Network Connection</p>
+                            <p className="text-xs text-slate-400">Connected via Wi-Fi or LAN cable (IP address)</p>
+                          </div>
                         </button>
                       </div>
                     </div>
+
+                    {/* Printer Configuration Form Fields */}
+                    <div className="rounded-xl border border-slate-100 bg-white/50 p-5 space-y-4">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-1">
+                        {printerForm.connectionType === 'usb' ? 'USB Hardware Identifiers' : 'Network Communication Details'}
+                      </p>
+
+                      {printerForm.connectionType === 'usb' ? (
+                        <>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Vendor ID (VID)
+                              </label>
+                              <input
+                                type="text"
+                                value={printerForm.vid}
+                                onChange={(e) => setPrinterForm({ ...printerForm, vid: e.target.value })}
+                                placeholder="e.g. 0416"
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-200"
+                              />
+                              <p className="mt-1 text-[11px] text-slate-400">USB Vendor ID (Hexadecimal code)</p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Product ID (PID)
+                              </label>
+                              <input
+                                type="text"
+                                value={printerForm.pid}
+                                onChange={(e) => setPrinterForm({ ...printerForm, pid: e.target.value })}
+                                placeholder="e.g. 5011"
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-200"
+                              />
+                              <p className="mt-1 text-[11px] text-slate-400">USB Product ID (Hexadecimal code)</p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-3.5 text-xs text-slate-600 space-y-1">
+                            <div className="flex items-center gap-1.5 font-semibold text-navy-900">
+                              <HelpCircle className="h-4 w-4 text-navy-600" />
+                              How to find VID & PID on Windows:
+                            </div>
+                            <ol className="list-decimal list-inside space-y-0.5 text-slate-500 pl-1">
+                              <li>Open <b>Device Manager</b> from Windows Start menu.</li>
+                              <li>Look under <b>Printers</b> or <b>Universal Serial Bus controllers</b>.</li>
+                              <li>Right click printer &rarr; <b>Properties</b> &rarr; <b>Details</b> tab &rarr; select <b>Hardware Ids</b>.</li>
+                              <li>Enter the 4-digit hexadecimal numbers for VID and PID above.</li>
+                            </ol>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Printer IP Address
+                              </label>
+                              <input
+                                type="text"
+                                value={printerForm.ip}
+                                onChange={(e) => setPrinterForm({ ...printerForm, ip: e.target.value })}
+                                placeholder="e.g. 192.168.1.100"
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-200"
+                              />
+                              <p className="mt-1 text-[11px] text-slate-400">IP address assigned to thermal printer on LAN</p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Network Port
+                              </label>
+                              <input
+                                type="number"
+                                value={printerForm.port}
+                                onChange={(e) => setPrinterForm({ ...printerForm, port: e.target.value })}
+                                placeholder="9100"
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-200"
+                              />
+                              <p className="mt-1 text-[11px] text-slate-400">Standard RAW printing port (usually 9100)</p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-3.5 text-xs text-slate-600 space-y-1">
+                            <div className="flex items-center gap-1.5 font-semibold text-navy-900">
+                              <Info className="h-4 w-4 text-navy-600" />
+                              How to find printer IP address:
+                            </div>
+                            <p className="text-slate-500">
+                              Turn off the printer. Hold down the <b>FEED</b> button while switching power ON. The printer will print a Self-Test receipt displaying its assigned IP Address and Port.
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Paper Size Option */}
+                    <div className="rounded-xl border border-slate-100 bg-white/50 p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-3">Paper Width</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className={`flex items-center justify-between rounded-xl border-2 p-3.5 cursor-pointer transition-all ${
+                          Number(printerForm.paperWidth) === 48
+                            ? 'border-navy-500 bg-navy-50/60'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="radio"
+                              name="paperWidth"
+                              value={48}
+                              checked={Number(printerForm.paperWidth) === 48}
+                              onChange={() => setPrinterForm({ ...printerForm, paperWidth: 48 })}
+                              className="text-navy-600 focus:ring-navy-500"
+                            />
+                            <div>
+                              <p className="text-sm font-semibold text-navy-900">80mm Paper Roll</p>
+                              <p className="text-xs text-slate-500">48 characters per line (Standard POS)</p>
+                            </div>
+                          </div>
+                        </label>
+
+                        <label className={`flex items-center justify-between rounded-xl border-2 p-3.5 cursor-pointer transition-all ${
+                          Number(printerForm.paperWidth) === 32
+                            ? 'border-navy-500 bg-navy-50/60'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="radio"
+                              name="paperWidth"
+                              value={32}
+                              checked={Number(printerForm.paperWidth) === 32}
+                              onChange={() => setPrinterForm({ ...printerForm, paperWidth: 32 })}
+                              className="text-navy-600 focus:ring-navy-500"
+                            />
+                            <div>
+                              <p className="text-sm font-semibold text-navy-900">58mm Paper Roll</p>
+                              <p className="text-xs text-slate-500">32 characters per line (Compact)</p>
+                            </div>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Status summary banner */}
+                    <div className="rounded-xl border border-slate-100 bg-white/50 p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-3 w-3 rounded-full ${printerStatus.deviceDetected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+                        <p className="text-xs font-medium text-slate-700">
+                          {printerStatus.deviceDetected
+                            ? `Status: Printer configured and detected (${printerForm.connectionType.toUpperCase()})`
+                            : `Status: Printer not detected (${printerForm.connectionType.toUpperCase()})`}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleTestPrint}
+                        disabled={testPrinting || !printerForm.enabled}
+                        className="btn-premium-primary !py-2 !px-4 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {testPrinting ? (
+                          <span className="flex items-center gap-2">
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                            Printing...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            <Printer className="h-3.5 w-3.5" />
+                            Test Print
+                          </span>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Submit Button */}
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="submit"
+                        disabled={printerSaving}
+                        className="btn-premium-primary flex items-center gap-2"
+                      >
+                        {printerSaving ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                            Saving Settings...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4" />
+                            Save Printer Settings
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
-              </div>
+              </form>
             )}
           </div>
         </div>

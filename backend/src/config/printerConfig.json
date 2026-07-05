@@ -1,0 +1,9 @@
+{
+  "enabled": false,
+  "connectionType": "usb",
+  "vid": "",
+  "pid": "",
+  "ip": "",
+  "port": 9100,
+  "paperWidth": 48
+}

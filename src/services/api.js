@@ -643,6 +643,24 @@ export const testPrintAPI = async () => {
   return handleResponse(res);
 };
 
+export const switchPrinterConnectionAPI = async (type) => {
+  const res = await fetch(`${API_BASE}/printer/connection-type`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ type }),
+  });
+  return handleResponse(res);
+};
+
+export const savePrinterSettingsAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/printer/settings`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
 // ─── Banks ────────────────────────────────────────────────────────────────────
 
 export const fetchBanksFromAPI = async () => {

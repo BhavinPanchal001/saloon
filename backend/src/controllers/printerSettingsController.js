@@ -1,8 +1,14 @@
-const { getPrinterStatus, setPrinterEnabled, printTestReceipt } = require('../utils/thermalPrinter');
+const {
+  getPrinterStatus,
+  setPrinterEnabled,
+  setConnectionType,
+  savePrinterConfig,
+  printTestReceipt,
+} = require('../utils/thermalPrinter');
 
 /**
  * GET /api/printer/status
- * Returns current printer configuration and whether a USB device is detected.
+ * Returns current printer configuration and status.
  */
 const getStatus = async (req, res) => {
   try {
@@ -26,12 +32,60 @@ const toggle = async (req, res) => {
       return res.status(400).json({ message: '"enabled" (boolean) is required.' });
     }
 
-    const newState = setPrinterEnabled(enabled);
-    const status = getPrinterStatus();
-    return res.json({ message: `Printing ${newState ? 'enabled' : 'disabled'}.`, ...status });
+    const status = setPrinterEnabled(enabled);
+    return res.json({ message: `Printing ${enabled ? 'enabled' : 'disabled'}.`, ...status });
   } catch (err) {
     console.error('[PrinterSettings] Error toggling:', err);
     return res.status(500).json({ message: 'Failed to toggle printer.' });
+  }
+};
+
+/**
+ * POST /api/printer/connection-type
+ * Switch between 'usb' and 'network' connection at runtime.
+ * Body: { type: 'usb' | 'network' }
+ */
+const switchConnectionType = async (req, res) => {
+  try {
+    const { type } = req.body;
+    if (!type || (type !== 'usb' && type !== 'network')) {
+      return res.status(400).json({ message: '"type" must be "usb" or "network".' });
+    }
+
+    const status = setConnectionType(type);
+    return res.json({ message: `Connection type set to ${type}.`, ...status });
+  } catch (err) {
+    console.error('[PrinterSettings] Error switching connection type:', err);
+    return res.status(500).json({ message: 'Failed to switch connection type.' });
+  }
+};
+
+/**
+ * PUT /api/printer/settings (or POST)
+ * Save full thermal printer settings from UI form.
+ * Body: { enabled, connectionType, vid, pid, ip, port, paperWidth }
+ */
+const saveSettings = async (req, res) => {
+  try {
+    const { enabled, connectionType, vid, pid, ip, port, paperWidth } = req.body;
+
+    const updatedStatus = savePrinterConfig({
+      enabled,
+      connectionType,
+      vid,
+      pid,
+      ip,
+      port,
+      paperWidth,
+    });
+
+    return res.json({
+      message: 'Printer settings saved successfully!',
+      ...updatedStatus,
+    });
+  } catch (err) {
+    console.error('[PrinterSettings] Error saving settings:', err);
+    return res.status(500).json({ message: 'Failed to save printer settings.' });
   }
 };
 
@@ -50,7 +104,7 @@ const testPrint = async (req, res) => {
     // Map reason to user-friendly message
     const messages = {
       disabled: 'Printing is disabled. Enable it first in Settings.',
-      not_connected: 'No USB printer detected. Check the connection.',
+      not_connected: 'Printer not reachable. Check your settings and physical cable/network connection. ' + (result.message || ''),
       open_failed: 'Could not open the printer. It may be in use.',
       print_error: 'Printing error: ' + (result.message || 'Unknown'),
     };
@@ -66,4 +120,10 @@ const testPrint = async (req, res) => {
   }
 };
 
-module.exports = { getStatus, toggle, testPrint };
+module.exports = {
+  getStatus,
+  toggle,
+  switchConnectionType,
+  saveSettings,
+  testPrint,
+};
