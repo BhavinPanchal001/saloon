@@ -53,7 +53,10 @@ export function BudgetsPage() {
       const months = await fetchAvailableMonthsFromAPI();
       setAvailableMonths(months);
       if (!selectedMonth && months.length > 0) {
-        setSelectedMonth(months[0]);
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const hasCurrentMonth = months.includes(currentMonthKey);
+        setSelectedMonth(hasCurrentMonth ? currentMonthKey : months[0]);
       }
     } catch (error) {
       console.error("Failed to load months:", error);

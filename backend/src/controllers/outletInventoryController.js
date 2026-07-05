@@ -126,19 +126,6 @@ const issueProduct = async (req, res) => {
         { current_stock: newStock },
         { transaction }
       );
-
-      // Log outlet inventory change
-      await AuditService.logOutletInventoryOperation(inventoryOperation, {
-        id: outletInventory.id,
-        oldValues: oldOutletInventoryValues,
-        newValues: { ...oldOutletInventoryValues, current_stock: newStock },
-        outlet_id: outletId,
-        product_id: productId,
-        quantityChange: parsedQty,
-        referenceId: null, // Will be set after stock issue creation
-        referenceType: 'stock_issue',
-        metadata: { operation: 'stock_received_from_central' }
-      }, req, transaction);
     } else {
       // Create new inventory record
       const newInventoryData = {
@@ -148,18 +135,6 @@ const issueProduct = async (req, res) => {
       };
       
       outletInventory = await OutletInventory.create(newInventoryData, { transaction });
-
-      // Log outlet inventory creation
-      await AuditService.logOutletInventoryOperation(inventoryOperation, {
-        id: outletInventory.id,
-        newValues: newInventoryData,
-        outlet_id: outletId,
-        product_id: productId,
-        quantityChange: parsedQty,
-        referenceId: null, // Will be set after stock issue creation
-        referenceType: 'stock_issue',
-        metadata: { operation: 'initial_stock_from_central' }
-      }, req, transaction);
     }
 
     // Create stock issue record

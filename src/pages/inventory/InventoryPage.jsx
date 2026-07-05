@@ -596,16 +596,18 @@ export function InventoryPage() {
                               <button
                                 type="button"
                                 onClick={() => openEditOutletPrice(record)}
-                                className="flex items-center gap-1 rounded-lg border border-navy-200 bg-white px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                                className="flex items-center justify-center rounded-lg border border-navy-200 bg-white p-2 text-navy-700 hover:bg-navy-50 hover:text-navy-900 transition-colors"
+                                title="Edit Price"
                               >
-                                <Pencil className="h-3 w-3" /> Edit
+                                <Pencil className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteOutletPrice(record)}
-                                className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                                className="flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 hover:bg-rose-100 transition-colors"
+                                title="Remove Price"
                               >
-                                <Trash2 className="h-3 w-3" /> Remove
+                                <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           </td>
@@ -705,28 +707,32 @@ export function InventoryPage() {
                                 }));
                                 setIsIssueModalOpen(true);
                               }}
-                              className="flex items-center gap-1 rounded-lg border border-navy-200 bg-white px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                              className="flex items-center justify-center rounded-lg border border-navy-200 bg-white p-2 text-navy-700 hover:bg-navy-50 hover:text-navy-900 transition-colors"
+                              title="Issue to Outlet"
                             >
-                              <ArrowLeftRight size={12} /> Issue
+                              <ArrowLeftRight size={14} />
                             </button>
                             <button
                               type="button"
                               onClick={() => openEditProduct(item)}
-                              className="flex items-center gap-1 rounded-lg border border-navy-200 bg-white px-2 py-1 text-xs font-medium text-navy-700 hover:bg-navy-50"
+                              className="flex items-center justify-center rounded-lg border border-navy-200 bg-white p-2 text-navy-700 hover:bg-navy-50 hover:text-navy-900 transition-colors"
+                              title="Edit Product"
                             >
-                              <Pencil size={12} /> Edit
+                              <Pencil size={14} />
                             </button>
                             <button
                               type="button"
                               onClick={() => handleDeleteProduct(item)}
-                              className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                              className="flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 hover:bg-rose-100 transition-colors"
+                              title="Delete Product"
                             >
-                              <Trash2 size={12} /> Delete
+                              <Trash2 size={14} />
                             </button>
                             <AuditHistoryButton
                               onClick={() => openAuditHistory('central_stock', item.id, item.itemName)}
                               size="sm"
                               variant="ghost"
+                              showText={false}
                             />
                           </div>
                         </td>

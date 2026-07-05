@@ -75,13 +75,16 @@ const getAuditLogs = async (req, res) => {
 const getEntityAuditTrail = async (req, res) => {
   try {
     const { entityType, entityId } = req.params;
-    const { limit = 50, offset = 0 } = req.query;
+    const { limit = 50, offset = 0, operation, startDate, endDate } = req.query;
 
     if (!entityType || !entityId) {
       return res.status(400).json({ message: 'entityType and entityId are required.' });
     }
 
     const result = await AuditService.getEntityAuditTrail(entityType, parseInt(entityId), {
+      operation,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [['created_at', 'DESC']]

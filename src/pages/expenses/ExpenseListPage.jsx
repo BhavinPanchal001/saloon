@@ -214,7 +214,7 @@ export function ExpenseListPage() {
             </div>
           )}
           <button
-            onClick={() => navigate("/expenses/add")}
+            onClick={() => navigate(selectedOutletId ? `/expenses/add?outletId=${selectedOutletId}` : "/expenses/add")}
             className="btn-premium-primary flex items-center gap-2"
             disabled={budget && budget.remainingBalance <= 0}
           >

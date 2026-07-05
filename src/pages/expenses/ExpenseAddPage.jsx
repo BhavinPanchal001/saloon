@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   PlusCircle,
   Tag,
@@ -49,9 +49,11 @@ export function ExpenseAddPage() {
   const userOutletId = user?.outlet_id;
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryOutletId = searchParams.get("outletId");
   const [budget, setBudget] = useState(null);
   const [outlets, setOutlets] = useState([]);
-  const [selectedOutletId, setSelectedOutletId] = useState(userOutletId);
+  const [selectedOutletId, setSelectedOutletId] = useState(queryOutletId || userOutletId);
   const [form, setForm] = useState(initialExpenseForm);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -252,6 +254,14 @@ export function ExpenseAddPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-2 text-sm font-semibold text-navy-500 hover:text-navy-800 transition-colors"
+      >
+        <ArrowLeft size={16} /> Back to Expenses
+      </button>
+
       <PageHeader
         eyebrow="Finance & Treasury"
         title="Add New Expense"

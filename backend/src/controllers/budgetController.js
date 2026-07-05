@@ -30,7 +30,7 @@ exports.getBudgetSummary = async (req, res) => {
     let outlets;
     if (outletId) {
       outlets = await Outlet.findAll({
-        where: { id: outletId },
+        where: { id: Number(outletId) },
       });
     } else {
       outlets = await Outlet.findAll();
@@ -51,7 +51,7 @@ exports.getBudgetSummary = async (req, res) => {
     const budgetBreakdown = [];
 
     for (const outlet of outlets) {
-      const budgetRecord = budgets.find(b => b.outlet_id === outlet.id);
+      const budgetRecord = budgets.find(b => Number(b.outlet_id) === Number(outlet.id));
       const outletBudget = budgetRecord ? parseFloat(budgetRecord.amount) : 0;
       const outletExpenses = await calculateExpenses(outlet.id, targetMonth);
       const remainingBudget = outletBudget - outletExpenses;
@@ -106,9 +106,11 @@ exports.setBudget = async (req, res) => {
       return res.status(400).json({ message: 'Amount must be a valid positive number' });
     }
 
+    const numericOutletId = Number(outletId);
+
     // Get or create budget record
     let budget = await MonthlyBudget.findOne({
-      where: { outlet_id: outletId, month_key: monthKey },
+      where: { outlet_id: numericOutletId, month_key: monthKey },
     });
 
     let previousAmount = 0;
@@ -118,7 +120,7 @@ exports.setBudget = async (req, res) => {
       await budget.save();
     } else {
       budget = await MonthlyBudget.create({
-        outlet_id: outletId,
+        outlet_id: numericOutletId,
         month_key: monthKey,
         amount: newAmount,
       });
@@ -127,7 +129,7 @@ exports.setBudget = async (req, res) => {
     // Log change if amount changed
     if (previousAmount !== newAmount) {
       await BudgetHistory.logChange({
-        outletId,
+        outletId: numericOutletId,
         monthKey,
         previousAmount,
         newAmount,
@@ -137,8 +139,8 @@ exports.setBudget = async (req, res) => {
     }
 
     // Return updated summary
-    const outlet = await Outlet.findByPk(outletId);
-    const currentExpenses = await calculateExpenses(outletId, monthKey);
+    const outlet = await Outlet.findByPk(numericOutletId);
+    const currentExpenses = await calculateExpenses(numericOutletId, monthKey);
     const remainingBudget = newAmount - currentExpenses;
     const spendPercentage = newAmount > 0
       ? Math.round((currentExpenses / newAmount) * 100)
@@ -147,7 +149,7 @@ exports.setBudget = async (req, res) => {
     res.json({
       message: 'Budget updated successfully',
       budget: {
-        outlet_id: outletId,
+        outlet_id: numericOutletId,
         outlet_name: outlet?.name,
         month_key: monthKey,
         amount: newAmount,
@@ -168,7 +170,7 @@ exports.getBudgetHistory = async (req, res) => {
     const { outletId, monthKey, limit = 50, offset = 0 } = req.query;
 
     const where = {};
-    if (outletId) where.outlet_id = outletId;
+    if (outletId) where.outlet_id = Number(outletId);
     if (monthKey) where.month_key = monthKey;
 
     const history = await BudgetHistory.findAll({

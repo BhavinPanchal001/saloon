@@ -1326,3 +1326,13 @@ export const toggleSalaryMasterStatus = async (id) => {
 
 // Aliases for compatibility
 export const fetchOutlets = fetchOutletsFromAPI;
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+export const fetchDashboardSummaryFromAPI = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/dashboard/summary${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+

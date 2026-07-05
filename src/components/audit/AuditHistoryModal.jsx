@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Clock, User, Package, Store, ArrowUpDown, X, Search, Filter } from "lucide-react";
+import { Clock, User, Package, Store, ArrowUpDown, X } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { formatCurrency } from "../../utils/format";
 import { fetchEntityAuditTrailFromAPI } from "../../services/api";
@@ -15,11 +15,6 @@ export function AuditHistoryModal({
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [filters, setFilters] = useState({
-    operation: "",
-    startDate: "",
-    endDate: ""
-  });
 
   const loadAuditLogs = async () => {
     if (!entityType || !entityId) return;
@@ -32,11 +27,6 @@ export function AuditHistoryModal({
         limit: maxItems,
         includeDetails: "true"
       };
-
-      // Add filters if provided
-      if (filters.operation) params.operation = filters.operation;
-      if (filters.startDate) params.startDate = filters.startDate;
-      if (filters.endDate) params.endDate = filters.endDate;
 
       const data = await fetchEntityAuditTrailFromAPI(entityType, entityId, params);
       setAuditLogs(data.data || []);
@@ -51,7 +41,7 @@ export function AuditHistoryModal({
     if (isOpen) {
       loadAuditLogs();
     }
-  }, [isOpen, entityType, entityId, filters]);
+  }, [isOpen, entityType, entityId]);
 
   const getOperationIcon = (operation) => {
     switch (operation) {
@@ -104,9 +94,55 @@ export function AuditHistoryModal({
     );
   };
 
-  const resetFilters = () => {
-    setFilters({ operation: "", startDate: "", endDate: "" });
+
+
+  const formatMetadata = (metadata) => {
+    if (!metadata || typeof metadata !== 'object') return null;
+    
+    // Filter out internal database ID keys (keys ending in ID or equal to ID)
+    const entries = Object.entries(metadata).filter(([key]) => {
+      const lowerKey = key.toLowerCase();
+      return !lowerKey.endsWith('id') && lowerKey !== 'id';
+    });
+
+    if (entries.length === 0) return null;
+
+    const formatKey = (key) => {
+      return key
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, (str) => str.toUpperCase())
+        .replace('Id', 'ID')
+        .replace('Po', 'PO');
+    };
+
+    const formatValue = (key, val) => {
+      if (val === null || val === undefined) return '—';
+      if (typeof val === 'object') return JSON.stringify(val);
+      if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+      if (key.toLowerCase().includes('price') || key.toLowerCase().includes('cost')) {
+        return formatCurrency(val);
+      }
+      if (key === 'operation' && typeof val === 'string') {
+        return val.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      }
+      return String(val);
+    };
+
+    return (
+      <div className="mt-2 space-y-1.5 bg-slate-50 rounded-lg p-3 border border-slate-100 max-w-md">
+        <div className="font-semibold text-slate-500 mb-1.5 text-[10px] uppercase tracking-wider">Details</div>
+        <div className="flex flex-col gap-2 text-xs">
+          {entries.map(([key, value]) => (
+            <div key={key} className="flex items-center gap-2 py-0.5 border-b border-dashed border-slate-200 last:border-0 pb-1.5 last:pb-0">
+              <span className="font-medium text-slate-500">{formatKey(key)}:</span>
+              <span className="text-slate-800 font-semibold">{formatValue(key, value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
+
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Audit History" size="xl">
@@ -128,50 +164,6 @@ export function AuditHistoryModal({
               {loading ? "Loading..." : "Refresh"}
             </button>
           </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-slate-400" />
-            <span className="text-sm font-medium text-slate-700">Filters:</span>
-          </div>
-          
-          <select
-            className="premium-input !py-1.5 !text-sm"
-            value={filters.operation}
-            onChange={(e) => setFilters(f => ({ ...f, operation: e.target.value }))}
-          >
-            <option value="">All Operations</option>
-            <option value="CREATE">Create</option>
-            <option value="UPDATE">Update</option>
-            <option value="DELETE">Delete</option>
-            <option value="STOCK_ISSUE">Stock Issue</option>
-            <option value="STOCK_ADJUST">Stock Adjust</option>
-          </select>
-
-          <input
-            type="date"
-            className="premium-input !py-1.5 !text-sm"
-            value={filters.startDate}
-            onChange={(e) => setFilters(f => ({ ...f, startDate: e.target.value }))}
-            placeholder="Start date"
-          />
-
-          <input
-            type="date"
-            className="premium-input !py-1.5 !text-sm"
-            value={filters.endDate}
-            onChange={(e) => setFilters(f => ({ ...f, endDate: e.target.value }))}
-            placeholder="End date"
-          />
-
-          <button
-            onClick={resetFilters}
-            className="text-xs text-slate-400 hover:text-navy-600 underline"
-          >
-            Clear filters
-          </button>
         </div>
 
         {/* Error State */}
@@ -231,14 +223,7 @@ export function AuditHistoryModal({
                               </div>
                             )}
 
-                            {log.metadata && (
-                              <div className="mt-2 text-xs text-slate-500">
-                                <div className="font-medium">Metadata:</div>
-                                <pre className="bg-slate-50 rounded p-2 mt-1 overflow-x-auto">
-                                  {JSON.stringify(log.metadata, null, 2)}
-                                </pre>
-                              </div>
-                            )}
+                            {log.metadata && formatMetadata(log.metadata)}
 
                             {formatChangedFields(log.changed_fields)}
                           </div>

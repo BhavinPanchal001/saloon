@@ -283,7 +283,7 @@ const ServiceFormPage: React.FC = () => {
 
               <div className="space-y-4">
                 {form.productLinkages.map((linkage, index) => {
-                  const selectedProduct = inventory.find((p: any) => p.id === linkage.inventoryId);
+                  const selectedProduct = allProducts.find((p: any) => String(p.id) === String(linkage.inventoryId));
                   const unitMaster = selectedProduct?.unitMaster || null;
                   const unitOptions = unitMaster ? getAvailableUnits(unitMaster) : [];
                   const currentAbbr = unitMaster
@@ -305,7 +305,7 @@ const ServiceFormPage: React.FC = () => {
                           onChange={(e) => {
                             updateLinkage(index, "inventoryId", e.target.value);
                             // Reset unit to product's default consumption unit
-                            const prod = inventory.find((p: any) => p.id === e.target.value);
+                            const prod = allProducts.find((p: any) => String(p.id) === String(e.target.value));
                             if (prod) {
                               updateLinkage(index, "consumptionUnit", prod.consumptionUnit || "primary");
                             }

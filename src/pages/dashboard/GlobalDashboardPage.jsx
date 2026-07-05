@@ -14,63 +14,21 @@ import {
   DollarSign,
   BarChart3,
   PieChart,
-  Download,
   ArrowRight,
   Filter,
 } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchDashboardMetrics, fetchOutlets, fetchRevenueChart, fetchTodayOrders } from "../../services/mockApi";
-import { formatCurrency } from "../../utils/format";
+import { fetchOutletsFromAPI, fetchDashboardSummaryFromAPI } from "../../services/api";
+import { formatCurrency, formatRoleLabel } from "../../utils/format";
 import { useToastStore } from "../../stores/toastStore";
-
-// Mock report data generator
-const generateMockReports = () => {
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
-  return {
-    revenueTrend: months.map((month, i) => ({
-      month,
-      revenue: 150000 + Math.random() * 50000 + i * 10000,
-      target: 180000 + i * 8000,
-    })),
-    servicePerformance: [
-      { name: "Hair Cut", count: 245, revenue: 122500, growth: 12 },
-      { name: "Facial", count: 189, revenue: 94500, growth: 8 },
-      { name: "Massage", count: 156, revenue: 124800, growth: -3 },
-      { name: "Manicure", count: 134, revenue: 53600, growth: 15 },
-      { name: "Hair Color", count: 98, revenue: 78400, growth: 5 },
-    ],
-    staffPerformance: [
-      { name: "Priya Sharma", services: 89, revenue: 44500, rating: 4.8 },
-      { name: "Rahul Verma", services: 76, revenue: 38000, rating: 4.6 },
-      { name: "Anita Patel", services: 72, revenue: 36000, rating: 4.9 },
-      { name: "Vikram Singh", services: 68, revenue: 34000, rating: 4.5 },
-      { name: "Sunita Rao", services: 65, revenue: 32500, rating: 4.7 },
-    ],
-    packageSales: [
-      { name: "Bridal Glow", sold: 24, revenue: 120000, trend: "up" },
-      { name: "Monthly Spa", sold: 45, revenue: 90000, trend: "up" },
-      { name: "Grooming Kit", sold: 38, revenue: 76000, trend: "down" },
-      { name: "Detox Package", sold: 29, revenue: 58000, trend: "up" },
-    ],
-    summary: {
-      totalRevenue: 1350000,
-      revenueGrowth: 18.5,
-      totalServices: 896,
-      serviceGrowth: 12.3,
-      avgBillValue: 1505,
-      customerCount: 456,
-      newCustomers: 78,
-      retentionRate: 68,
-    },
-  };
-};
+import { useAuthStore } from "../../stores/authStore";
 
 function RevenueBarChart({ data }) {
   const [tooltip, setTooltip] = useState(null);
   const containerRef = useRef(null);
 
   if (!data || data.length === 0) return null;
-  const max = Math.max(...data.map((d) => d.revenue));
+  const max = Math.max(...data.map((d) => d.revenue), 1);
   const barW = 40;
   const gap = 16;
   const totalW = data.length * (barW + gap) - gap;
@@ -89,7 +47,7 @@ function RevenueBarChart({ data }) {
             const barH = Math.max(4, (d.revenue / max) * 180);
             const x = i * (barW + gap);
             const y = 200 - barH;
-            const isMax = d.revenue === max;
+            const isMax = d.revenue === max && d.revenue > 0;
             return (
               <g key={d.day}
                 onMouseEnter={() => setTooltip({ index: i, day: d.day, revenue: d.revenue, x, y })}
@@ -141,42 +99,56 @@ function RevenueBarChart({ data }) {
 
 export function GlobalDashboardPage() {
   const toast = useToastStore();
+  const { user } = useAuthStore();
   const [metrics, setMetrics] = useState(null);
   const [outlets, setOutlets] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [todayData, setTodayData] = useState(null);
   const [reports, setReports] = useState(null);
   const [selectedOutlet, setSelectedOutlet] = useState("all");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadDashboard = async () => {
-      const [dashboardMetrics, outletList, revenue, today] = await Promise.all([
-        fetchDashboardMetrics({ role: "admin", outlet: selectedOutlet }),
-        fetchOutlets(),
-        fetchRevenueChart({ outlet: selectedOutlet }),
-        fetchTodayOrders({ outlet: selectedOutlet }),
-      ]);
+      setLoading(true);
+      try {
+        const [summaryData, outletList] = await Promise.all([
+          fetchDashboardSummaryFromAPI({ outletId: selectedOutlet }),
+          fetchOutletsFromAPI().catch(() => []),
+        ]);
 
-      setMetrics(dashboardMetrics);
-      setOutlets(outletList);
-      setChartData(revenue);
-      setTodayData(today);
-      setReports(generateMockReports());
+        if (summaryData) {
+          setMetrics(summaryData.metrics);
+          setChartData(summaryData.revenueChart || []);
+          setTodayData(summaryData.todayOrders || null);
+          setReports({
+            summary: summaryData.summary,
+            servicePerformance: summaryData.servicePerformance || [],
+            staffPerformance: summaryData.staffPerformance || [],
+            packageSales: summaryData.packageSales || [],
+          });
+        }
+        if (outletList) {
+          setOutlets(outletList);
+        }
+      } catch (err) {
+        console.error("Failed to fetch dashboard data:", err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadDashboard();
   }, [selectedOutlet]);
 
-  const handleExport = (type) => {
-    toast.success(`${type} report exported successfully`);
-  };
-
   const weekTotal = chartData.reduce((s, d) => s + d.revenue, 0);
+
+  const roleLabel = user ? formatRoleLabel(user.role) : "Super Admin";
 
   return (
     <div>
       <PageHeader
-        eyebrow="Super Admin"
+        eyebrow={roleLabel}
         title="Dashboard"
         description="Monitor every outlet, keep an eye on headcount and catalog growth, and jump straight into the areas that need attention."
         action={
@@ -321,23 +293,29 @@ export function GlobalDashboardPage() {
             <span className="text-xs font-semibold text-navy-600 bg-navy-50 px-2 py-0.5 rounded-full">{todayData?.todayCount ?? 0} bills</span>
           </div>
           <div className="space-y-2 overflow-y-auto max-h-[280px] pr-1">
-            {todayData?.recentBills.map((bill) => (
-              <Link
-                key={bill.id}
-                to={`/pos/bills?search=${encodeURIComponent(bill.billNumber)}`}
-                className="group flex items-center justify-between rounded-xl border border-navy-50 bg-white/50 px-4 py-2.5 transition hover:bg-navy-50 hover:border-navy-100 cursor-pointer"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-navy-900 truncate">{bill.customer}</p>
-                  <p className="text-[11px] text-slate-400">{bill.billNumber}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  <CreditCard size={12} className="text-slate-400" />
-                  <span className="text-sm font-black text-navy-900">{formatCurrency(bill.total)}</span>
-                  <ChevronRight size={14} className="text-slate-300 group-hover:text-navy-400" />
-                </div>
-              </Link>
-            ))}
+            {todayData?.recentBills && todayData.recentBills.length > 0 ? (
+              todayData.recentBills.map((bill) => (
+                <Link
+                  key={bill.id}
+                  to={`/pos/bills?search=${encodeURIComponent(bill.billNumber || "")}`}
+                  className="group flex items-center justify-between rounded-xl border border-navy-50 bg-white/50 px-4 py-2.5 transition hover:bg-navy-50 hover:border-navy-100 cursor-pointer"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-navy-900 truncate">{bill.customer || "Walk-in Customer"}</p>
+                    <p className="text-[11px] text-slate-400">{bill.billNumber}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <CreditCard size={12} className="text-slate-400" />
+                    <span className="text-sm font-black text-navy-900">{formatCurrency(bill.total)}</span>
+                    <ChevronRight size={14} className="text-slate-300 group-hover:text-navy-400" />
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="text-center py-8 text-sm text-slate-400 font-medium">
+                No orders generated today yet.
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -359,37 +337,43 @@ export function GlobalDashboardPage() {
             </Link>
           </div>
           <div className="mt-6 space-y-4 overflow-y-auto max-h-[280px] pr-1">
-            {reports?.servicePerformance?.slice(0, 4).map((service) => (
-              <div
-                key={service.name}
-                className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/50 p-4"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-navy-50">
-                    <Scissors className="h-5 w-5 text-navy-600" />
+            {reports?.servicePerformance && reports.servicePerformance.length > 0 ? (
+              reports.servicePerformance.slice(0, 4).map((service) => (
+                <div
+                  key={service.name}
+                  className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/50 p-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-navy-50">
+                      <Scissors className="h-5 w-5 text-navy-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-navy-900">{service.name}</p>
+                      <p className="text-sm text-slate-500">{service.count} services</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-navy-900">{service.name}</p>
-                    <p className="text-sm text-slate-500">{service.count} services</p>
+                  <div className="text-right">
+                    <p className="font-semibold text-navy-900">{formatCurrency(service.revenue)}</p>
+                    <div
+                      className={`flex items-center justify-end gap-1 text-xs ${
+                        service.growth >= 0 ? "text-emerald-600" : "text-rose-600"
+                      }`}
+                    >
+                      {service.growth >= 0 ? (
+                        <TrendingUp className="h-3 w-3" />
+                      ) : (
+                        <TrendingDown className="h-3 w-3" />
+                      )}
+                      <span>{service.growth >= 0 ? "+" : ""}{service.growth}%</span>
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-navy-900">{formatCurrency(service.revenue)}</p>
-                  <div
-                    className={`flex items-center justify-end gap-1 text-xs ${
-                      service.growth >= 0 ? "text-emerald-600" : "text-rose-600"
-                    }`}
-                  >
-                    {service.growth >= 0 ? (
-                      <TrendingUp className="h-3 w-3" />
-                    ) : (
-                      <TrendingDown className="h-3 w-3" />
-                    )}
-                    <span>{service.growth >= 0 ? "+" : ""}{service.growth}%</span>
-                  </div>
-                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-sm text-slate-400 font-medium">
+                No services billed yet.
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -408,26 +392,32 @@ export function GlobalDashboardPage() {
             </Link>
           </div>
           <div className="mt-6 space-y-3 overflow-y-auto max-h-[280px] pr-1">
-            {reports?.staffPerformance?.slice(0, 4).map((staff, index) => (
-              <div
-                key={staff.name}
-                className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/50 p-4"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-navy-500 to-navy-700 text-sm font-bold text-white">
-                    {index + 1}
+            {reports?.staffPerformance && reports.staffPerformance.length > 0 ? (
+              reports.staffPerformance.slice(0, 4).map((staff, index) => (
+                <div
+                  key={staff.name}
+                  className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/50 p-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-navy-500 to-navy-700 text-sm font-bold text-white">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium text-navy-900">{staff.name}</p>
+                      <p className="text-sm text-slate-500">{staff.services} services</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-navy-900">{staff.name}</p>
-                    <p className="text-sm text-slate-500">{staff.services} services</p>
+                  <div className="text-right">
+                    <p className="font-semibold text-navy-900">{formatCurrency(staff.revenue)}</p>
+                    <p className="text-xs text-slate-500">★ {staff.rating}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-navy-900">{formatCurrency(staff.revenue)}</p>
-                  <p className="text-xs text-slate-500">★ {staff.rating}</p>
-                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-sm text-slate-400 font-medium">
+                No staff performance recorded yet.
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
@@ -447,37 +437,41 @@ export function GlobalDashboardPage() {
           </Link>
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {reports?.packageSales?.slice(0, 4).map((pkg) => (
-            <div
-              key={pkg.name}
-              className="rounded-xl border border-slate-100 bg-white/50 p-4"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold-50">
-                  <PieChart className="h-5 w-5 text-gold-600" />
+          {reports?.packageSales && reports.packageSales.length > 0 ? (
+            reports.packageSales.slice(0, 4).map((pkg) => (
+              <div
+                key={pkg.name}
+                className="rounded-xl border border-slate-100 bg-white/50 p-4"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold-50">
+                    <PieChart className="h-5 w-5 text-gold-600" />
+                  </div>
+                  <div
+                    className={`flex items-center gap-1 text-xs ${
+                      pkg.trend === "up" ? "text-emerald-600" : "text-rose-600"
+                    }`}
+                  >
+                    {pkg.trend === "up" ? (
+                      <TrendingUp className="h-3 w-3" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3" />
+                    )}
+                    <span>{pkg.trend === "up" ? "Trending Up" : "Trending Down"}</span>
+                  </div>
                 </div>
-                <div
-                  className={`flex items-center gap-1 text-xs ${
-                    pkg.trend === "up" ? "text-emerald-600" : "text-rose-600"
-                  }`}
-                >
-                  {pkg.trend === "up" ? (
-                    <TrendingUp className="h-3 w-3" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3" />
-                  )}
-                  <span>{pkg.trend === "up" ? "Trending Up" : "Trending Down"}</span>
-                </div>
+                <p className="font-medium text-navy-900 mb-1">{pkg.name}</p>
+                <p className="text-sm text-slate-500 mb-2">{pkg.sold} sold</p>
+                <p className="font-semibold text-navy-900">{formatCurrency(pkg.revenue)}</p>
               </div>
-              <p className="font-medium text-navy-900 mb-1">{pkg.name}</p>
-              <p className="text-sm text-slate-500 mb-2">{pkg.sold} sold</p>
-              <p className="font-semibold text-navy-900">{formatCurrency(pkg.revenue)}</p>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-8 text-sm text-slate-400 font-medium">
+              No package sales recorded yet.
             </div>
-          ))}
+          )}
         </div>
       </div>
-
-      
     </div>
   );
 }
