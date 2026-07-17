@@ -6,6 +6,7 @@ import { ExpenseListPage } from "../pages/expenses/ExpenseListPage";
 import { ExpenseAddPage } from "../pages/expenses/ExpenseAddPage";
 import { BudgetsPage } from "../pages/expenses/BudgetsPage";
 import { InventoryPage } from "../pages/inventory/InventoryPage";
+import { ProductSaleHistoryPage } from "../pages/inventory/ProductSaleHistoryPage";
 import { PurchaseOrderHistoryPage } from "../pages/inventory/PurchaseOrderHistoryPage";
 import PurchaseOrderPage from "../pages/inventory/PurchaseOrderPage";
 import { UnitMasterPage } from "../pages/inventory/UnitMasterPage";
@@ -117,6 +118,10 @@ export const router = createBrowserRouter([
           {
             path: "/inventory",
             element: <InventoryPage />,
+          },
+          {
+            path: "/inventory/products/:id/sales",
+            element: <ProductSaleHistoryPage />,
           },
           {
             path: "/inventory/purchase-orders",

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Store } from 'lucide-react';
 import {
   fetchServiceByIdFromAPI,
   createServiceAPI,
@@ -26,6 +27,7 @@ interface ServiceForm {
   duration: string;
   images: string[];
   productLinkages: ProductLinkage[];
+  assignedOutletIds: number[];
 }
 
 const createInitialLinkage = (): ProductLinkage => ({
@@ -41,11 +43,14 @@ const createInitialServiceForm = (): ServiceForm => ({
   duration: "",
   images: [],
   productLinkages: [createInitialLinkage()],
+  assignedOutletIds: [],
 });
 
 const ServiceFormPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const duplicateId = searchParams.get('duplicate');
   const [loading, setLoading] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
   const [allProducts, setAllProducts] = useState<any[]>([]);
@@ -67,10 +72,11 @@ const ServiceFormPage: React.FC = () => {
       setCategories(categoryList);
       setOutlets(outletList);
 
-      if (id) {
-        const service = await fetchServiceByIdFromAPI(id);
+      const targetId = id || duplicateId;
+      if (targetId) {
+        const service = await fetchServiceByIdFromAPI(targetId);
         setForm({
-          serviceName: service.service_name || '',
+          serviceName: duplicateId ? `${service.service_name || ''} (Copy)` : (service.service_name || ''),
           category: service.category_id ? String(service.category_id) : '',
           price: String(service.price || ''),
           duration: String(service.duration || ''),
@@ -82,11 +88,12 @@ const ServiceFormPage: React.FC = () => {
                 consumptionUnit: l.consumptionUnit || l.consumption_unit || 'primary',
               }))
             : [createInitialLinkage()],
+          assignedOutletIds: service.assigned_outlet_ids || [],
         });
       }
     };
     loadData();
-  }, [id]);
+  }, [id, duplicateId]);
 
   const handleOutletChange = async (outletId: string) => {
     setSelectedOutlet(outletId);
@@ -112,6 +119,15 @@ const ServiceFormPage: React.FC = () => {
     } finally {
       setOutletProductsLoading(false);
     }
+  };
+
+  const toggleOutlet = (outletId: number) => {
+    setForm((current) => ({
+      ...current,
+      assignedOutletIds: current.assignedOutletIds.includes(outletId)
+        ? current.assignedOutletIds.filter((id) => id !== outletId)
+        : [...current.assignedOutletIds, outletId],
+    }));
   };
 
   const updateLinkage = (index: number, key: string, value: any) => {
@@ -140,6 +156,7 @@ const ServiceFormPage: React.FC = () => {
           consumptionUnit: l.consumptionUnit || 'primary',
         })),
         images: form.images,
+        assigned_outlet_ids: form.assignedOutletIds,
       };
       if (id) {
         await updateServiceAPI(id, payload);
@@ -174,7 +191,7 @@ const ServiceFormPage: React.FC = () => {
           >
             ← Back to Services
           </button>
-          <h1>{id ? 'Edit Service' : 'Add New Service'}</h1>
+          <h1>{id ? 'Edit Service' : duplicateId ? 'Duplicate Service' : 'Add New Service'}</h1>
           <p>Define the service details and consumption requirements.</p>
         </div>
       </header>
@@ -229,6 +246,10 @@ const ServiceFormPage: React.FC = () => {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Image Upload & Outlet Selection Row */}
+              <div className="grid gap-6 md:grid-cols-2" style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px dashed var(--svc-border)' }}>
                 <ImageUpload
                   label="Service Images"
                   value={form.images}
@@ -238,6 +259,47 @@ const ServiceFormPage: React.FC = () => {
                   multiple={true}
                   maxImages={5}
                 />
+
+                <div className="form-field">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <Store size={18} className="text-navy-600" />
+                    <label style={{ fontWeight: 600, color: 'var(--svc-text-main)', fontSize: '0.875rem' }}>Select Outlets</label>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.75rem' }}>
+                    Select outlets where this service will be available. If none are selected, it will be available at all outlets.
+                  </p>
+                  <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))' }}>
+                    {outlets.map((outlet) => {
+                      const isSelected = form.assignedOutletIds.includes(outlet.id);
+                      return (
+                        <label
+                          key={outlet.id}
+                          className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-navy-600 bg-navy-50'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                          style={{ minHeight: '44px' }}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-slate-300 text-navy-600 focus:ring-navy-600"
+                            checked={isSelected}
+                            onChange={() => toggleOutlet(outlet.id)}
+                          />
+                          <div className="flex flex-col" style={{ lineHeight: '1.2' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isSelected ? 'var(--svc-text-main)' : '#475569' }}>
+                              {outlet.name}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+                              {outlet.city}
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -394,7 +456,7 @@ const ServiceFormPage: React.FC = () => {
                 className="btn-premium-primary w-full"
                 disabled={loading}
               >
-                {loading ? 'Saving...' : id ? 'Update Service' : 'Create Service'}
+                {loading ? 'Saving...' : id ? 'Update Service' : duplicateId ? 'Create Duplicate' : 'Create Service'}
               </button>
               <button
                 type="button"

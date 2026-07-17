@@ -4,7 +4,7 @@ import { PageHeader } from '../../../components/ui/PageHeader';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { useToastStore } from '../../../stores/toastStore';
-import { fetchServiceByIdFromAPI, deleteServiceAPI } from '../../../services/api';
+import { fetchServiceByIdFromAPI, deleteServiceAPI, fetchOutletsFromAPI } from '../../../services/api';
 import { formatCurrency } from '../../../utils/format';
 import {
   Scissors,
@@ -17,6 +17,7 @@ import {
   ChevronRight,
   CheckCircle,
   AlertCircle,
+  Store,
 } from 'lucide-react';
 
 const ServiceDetailPage: React.FC = () => {
@@ -24,6 +25,7 @@ const ServiceDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToastStore();
   const [service, setService] = useState<any>(null);
+  const [outlets, setOutlets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -36,7 +38,11 @@ const ServiceDetailPage: React.FC = () => {
   const loadService = async () => {
     try {
       setLoading(true);
-      const found = await fetchServiceByIdFromAPI(id);
+      const [found, outletList] = await Promise.all([
+        fetchServiceByIdFromAPI(id),
+        fetchOutletsFromAPI(),
+      ]);
+      setOutlets(outletList);
       setService({
         ...found,
         serviceName: found.service_name,
@@ -47,6 +53,7 @@ const ServiceDetailPage: React.FC = () => {
         category: found.category?.name || '',
         productLinkages: found.product_linkages || [],
         active: found.status === 'active',
+        assignedOutletIds: found.assigned_outlet_ids || [],
       });
     } catch (err) {
       toast.error('Service not found');
@@ -191,6 +198,19 @@ const ServiceDetailPage: React.FC = () => {
                   )}
                 </div>
               </div>
+              <div className="rounded-xl border border-slate-100 bg-white/50 p-4">
+                <p className="text-xs font-medium text-slate-500 uppercase">Linked Outlets</p>
+                <p className="mt-1 font-medium text-navy-900">
+                  {service.assignedOutletIds && service.assignedOutletIds.length > 0 ? (
+                    outlets
+                      .filter((o) => service.assignedOutletIds.includes(o.id))
+                      .map((o) => o.name)
+                      .join(', ')
+                  ) : (
+                    <span className="italic text-slate-400">All Outlets</span>
+                  )}
+                </p>
+              </div>
             </div>
 
             {service.serviceDescription && (
@@ -267,7 +287,7 @@ const ServiceDetailPage: React.FC = () => {
                 <ChevronRight className="h-4 w-4" />
               </Link>
               <button
-                onClick={() => toast.info('Duplicate feature coming soon')}
+                onClick={() => navigate(`/services/add?duplicate=${id}`)}
                 className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white p-3 text-sm font-medium text-navy-700 transition-colors hover:bg-slate-50"
               >
                 Duplicate Service

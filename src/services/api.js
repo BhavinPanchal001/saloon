@@ -90,6 +90,7 @@ export const fetchServicesFromAPI = async (params = {}) => {
     duration: Number(s.duration),
     categoryId: s.category_id,
     productLinkages: s.product_linkages || [],
+    assignedOutletIds: s.assigned_outlet_ids || [],
     status: s.status,
   }));
 };
@@ -453,7 +454,6 @@ export const fetchOutletInventoryFromAPI = async (params = {}) => {
     headers: authHeaders(),
   });
   const data = await handleResponse(res);
-  // Flatten nested Product/Outlet and convert snake_case to camelCase
   return data.map((item) => ({
     id: item.id,
     outletId: item.outlet_id,
@@ -465,6 +465,16 @@ export const fetchOutletInventoryFromAPI = async (params = {}) => {
     currentStock: Number(item.current_stock || 0),
     createdAt: item.created_at,
     updatedAt: item.updated_at,
+    unitMaster: item.Product?.unitMaster ? {
+      id: item.Product.unitMaster.id,
+      groupName: item.Product.unitMaster.group_name,
+      primaryUnit: item.Product.unitMaster.primary_unit,
+      primaryAbbr: item.Product.unitMaster.primary_abbr,
+      secondaryUnit: item.Product.unitMaster.secondary_unit,
+      secondaryAbbr: item.Product.unitMaster.secondary_abbr,
+      conversionRatio: Number(item.Product.unitMaster.conversion_ratio),
+    } : null,
+    consumptionUnit: item.Product?.consumption_unit || 'primary',
   }));
 };
 

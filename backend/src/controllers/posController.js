@@ -107,6 +107,12 @@ const getCatalog = async (req, res) => {
           })
         );
 
+        // Filter by outlet assignment
+        const assignedOutletIds = service.assigned_outlet_ids || [];
+        if (outletIdNum && assignedOutletIds.length > 0 && !assignedOutletIds.includes(outletIdNum)) {
+          return null;
+        }
+
         return {
           id: service.id,
           type: 'service',
@@ -115,9 +121,13 @@ const getCatalog = async (req, res) => {
           basePrice,
           duration: service.duration,
           productLinkages,
+          assignedOutletIds,
         };
       })
     );
+
+    // Filter out null services (outlet filtered)
+    const filteredServices = serviceCards.filter((s) => s !== null);
 
     // Fetch all active packages
     const packages = await Package.findAll({
@@ -280,11 +290,22 @@ const getCatalog = async (req, res) => {
         measureLabel: product.unitMaster && product.product_measure
           ? `${product.product_measure} ${product.product_measure_unit === 'primary' ? product.unitMaster.primary_abbr : product.unitMaster.secondary_abbr}`
           : null,
+        unitMaster: product.unitMaster ? {
+          id: product.unitMaster.id,
+          groupName: product.unitMaster.group_name,
+          primaryUnit: product.unitMaster.primary_unit,
+          primaryAbbr: product.unitMaster.primary_abbr,
+          secondaryUnit: product.unitMaster.secondary_unit,
+          secondaryAbbr: product.unitMaster.secondary_abbr,
+          conversionRatio: Number(product.unitMaster.conversion_ratio),
+        } : null,
+        purchaseUnit: product.purchase_unit,
+        consumptionUnit: product.consumption_unit,
       };
     });
 
     // Combine and return
-    const catalog = [...serviceCards, ...filteredPackages, ...productCards];
+    const catalog = [...filteredServices, ...filteredPackages, ...productCards];
 
     return res.json(catalog);
   } catch (err) {
@@ -463,7 +484,7 @@ const checkout = async (req, res) => {
       qty: item.qty,
       price: item.price,
       staff_assigned: item.staffAssigned || null,
-      product_consumption: item.productConsumption || null,
+      product_consumption: item.itemType === 'product' ? { unit: item.unit, abbr: item.unitAbbr } : (item.productConsumption || null),
       included_services: item.includedServices || null,
     }));
 
@@ -506,6 +527,16 @@ const checkout = async (req, res) => {
     // Deduct stock for direct product sales
     for (const item of lineItems) {
       if (item.itemType === 'product') {
+        const product = await Product.findByPk(item.itemId, {
+          include: [{ model: UnitMaster, as: 'unitMaster' }],
+          transaction,
+        });
+
+        const unit = item.unit || 'primary';
+        const deduction = product && product.unitMaster
+          ? convertToBase(Number(item.qty), Number(product.unitMaster.conversion_ratio), unit)
+          : Number(item.qty);
+
         const invRecord = await OutletInventory.findOne({
           where: { outlet_id: outletId, product_id: item.itemId },
           transaction,
@@ -513,7 +544,7 @@ const checkout = async (req, res) => {
 
         if (invRecord) {
           const currentStock = parseFloat(invRecord.current_stock);
-          const newStock = currentStock - item.qty;
+          const newStock = currentStock - deduction;
           await invRecord.update({ current_stock: newStock }, { transaction });
         }
       }

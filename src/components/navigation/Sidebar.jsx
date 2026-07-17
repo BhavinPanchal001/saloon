@@ -276,80 +276,82 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
           isOpen ? "translate-x-0" : "-translate-x-full"
         } ${collapsed ? "w-[80px] px-3 py-6" : "w-[280px] px-5 py-6"}`}
       >
-        {/* ── Brand ── */}
-        {!collapsed ? (
-          <div className="flex items-start justify-between shrink-0 gap-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gold-400">
-                Glowy
-              </p>
-              <h1 className="mt-3 text-3xl text-white">Glow to go</h1>
-              <p className="mt-2 max-w-[14rem] text-sm text-slate-300">
-                Retail, services, payroll, and branch operations in one salon cockpit.
-              </p>
+        <div className="flex-1 overflow-y-auto no-scrollbar pb-4 pr-1">
+          {/* ── Brand ── */}
+          {!collapsed ? (
+            <div className="flex items-start justify-between shrink-0 gap-2 mb-6">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gold-400">
+                  Glowy
+                </p>
+                <h1 className="mt-3 text-3xl text-white">Glow to go</h1>
+                <p className="mt-2 max-w-[14rem] text-sm text-slate-300">
+                  Retail, services, payroll, and branch operations in one salon cockpit.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 pr-1">
+                {/* Collapse toggle - desktop only */}
+                <button
+                  type="button"
+                  onClick={onToggleCollapse}
+                  className="hidden md:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition shrink-0"
+                  title="Collapse sidebar"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                {/* Close button - mobile only */}
+                <button
+                  type="button"
+                  className="rounded-full border border-white/10 p-2 text-slate-300 md:hidden shrink-0"
+                  onClick={onClose}
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0 pr-1">
+          ) : (
+            <div className="flex flex-col items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-gold-500 flex items-center justify-center">
+                <span className="text-navy-900 font-bold text-lg">G</span>
+              </div>
               {/* Collapse toggle - desktop only */}
               <button
                 type="button"
                 onClick={onToggleCollapse}
-                className="hidden md:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition shrink-0"
-                title="Collapse sidebar"
+                className="hidden md:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition"
+                title="Expand sidebar"
               >
-                <ChevronLeft size={18} />
-              </button>
-              {/* Close button - mobile only */}
-              <button
-                type="button"
-                className="rounded-full border border-white/10 p-2 text-slate-300 md:hidden shrink-0"
-                onClick={onClose}
-              >
-                <X size={18} />
+                <ChevronRight size={18} />
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gold-500 flex items-center justify-center">
-              <span className="text-navy-900 font-bold text-lg">G</span>
-            </div>
-            {/* Collapse toggle - desktop only */}
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="hidden md:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition"
-              title="Expand sidebar"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
-        )}
+          )}
 
-        {/* ── User card ── */}
-        {!collapsed && (
-          <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4 shrink-0">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Signed In As</p>
-            <p className="mt-3 text-lg font-semibold text-white">{user?.name}</p>
-            <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
-              <Briefcase size={16} />
-              <span>{isAdmin ? "Super Admin" : "Outlet Manager"}</span>
+          {/* ── User card ── */}
+          {!collapsed && (
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shrink-0 mb-6">
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Signed In As</p>
+              <p className="mt-3 text-lg font-semibold text-white">{user?.name}</p>
+              <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
+                <Briefcase size={16} />
+                <span>{isAdmin ? "Super Admin" : "Outlet Manager"}</span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── Navigation ── */}
-        <nav className={`mt-6 flex-1 overflow-y-auto no-scrollbar pb-4 ${collapsed ? "space-y-4" : "space-y-3 pr-1"}`}>
-          {navigation.map((group) => (
-            <NavSection
-              key={group.section}
-              section={group.section}
-              icon={group.icon}
-              links={group.links}
-              onClose={onClose}
-              collapsed={collapsed}
-            />
-          ))}
-        </nav>
+          {/* ── Navigation ── */}
+          <nav className={`${collapsed ? "space-y-4" : "space-y-3"}`}>
+            {navigation.map((group) => (
+              <NavSection
+                key={group.section}
+                section={group.section}
+                icon={group.icon}
+                links={group.links}
+                onClose={onClose}
+                collapsed={collapsed}
+              />
+            ))}
+          </nav>
+        </div>
 
       </aside>
     </>

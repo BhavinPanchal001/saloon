@@ -140,6 +140,8 @@ export function POSPage() {
           duration: item.duration,
           offerLabel: item.offerLabel,
           serviceCount: item.serviceCount,
+          unit: item.type === "product" ? (item.consumptionUnit || "primary") : undefined,
+          unitMaster: item.type === "product" ? item.unitMaster : undefined,
           serviceItems: (item.serviceItems || []).map((svc) => ({
             ...svc,
             enabled: true,
@@ -392,8 +394,8 @@ export function POSPage() {
       : Math.min(subtotal, Number(discountValue))
     : 0;
   const discountedSubtotal = subtotal - discountAmount;
-  const tax = discountedSubtotal * 0.08;
-  const total = discountedSubtotal + tax;
+  const tax = Math.round((discountedSubtotal * 0.08) * 100) / 100;
+  const total = Math.round((discountedSubtotal + tax) * 100) / 100;
 
   const hasUnassignedService = cart.some(
     (line) =>
@@ -533,6 +535,10 @@ export function POSPage() {
         qty: line.quantity,
         price: getLinePrice(line),
         staffAssigned: line.type === "service" ? line.staffId : null,
+        unit: line.type === "product" ? (line.unit || "primary") : undefined,
+        unitAbbr: line.type === "product" && line.unitMaster
+          ? (line.unit === "secondary" ? line.unitMaster.secondaryAbbr : line.unitMaster.primaryAbbr)
+          : undefined,
         productConsumption:
           line.type === "service" && line.productLinkages?.length > 0
             ? line.productLinkages
@@ -763,27 +769,94 @@ export function POSPage() {
                       </button>
                     </div>
 
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-navy-300">Qty</span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => adjustQuantity(line.lineId, -1)}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-navy-200 bg-white text-navy-700 hover:bg-navy-50"
-                          disabled={line.quantity <= 1}
-                        >
-                          <Minus className="h-3 w-3" />
-                        </button>
-                        <span className="w-8 text-center text-sm font-semibold text-navy-900">
-                          {line.quantity}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => adjustQuantity(line.lineId, 1)}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-navy-200 bg-white text-navy-700 hover:bg-navy-50"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </button>
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-navy-300">Qty</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => adjustQuantity(line.lineId, -1)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-navy-200 bg-white text-navy-700 hover:bg-navy-50"
+                            disabled={line.quantity <= (line.type === "product" ? 0.001 : 1)}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          
+                          {line.type === "product" ? (
+                            <input
+                              type="number"
+                              min="0.001"
+                              step="any"
+                              value={line.quantity}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                updateLine(line.lineId, "quantity", val);
+                              }}
+                              className="w-16 text-center text-sm font-semibold text-navy-900 border border-navy-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:border-navy-400"
+                            />
+                          ) : (
+                            <span className="w-8 text-center text-sm font-semibold text-navy-900">
+                              {line.quantity}
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => adjustQuantity(line.lineId, 1)}
+                            className="flex h-7 w-7 items-center justify-center rounded-lg border border-navy-200 bg-white text-navy-700 hover:bg-navy-50"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
+
+                        {line.type === "product" && line.unitMaster && (
+                          <select
+                            className="text-xs border border-navy-200 rounded px-1.5 py-0.5 bg-white text-navy-800 focus:outline-none focus:border-navy-400"
+                            value={line.unit || "primary"}
+                            onChange={(e) => {
+                              const newUnit = e.target.value;
+                              const oldUnit = line.unit || "primary";
+                              if (newUnit !== oldUnit) {
+                                const ratio = line.unitMaster.conversionRatio;
+                                let newQty = line.quantity;
+                                let newPrice = line.price;
+                                let newCustomPrice = line.customPrice;
+
+                                if (oldUnit === "primary" && newUnit === "secondary") {
+                                  newQty = newQty * ratio;
+                                  newPrice = newPrice / ratio;
+                                  if (newCustomPrice !== null && newCustomPrice !== undefined) {
+                                    newCustomPrice = Number(newCustomPrice) / ratio;
+                                  }
+                                } else if (oldUnit === "secondary" && newUnit === "primary") {
+                                  newQty = newQty / ratio;
+                                  newPrice = newPrice * ratio;
+                                  if (newCustomPrice !== null && newCustomPrice !== undefined) {
+                                    newCustomPrice = Number(newCustomPrice) * ratio;
+                                  }
+                                }
+
+                                setCart((current) =>
+                                  current.map((l) =>
+                                    l.lineId === line.lineId
+                                      ? {
+                                          ...l,
+                                          unit: newUnit,
+                                          quantity: Number(newQty.toFixed(4)),
+                                          price: Number(newPrice.toFixed(4)),
+                                          customPrice: newCustomPrice !== null ? Number(newCustomPrice.toFixed(4)) : null,
+                                        }
+                                      : l
+                                  )
+                                );
+                              }
+                            }}
+                          >
+                            {getAvailableUnits(line.unitMaster).map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     </div>
 

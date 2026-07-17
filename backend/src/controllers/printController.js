@@ -36,7 +36,9 @@ const printBillReceipt = async (req, res) => {
       total: Number(bill.total),
       lineItems: (bill.lineItems || []).map((li) => ({
         itemName: li.item_name,
-        qty: li.qty,
+        qty: li.item_type === 'product' && li.product_consumption?.abbr
+          ? `${li.qty} ${li.product_consumption.abbr}`
+          : li.qty,
         price: Number(li.price),
       })),
     };

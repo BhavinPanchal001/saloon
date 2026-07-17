@@ -1,6 +1,9 @@
 import { X, Printer, Sparkles } from "lucide-react";
 import { formatCurrency } from "../../utils/format";
 import { COMPANY_INFO } from "../../utils/companyInfo";
+import { useEffect, useState } from "react";
+import { fetchProductsFromAPI } from "../../services/api";
+import { getUnitAbbr } from "../../utils/unitConversion";
 
 const formatDate = (iso) => {
   if (!iso) return "—";
@@ -24,6 +27,17 @@ const typeLabel = (t) =>
   t === "service" ? "Service" : t === "package" ? "Package" : "Product";
 
 export function InvoiceModal({ bill, onClose }) {
+  const [productMasters, setProductMasters] = useState([]);
+
+  useEffect(() => {
+    if (!bill) return;
+    const needsProducts = bill.lineItems?.some(
+      (item) => item.itemType === 'product'
+    );
+    if (!needsProducts) return;
+    fetchProductsFromAPI().then(setProductMasters).catch(() => {});
+  }, [bill]);
+
   if (!bill) return null;
 
   const handlePrint = () => window.print();
@@ -120,7 +134,23 @@ export function InvoiceModal({ bill, onClose }) {
                       {typeLabel(item.itemType)}
                     </span>
                   </td>
-                  <td className="invoice-td-right">{item.qty}</td>
+                  <td className="invoice-td-right">
+                    {item.qty}
+                    {(() => {
+                      if (item.itemType === "product") {
+                        const storedAbbr = item.productConsumption?.abbr;
+                        if (storedAbbr) {
+                          return <span className="text-[10px] text-slate-400 font-normal ml-0.5">{storedAbbr}</span>;
+                        }
+                        const product = productMasters.find((p) => String(p.id) === String(item.itemId));
+                        const um = product?.unitMaster;
+                        const unitRole = item.productConsumption?.unit || "primary";
+                        const abbr = um ? (unitRole === "secondary" ? um.secondaryAbbr : um.primaryAbbr) : "";
+                        return abbr ? <span className="text-[10px] text-slate-400 font-normal ml-0.5">{abbr}</span> : null;
+                      }
+                      return null;
+                    })()}
+                  </td>
                   <td className="invoice-td-right">{formatCurrency(item.price)}</td>
                   <td className="invoice-td-right invoice-td-amount">
                     {formatCurrency(item.price * item.qty)}

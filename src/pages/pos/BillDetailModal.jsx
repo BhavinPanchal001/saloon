@@ -26,10 +26,10 @@ export function BillDetailModal({ bill, onClose }) {
 
   useEffect(() => {
     if (!bill) return;
-    const hasConsumption = bill.lineItems?.some(
-      (item) => item.itemType === 'service' && item.productConsumption?.length > 0
+    const needsProducts = bill.lineItems?.some(
+      (item) => item.itemType === 'product' || (item.itemType === 'service' && item.productConsumption?.length > 0)
     );
-    if (!hasConsumption) return;
+    if (!needsProducts) return;
     fetchProductsFromAPI().then(setProductMasters).catch(() => {});
   }, [bill]);
 
@@ -125,7 +125,23 @@ export function BillDetailModal({ bill, onClose }) {
                         <span className="text-xs font-semibold text-navy-600">{item.staffAssigned || "—"}</span>
                       </td>
                       <td className="px-4 py-4 text-center">
-                        <span className="text-sm font-bold text-navy-900">{item.qty}</span>
+                        <span className="text-sm font-bold text-navy-900">
+                          {item.qty}
+                          {(() => {
+                            if (item.itemType === "product") {
+                              const storedAbbr = item.productConsumption?.abbr;
+                              if (storedAbbr) {
+                                return <span className="text-xs text-slate-400 font-normal ml-1">{storedAbbr}</span>;
+                              }
+                              const product = productMasters.find((p) => String(p.id) === String(item.itemId));
+                              const um = product?.unitMaster;
+                              const unitRole = item.productConsumption?.unit || "primary";
+                              const abbr = um ? (unitRole === "secondary" ? um.secondaryAbbr : um.primaryAbbr) : "";
+                              return abbr ? <span className="text-xs text-slate-400 font-normal ml-1">{abbr}</span> : null;
+                            }
+                            return null;
+                          })()}
+                        </span>
                       </td>
                       <td className="px-4 py-4 text-right">
                         <span className="text-sm font-black text-navy-900">{formatCurrency(item.price * item.qty)}</span>

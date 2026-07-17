@@ -48,6 +48,20 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
 
+    // Run migration check for services table
+    const queryInterface = sequelize.getQueryInterface();
+    const tableInfo = await queryInterface.describeTable('services');
+    if (!tableInfo.assigned_outlet_ids) {
+      console.log('[Migration] Adding column assigned_outlet_ids to services...');
+      const { DataTypes } = require('sequelize');
+      await queryInterface.addColumn('services', 'assigned_outlet_ids', {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null,
+      });
+      console.log('[Migration] Column assigned_outlet_ids added successfully.');
+    }
+
     const server = app.listen(PORT, () => {
       console.log(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     });

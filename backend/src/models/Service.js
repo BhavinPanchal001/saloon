@@ -30,6 +30,10 @@ const Service = sequelize.define('Service', {
     type: DataTypes.JSON,
     defaultValue: [],
   },
+  assigned_outlet_ids: {
+    type: DataTypes.JSON,
+    defaultValue: [],
+  },
   images: {
     type: DataTypes.TEXT('long'),
     allowNull: true,

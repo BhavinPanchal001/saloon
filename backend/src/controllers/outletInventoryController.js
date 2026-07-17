@@ -17,7 +17,11 @@ const getInventory = async (req, res) => {
     const inventory = await OutletInventory.findAll({
       where,
       include: [
-        { model: Product, attributes: ['id', 'item_name', 'unit_price', 'unit_master_id'] },
+        {
+          model: Product,
+          attributes: ['id', 'item_name', 'unit_price', 'unit_master_id', 'purchase_unit', 'consumption_unit'],
+          include: [{ association: 'unitMaster', required: false }]
+        },
         { model: Outlet, attributes: ['id', 'name', 'code'] },
       ],
       order: [['created_at', 'DESC']],

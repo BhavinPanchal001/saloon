@@ -54,10 +54,9 @@ const getById = async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 };
-
 const create = async (req, res) => {
   try {
-    const { service_name, price, duration, category_id, product_linkages, images } = req.body;
+    const { service_name, price, duration, category_id, product_linkages, images, assigned_outlet_ids } = req.body;
 
     if (!service_name || price === undefined) {
       return res.status(400).json({ message: 'service_name and price are required.' });
@@ -72,6 +71,10 @@ const create = async (req, res) => {
       return res.status(400).json({ message: 'product_linkages must be an array.' });
     }
 
+    if (assigned_outlet_ids !== undefined && !Array.isArray(assigned_outlet_ids)) {
+      return res.status(400).json({ message: 'assigned_outlet_ids must be an array.' });
+    }
+
     const service = await Service.create({
       service_name: service_name.trim(),
       price: parsedPrice,
@@ -79,6 +82,7 @@ const create = async (req, res) => {
       category_id: category_id || null,
       product_linkages: product_linkages || [],
       images: Array.isArray(images) ? images : [],
+      assigned_outlet_ids: assigned_outlet_ids || [],
     });
 
     const result = await Service.findByPk(service.id, {
@@ -97,12 +101,15 @@ const update = async (req, res) => {
     const service = await Service.findByPk(req.params.id);
     if (!service) return res.status(404).json({ message: 'Service not found.' });
 
-    const allowedFields = ['service_name', 'price', 'duration', 'category_id', 'product_linkages', 'images', 'status'];
+    const allowedFields = ['service_name', 'price', 'duration', 'category_id', 'product_linkages', 'images', 'status', 'assigned_outlet_ids'];
     const updates = {};
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
 
+    if (updates.assigned_outlet_ids !== undefined && !Array.isArray(updates.assigned_outlet_ids)) {
+      return res.status(400).json({ message: 'assigned_outlet_ids must be an array.' });
+    }
     if (updates.price !== undefined) {
       const parsedPrice = Number(updates.price);
       if (isNaN(parsedPrice) || parsedPrice < 0) {

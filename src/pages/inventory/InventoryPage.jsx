@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, ArrowLeftRight, Pencil, Trash2, Tag, Images, ChevronLeft, ChevronRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { X, ArrowLeftRight, Pencil, Trash2, Tag, Images, ChevronLeft, ChevronRight, Scissors, ShoppingBag } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { ImageUpload } from "../../components/ui/ImageUpload";
 import { AuditHistoryButton, AuditHistoryModal } from "../../components/audit";
@@ -63,6 +64,7 @@ const initialOutletPriceForm = {
 };
 
 export function InventoryPage() {
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const scopedOutletId = isAdmin ? "" : user?.outlet_id || "";
@@ -98,6 +100,10 @@ export function InventoryPage() {
   // Audit history state
   const [auditModalOpen, setAuditModalOpen] = useState(false);
   const [auditEntity, setAuditEntity] = useState({ type: null, id: null, name: null });
+
+  // Connected services state
+  const [selectedProductForServices, setSelectedProductForServices] = useState(null);
+  const [isConnectedServicesModalOpen, setIsConnectedServicesModalOpen] = useState(false);
 
   const openLightbox = (images, index = 0) => {
     setLightboxImages(images);
@@ -206,7 +212,7 @@ export function InventoryPage() {
   );
 
   const selectedProductUnitMaster = useMemo(
-    () => unitMasterList.find((u) => u.id === productForm.unitMasterId) || null,
+    () => unitMasterList.find((u) => u.id === Number(productForm.unitMasterId)) || null,
     [productForm.unitMasterId, unitMasterList],
   );
 
@@ -270,6 +276,36 @@ export function InventoryPage() {
     [issueForm.productId, productMasters],
   );
 
+  const connectedServices = useMemo(() => {
+    if (!selectedProductForServices || !servicesList) return [];
+    return servicesList.filter((service) => {
+      const linkages = service.productLinkages || service.product_linkages || [];
+      return linkages.some(
+        (linkage) =>
+          String(linkage.inventoryId || linkage.inventory_id) === String(selectedProductForServices.id)
+      );
+    });
+  }, [selectedProductForServices, servicesList]);
+
+  const getProductQuantityUsed = (service) => {
+    if (!selectedProductForServices) return null;
+    const linkages = service.productLinkages || service.product_linkages || [];
+    const linkage = linkages.find(
+      (l) => String(l.inventoryId || l.inventory_id) === String(selectedProductForServices.id)
+    );
+    if (!linkage) return null;
+    
+    let unitAbbr = linkage.consumptionUnit || linkage.consumption_unit || 'primary';
+    if (selectedProductForServices.unitMaster) {
+      if (unitAbbr === 'secondary') {
+        unitAbbr = selectedProductForServices.unitMaster.secondaryAbbr;
+      } else if (unitAbbr === 'primary') {
+        unitAbbr = selectedProductForServices.unitMaster.primaryAbbr;
+      }
+    }
+    return `${linkage.quantityUsed ?? linkage.quantity_used} ${unitAbbr}`;
+  };
+
   const resetMessages = () => {
     setFeedback("");
     setErrorMessage("");
@@ -280,8 +316,15 @@ export function InventoryPage() {
     resetMessages();
 
     try {
+      const openingStock = productForm.openingStock ? Number(productForm.openingStock) : 0;
+      const unitMaster = selectedProductUnitMaster;
+      const baseOpeningStock = unitMaster && productForm.productMeasureUnit === 'secondary'
+        ? openingStock / unitMaster.conversionRatio
+        : openingStock;
+
       await createProductAPI({
         ...productForm,
+        openingStock: baseOpeningStock,
         unitMasterId: productForm.unitMasterId || null,
       });
       setProductForm(initialProductForm);
@@ -321,8 +364,13 @@ export function InventoryPage() {
 
     try {
       // Transform single-product form data to backend expected format
-      const qty = Number(poForm.qty) || 1;
+      const rawQty = Number(poForm.qty) || 1;
       const totalCost = Number(poForm.totalCost) || 0;
+      
+      const qty = poForm.unit === "secondary" && selectedPoUnitMaster
+        ? rawQty / selectedPoUnitMaster.conversionRatio
+        : rawQty;
+
       const unitPrice = qty > 0 ? totalCost / qty : 0;
       await createPurchaseOrderAPI({
         supplierName: poForm.supplierName,
@@ -386,10 +434,16 @@ export function InventoryPage() {
     }
 
     try {
+      const selectedProd = productMasters.find((p) => p.id === issueForm.productId);
+      const isSecondary = selectedProd?.consumptionUnit === 'secondary';
+      const qtyToIssue = isSecondary && selectedProd?.unitMaster
+        ? (Number(issueForm.qty) || 1) / selectedProd.unitMaster.conversionRatio
+        : (Number(issueForm.qty) || 1);
+
       const issuedStock = await issueProductToOutletAPI({
         outletId: issueForm.outletId,
         productId: issueForm.productId,
-        qty: Number(issueForm.qty) || 1,
+        qty: qtyToIssue,
         sellingPrice: issueForm.sellingPrice,
       });
       setIssueForm({
@@ -397,8 +451,17 @@ export function InventoryPage() {
         outletId: isAdmin ? "" : user?.outlet_id || "",
       });
       setIsIssueModalOpen(false);
+
+      const isSecondaryRet = selectedProd?.consumptionUnit === 'secondary';
+      const displayQty = isSecondaryRet && selectedProd?.unitMaster
+        ? (Number(issuedStock.qty) * selectedProd.unitMaster.conversionRatio).toFixed(4).replace(/\.?0+$/, "")
+        : issuedStock.qty;
+      const displayUnit = selectedProd?.unitMaster
+        ? (isSecondaryRet ? selectedProd.unitMaster.secondaryAbbr : selectedProd.unitMaster.primaryAbbr)
+        : "units";
+
       setFeedback(
-        `${issuedStock.qty} units of ${issuedStock.itemName} issued to ${issuedStock.outletName}.`,
+        `${displayQty} ${displayUnit} of ${issuedStock.itemName} issued to ${issuedStock.outletName}.`,
       );
       if (issuedStock.lowStockWarning) {
         const { productName, outletName, currentStock, isOutOfStock } = issuedStock.lowStockWarning;
@@ -630,13 +693,12 @@ export function InventoryPage() {
                 <thead>
                   <tr>
                     <th>Item Name</th>
-                    <th>Measure</th>
                     <th>Unit Group</th>
                     <th>Unit Price</th>
                     <th>Central Stock</th>
                     <th>Issued to Outlets</th>
                     <th>Network Stock</th>
-                    {isAdmin && <th>Actions</th>}
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -663,13 +725,17 @@ export function InventoryPage() {
                               <Images size={14} className="text-navy-300" />
                             </div>
                           )}
-                          <span className="font-bold text-navy-900">{item.itemName}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigate(`/inventory/products/${item.id}/sales`);
+                            }}
+                            className="font-bold text-navy-900 hover:text-gold-600 hover:underline transition-colors text-left"
+                            title="Click to view transaction history"
+                          >
+                            {item.itemName}
+                          </button>
                         </div>
-                      </td>
-                      <td>
-                        <span className="text-xs font-bold text-navy-600">
-                          {item.productMeasureLabel || "—"}
-                        </span>
                       </td>
                       <td>
                         {item.unitMaster ? (
@@ -683,60 +749,100 @@ export function InventoryPage() {
                       </td>
                       <td>{formatCurrency(item.unitPrice)}</td>
                       <td>
-                        {item.centralStock}
+                        {item.unitMaster && item.consumptionUnit === 'secondary'
+                          ? (Number(item.centralStock) * item.unitMaster.conversionRatio).toFixed(4).replace(/\.?0+$/, "")
+                          : item.centralStock}
                         {item.unitMaster ? (
-                          <span className="ml-1 text-xs text-slate-400">{item.unitMaster.primaryAbbr}</span>
+                          <span className="ml-1 text-xs text-slate-400">
+                            {item.consumptionUnit === 'secondary' ? item.unitMaster.secondaryAbbr : item.unitMaster.primaryAbbr}
+                          </span>
                         ) : null}
                       </td>
                       <td>
-                        {(() => {
-                          console.log(`[UI] Product ${item.id} (${item.itemName}) - issuedStock:`, item.issuedStock);
-                          return item.issuedStock;
-                        })()}{item.unitMaster ? <span className="ml-1 text-xs text-slate-400">{item.unitMaster.primaryAbbr}</span> : null}
+                        {item.unitMaster && item.consumptionUnit === 'secondary'
+                          ? (Number(item.issuedStock) * item.unitMaster.conversionRatio).toFixed(4).replace(/\.?0+$/, "")
+                          : item.issuedStock}
+                        {item.unitMaster ? (
+                          <span className="ml-1 text-xs text-slate-400">
+                            {item.consumptionUnit === 'secondary' ? item.unitMaster.secondaryAbbr : item.unitMaster.primaryAbbr}
+                          </span>
+                        ) : null}
                       </td>
-                      <td>{item.totalNetworkStock}{item.unitMaster ? <span className="ml-1 text-xs text-slate-400">{item.unitMaster.primaryAbbr}</span> : null}</td>
-                      {isAdmin && (
-                        <td>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIssueForm((current) => ({ 
-                                  ...current, 
-                                  productId: item.id 
-                                }));
-                                setIsIssueModalOpen(true);
-                              }}
-                              className="flex items-center justify-center rounded-lg border border-navy-200 bg-white p-2 text-navy-700 hover:bg-navy-50 hover:text-navy-900 transition-colors"
-                              title="Issue to Outlet"
-                            >
-                              <ArrowLeftRight size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openEditProduct(item)}
-                              className="flex items-center justify-center rounded-lg border border-navy-200 bg-white p-2 text-navy-700 hover:bg-navy-50 hover:text-navy-900 transition-colors"
-                              title="Edit Product"
-                            >
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteProduct(item)}
-                              className="flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 hover:bg-rose-100 transition-colors"
-                              title="Delete Product"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                            <AuditHistoryButton
-                              onClick={() => openAuditHistory('central_stock', item.id, item.itemName)}
-                              size="sm"
-                              variant="ghost"
-                              showText={false}
-                            />
-                          </div>
-                        </td>
-                      )}
+                      <td>
+                        {item.unitMaster && item.consumptionUnit === 'secondary'
+                          ? (Number(item.totalNetworkStock) * item.unitMaster.conversionRatio).toFixed(4).replace(/\.?0+$/, "")
+                          : item.totalNetworkStock}
+                        {item.unitMaster ? (
+                          <span className="ml-1 text-xs text-slate-400">
+                            {item.consumptionUnit === 'secondary' ? item.unitMaster.secondaryAbbr : item.unitMaster.primaryAbbr}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProductForServices(item);
+                              setIsConnectedServicesModalOpen(true);
+                            }}
+                            className="flex items-center justify-center rounded-lg border border-navy-200 bg-white p-2 text-navy-700 hover:bg-navy-50 hover:text-navy-900 transition-colors"
+                            title="View Connected Services"
+                          >
+                            <Scissors size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigate(`/inventory/products/${item.id}/sales`);
+                            }}
+                            className="flex items-center justify-center rounded-lg border border-navy-200 bg-white p-2 text-navy-700 hover:bg-navy-50 hover:text-navy-900 transition-colors"
+                            title="View Sale History"
+                          >
+                            <ShoppingBag size={14} />
+                          </button>
+                          {isAdmin && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIssueForm((current) => ({ 
+                                    ...current, 
+                                    productId: item.id 
+                                  }));
+                                  setIsIssueModalOpen(true);
+                                }}
+                                className="flex items-center justify-center rounded-lg border border-navy-200 bg-white p-2 text-navy-700 hover:bg-navy-50 hover:text-navy-900 transition-colors"
+                                title="Issue to Outlet"
+                              >
+                                <ArrowLeftRight size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openEditProduct(item)}
+                                className="flex items-center justify-center rounded-lg border border-navy-200 bg-white p-2 text-navy-700 hover:bg-navy-50 hover:text-navy-900 transition-colors"
+                                title="Edit Product"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteProduct(item)}
+                                className="flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 hover:bg-rose-100 transition-colors"
+                                title="Delete Product"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                              <AuditHistoryButton
+                                onClick={() => openAuditHistory('central_stock', item.id, item.itemName)}
+                                size="sm"
+                                variant="ghost"
+                                showText={false}
+                              />
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -788,7 +894,16 @@ export function InventoryPage() {
                         {isAdmin ? (
                           <td>{outletNameById[item.outletId] || "Outlet"}</td>
                         ) : null}
-                        <td>{item.currentStock}</td>
+                        <td>
+                          {item.unitMaster && item.consumptionUnit === 'secondary'
+                            ? (Number(item.currentStock) * item.unitMaster.conversionRatio).toFixed(4).replace(/\.?0+$/, "")
+                            : item.currentStock}
+                          {item.unitMaster ? (
+                            <span className="ml-1 text-xs text-slate-400">
+                              {item.consumptionUnit === 'secondary' ? item.unitMaster.secondaryAbbr : item.unitMaster.primaryAbbr}
+                            </span>
+                          ) : null}
+                        </td>
                         <td>{formatCurrency(item.unitPrice)}</td>
                         <td>
                           <AuditHistoryButton
@@ -846,7 +961,16 @@ export function InventoryPage() {
                 <select
                   className="premium-input appearance-none"
                   value={editProductForm.unitMasterId ?? ""}
-                  onChange={(e) => setEditProductForm((c) => ({ ...c, unitMasterId: e.target.value }))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditProductForm((c) => ({
+                      ...c,
+                      unitMasterId: val,
+                      productMeasureUnit: "primary",
+                      purchaseUnit: "primary",
+                      consumptionUnit: "primary",
+                    }));
+                  }}
                 >
                   <option value="">Select Unit Group</option>
                   {unitMasterList.map((um) => (
@@ -854,6 +978,38 @@ export function InventoryPage() {
                   ))}
                 </select>
               </div>
+
+              {selectedEditProductUnitMaster ? (
+                <>
+                  <div>
+                    <label className="premium-label">Primary Unit of Product</label>
+                    <select
+                      className="premium-input appearance-none"
+                      value={editProductForm.productMeasureUnit}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditProductForm((c) => ({
+                          ...c,
+                          productMeasureUnit: val,
+                          purchaseUnit: val,
+                          consumptionUnit: val,
+                          productMeasure: 1,
+                        }));
+                      }}
+                    >
+                      {getAvailableUnits(selectedEditProductUnitMaster).map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-3 text-xs font-semibold text-navy-600 mt-2">
+                    <ArrowLeftRight size={12} />
+                    <span>
+                      1 {selectedEditProductUnitMaster.primaryAbbr} = {selectedEditProductUnitMaster.conversionRatio} {selectedEditProductUnitMaster.secondaryAbbr}
+                    </span>
+                  </div>
+                </>
+              ) : null}
               <ImageUpload
                 label="Product Images"
                 value={editProductForm.images}
@@ -958,66 +1114,28 @@ export function InventoryPage() {
                 {
                   selectedProductUnitMaster ? (
                     <>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="premium-label">Product Measure (Capacity)</label>
-                          <input
-                            type="number"
-                            min="0.001"
-                            step="any"
-                            className="premium-input"
-                            value={productForm.productMeasure}
-                            onChange={(e) =>
-                              setProductForm((current) => ({ ...current, productMeasure: e.target.value }))
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className="premium-label">Measure Unit</label>
-                          <select
-                            className="premium-input appearance-none"
-                            value={productForm.productMeasureUnit}
-                            onChange={(e) =>
-                              setProductForm((current) => ({ ...current, productMeasureUnit: e.target.value }))
-                            }
-                          >
-                            {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
-                              <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
-                        </div>
+                      <div>
+                        <label className="premium-label">Primary Unit of Product</label>
+                        <select
+                          className="premium-input appearance-none"
+                          value={productForm.productMeasureUnit}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setProductForm((current) => ({
+                              ...current,
+                              productMeasureUnit: val,
+                              purchaseUnit: val,
+                              consumptionUnit: val,
+                              productMeasure: 1,
+                            }));
+                          }}
+                        >
+                          {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="premium-label">Purchase Unit</label>
-                          <select
-                            className="premium-input appearance-none"
-                            value={productForm.purchaseUnit}
-                            onChange={(e) =>
-                              setProductForm((current) => ({ ...current, purchaseUnit: e.target.value }))
-                            }
-                          >
-                            {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
-                              <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="premium-label">Consumption Unit</label>
-                          <select
-                            className="premium-input appearance-none"
-                            value={productForm.consumptionUnit}
-                            onChange={(e) =>
-                              setProductForm((current) => ({ ...current, consumptionUnit: e.target.value }))
-                            }
-                          >
-                            {getAvailableUnits(selectedProductUnitMaster).map((opt) => (
-                              <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-3 text-xs font-semibold text-navy-600">
+                      <div className="flex items-center gap-2 rounded-2xl bg-navy-50/50 p-3 text-xs font-semibold text-navy-600 mt-2">
                         <ArrowLeftRight size={12} />
                         <span>
                           1 {selectedProductUnitMaster.primaryAbbr} = {selectedProductUnitMaster.conversionRatio} {selectedProductUnitMaster.secondaryAbbr}
@@ -1476,6 +1594,74 @@ export function InventoryPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Connected Services Modal */}
+      {isConnectedServicesModalOpen && selectedProductForServices ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
+          <div className="card-solid w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-3xl text-navy-900 font-bold">Connected Services</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Services linked to <span className="font-semibold text-navy-800">{selectedProductForServices.itemName}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-premium-outline !p-2 rounded-full flex-shrink-0"
+                onClick={() => setIsConnectedServicesModalOpen(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 mt-4 custom-scrollbar pr-1 pb-4">
+              {connectedServices.length > 0 ? (
+                <div className="space-y-3">
+                  {connectedServices.map((service) => (
+                    <div
+                      key={service.id}
+                      onClick={() => {
+                        setIsConnectedServicesModalOpen(false);
+                        navigate(`/services/${service.id}`);
+                      }}
+                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-4 shadow-sm hover:border-gold-300 hover:bg-gold-50/10 cursor-pointer transition-all group/item"
+                      title="Click to view service details"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-50 text-gold-600 group-hover/item:bg-gold-500 group-hover/item:text-navy-950 transition-colors">
+                          <Scissors className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-navy-900 group-hover/item:text-gold-600 transition-colors">{service.serviceName || service.service_name}</p>
+                          <p className="text-xs text-slate-500">
+                            Duration: {service.duration} mins • Base Price: {formatCurrency(service.price)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-flex items-center rounded-full bg-navy-50 px-2.5 py-1 text-xs font-medium text-navy-600 group-hover/item:bg-gold-100 group-hover/item:text-gold-900 transition-colors">
+                          Qty: {getProductQuantityUsed(service)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
+                  <Scissors className="mx-auto h-12 w-12 text-slate-300 animate-pulse" />
+                  <p className="mt-3 font-semibold text-navy-900">No Services Linked</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    This product is not linked to any services yet.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+
 
       {/* Audit History Modal */}
       <AuditHistoryModal

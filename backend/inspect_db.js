@@ -1,1 +1,1 @@
-// Temporary helper script
+// Cleaned up

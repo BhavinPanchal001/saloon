@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Search, Trash2, Eye, Pencil } from 'lucide-react';
-import { fetchServicesFromAPI, fetchServiceCategoriesFromAPI, fetchProductsFromAPI, deleteServiceAPI } from '../../../services/api';
+import { Loader2, Search, Trash2, Eye, Pencil, Copy } from 'lucide-react';
+import { fetchServicesFromAPI, fetchServiceCategoriesFromAPI, fetchProductsFromAPI, deleteServiceAPI, fetchOutletsFromAPI } from '../../../services/api';
 import { formatCurrency } from '../../../utils/format';
 import { useToastStore } from '../../../stores/toastStore';
 import { EmptyTable, NoSearchResults } from '../../../components/ui/EmptyState';
@@ -23,6 +23,7 @@ const ServiceListPage: React.FC = () => {
   const [maxDuration, setMaxDuration] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+  const [outlets, setOutlets] = useState<any[]>([]);
   const navigate = useNavigate();
   const toast = useToastStore();
 
@@ -31,21 +32,24 @@ const ServiceListPage: React.FC = () => {
     const loadServices = async () => {
       try {
         setLoading(true);
-        const [rawServices, catList, productList] = await Promise.all([
+        const [rawServices, catList, productList, outletList] = await Promise.all([
           fetchServicesFromAPI(),
           fetchServiceCategoriesFromAPI(),
           fetchProductsFromAPI(),
+          fetchOutletsFromAPI(),
         ]);
         const mapped = rawServices.map((s: any) => ({
           ...s,
           serviceName: s.service_name,
           productLinkages: s.product_linkages || [],
           categoryName: s.category?.name || '',
+          assignedOutletIds: s.assignedOutletIds || [],
         }));
         setAllServices(mapped);
         setFilteredServices(mapped);
         setCategories(catList);
         setProducts(productList);
+        setOutlets(outletList);
       } catch (err) {
         toast.error('Failed to load services');
       } finally {
@@ -287,6 +291,7 @@ const ServiceListPage: React.FC = () => {
                 <th>Price</th>
                 <th>Duration</th>
                 <th>Product Linkage</th>
+                <th>Outlets</th>
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
@@ -305,6 +310,23 @@ const ServiceListPage: React.FC = () => {
                       <span className="text-navy-400 italic">No linked products</span>
                     )}
                   </td>
+                  <td className="text-sm">
+                    {service.assignedOutletIds?.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {outlets
+                          .filter((o) => service.assignedOutletIds.includes(o.id))
+                          .map((o) => (
+                            <span key={o.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gold-50 text-gold-700 border border-gold-200">
+                              {o.name}
+                            </span>
+                          ))}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                        All Outlets
+                      </span>
+                    )}
+                  </td>
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
@@ -320,6 +342,13 @@ const ServiceListPage: React.FC = () => {
                         onClick={() => navigate(`/services/edit/${service.id}`)}
                       >
                         <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        title="Duplicate"
+                        className="rounded-lg border border-indigo-200 bg-indigo-50 p-1.5 text-indigo-700 transition-colors hover:bg-indigo-100"
+                        onClick={() => navigate(`/services/add?duplicate=${service.id}`)}
+                      >
+                        <Copy className="h-4 w-4" />
                       </button>
                       <button
                         title="Delete"
