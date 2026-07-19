@@ -56,6 +56,8 @@ PaymentDetail.belongsTo(Payment, { foreignKey: 'payment_id' });
 
 Payment.belongsTo(PurchaseOrder, { foreignKey: 'purchase_order_id' });
 PurchaseOrder.hasMany(Payment, { foreignKey: 'purchase_order_id' });
+PurchaseOrder.belongsTo(Outlet, { foreignKey: 'outlet_id' });
+Outlet.hasMany(PurchaseOrder, { foreignKey: 'outlet_id' });
 
 Payment.belongsTo(Bank, { foreignKey: 'bank_account_id', as: 'bankAccount' });
 Bank.hasMany(Payment, { foreignKey: 'bank_account_id' });

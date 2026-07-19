@@ -1,5 +1,9 @@
 const { Op } = require('sequelize');
 const Outlet = require('../models/Outlet');
+const Bill = require('../models/Bill');
+const Expense = require('../models/Expense');
+const PurchaseOrder = require('../models/PurchaseOrder');
+const MonthlyBudget = require('../models/MonthlyBudget');
 
 const toResponse = (outlet) => ({
   id: outlet.id,
@@ -16,6 +20,86 @@ const toResponse = (outlet) => ({
   createdAt: outlet.createdAt,
   updatedAt: outlet.updatedAt,
 });
+
+const getOutletFinancialSummary = async (req, res) => {
+  try {
+    const outletId = req.params.id;
+    const { monthKey } = req.query;
+
+    const outlet = await Outlet.findByPk(outletId);
+    if (!outlet) return res.status(404).json({ message: 'Outlet not found.' });
+
+    // Current month key fallback (e.g. 2026-07)
+    const now = new Date();
+    const currentMonthKey = monthKey || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // 1. Sales (Bills)
+    const billWhere = { outlet_id: outletId, status: 'paid' };
+    const bills = await Bill.findAll({ where: billWhere });
+
+    // Filter by monthKey if provided
+    const filteredBills = bills.filter(b => {
+      if (!monthKey) return true;
+      const bDate = new Date(b.createdAt);
+      const bMonth = `${bDate.getFullYear()}-${String(bDate.getMonth() + 1).padStart(2, '0')}`;
+      return bMonth === monthKey;
+    });
+
+    const totalEarned = filteredBills.reduce((sum, b) => sum + Number(b.total || 0), 0);
+
+    // 2. Expenses
+    const expenseWhere = { outlet_id: outletId };
+    if (monthKey) expenseWhere.month_key = monthKey;
+    const expenses = await Expense.findAll({ where: expenseWhere });
+    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.total_amount || 0), 0);
+
+    // 3. Purchase Orders
+    let filteredPOs = [];
+    let totalPOCost = 0;
+    try {
+      const poWhere = { outlet_id: outletId };
+      const pos = await PurchaseOrder.findAll({ where: poWhere });
+      filteredPOs = pos.filter(po => {
+        if (!monthKey) return true;
+        if (!po.order_date) return true;
+        return po.order_date.startsWith(monthKey);
+      });
+      totalPOCost = filteredPOs.reduce((sum, po) => sum + Number(po.total_cost || 0), 0);
+    } catch (poErr) {
+      console.warn('[Outlet Financial Summary] Could not query POs by outlet_id:', poErr.message);
+    }
+
+    // 4. Monthly Budget
+    let budget = await MonthlyBudget.findOne({
+      where: { outlet_id: outletId, month_key: currentMonthKey }
+    });
+
+    const assignedBudget = budget ? Number(budget.amount) : 0;
+    const remainingBudget = Math.max(0, assignedBudget - totalExpenses);
+    const spendPercentage = assignedBudget > 0 ? Math.min(100, Math.round((totalExpenses / assignedBudget) * 100)) : 0;
+
+    // 5. Net Surplus / Deficit
+    const netProfit = totalEarned - (totalExpenses + totalPOCost);
+
+    return res.json({
+      outlet: toResponse(outlet),
+      monthKey: currentMonthKey,
+      totalEarned,
+      totalBillsCount: filteredBills.length,
+      totalExpenses,
+      expensesCount: expenses.length,
+      totalPOCost,
+      poCount: filteredPOs.length,
+      assignedBudget,
+      remainingBudget,
+      spendPercentage,
+      netProfit,
+    });
+  } catch (err) {
+    console.error('[Outlet Financial Summary Error]', err);
+    return res.status(500).json({ message: 'Server error fetching outlet summary.' });
+  }
+};
 
 const getAll = async (req, res) => {
   try {
@@ -163,4 +247,4 @@ const remove = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getOne, create, update, toggleStatus, remove };
+module.exports = { getAll, getOne, create, update, toggleStatus, remove, getOutletFinancialSummary };

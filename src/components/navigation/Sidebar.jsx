@@ -27,6 +27,7 @@ import {
   UserCheck,
   BookOpen,
   Building2,
+  TrendingUp,
 } from "lucide-react";
 import { useAuthStore } from "../../stores/authStore";
 

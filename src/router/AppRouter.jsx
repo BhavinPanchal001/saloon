@@ -15,6 +15,7 @@ import { ForgotPasswordPage } from "../pages/auth/ForgotPasswordPage";
 import { RegisterPage } from "../pages/auth/RegisterPage";
 import { OTPVerificationPage } from "../pages/auth/OTPVerificationPage";
 import { OutletsPage } from "../pages/outlets/OutletsPage";
+import { OutletTransactionsPage } from "../pages/outlets/OutletTransactionsPage";
 import { PayrollPage } from "../pages/payroll/PayrollPage";
 import { SalaryAddPage } from "../pages/payroll/SalaryAddPage";
 import { SalaryViewPage } from "../pages/payroll/SalaryViewPage";
@@ -100,6 +101,14 @@ export const router = createBrowserRouter([
               {
                 path: "/outlets",
                 element: <OutletsPage />,
+              },
+              {
+                path: "/outlets/transactions",
+                element: <OutletTransactionsPage />,
+              },
+              {
+                path: "/outlets/:outletId/transactions",
+                element: <OutletTransactionsPage />,
               },
               {
                 path: "/budgets",

@@ -41,6 +41,14 @@ export const fetchOutletByIdFromAPI = async (id) => {
   return handleResponse(res);
 };
 
+export const fetchOutletFinancialSummaryFromAPI = async (id, params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/outlets/${id}/financial-summary${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
 export const createOutletAPI = async (payload) => {
   const res = await fetch(`${API_BASE}/outlets`, {
     method: "POST",
@@ -319,6 +327,7 @@ const authHeadersNoContentType = () => ({
 export const createPurchaseOrderAPI = async (payload, payment = null, attachmentFile = null) => {
   const form = new FormData();
   form.append("supplierName", payload.supplierName);
+  if (payload.outletId) form.append("outletId", payload.outletId);
   if (payload.supplier_contact) form.append("supplier_contact", payload.supplier_contact);
   if (payload.supplier_phone) form.append("supplier_phone", payload.supplier_phone);
   form.append("taxRate", payload.taxRate ?? 0);

@@ -10,6 +10,7 @@ import { fetchNotificationsAPI } from "../../services/api";
 const pageTitles = {
   "/dashboard": "Dashboard",
   "/outlets": "Outlet Directory",
+  "/outlets/transactions": "Outlet Financial Hub",
   "/inventory": "Inventory & Purchase Orders",
   "/services": "Service Catalog",
   "/services/add": "Add Service",

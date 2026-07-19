@@ -105,10 +105,10 @@ export function OutletsPage() {
                 <td>
                   <div className="flex items-center gap-3">
                     <Link
-                      to={`/budgets?outletId=${outlet.id}`}
-                      className="text-xs font-bold uppercase tracking-wider text-navy-400 hover:text-gold-600 flex items-center gap-1"
+                      to={`/outlets/transactions?outletId=${outlet.id}`}
+                      className="text-xs font-bold uppercase tracking-wider text-emerald-600 hover:text-emerald-800 flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200"
                     >
-                      Show More
+                      Transactions
                       <ArrowUpRight size={12} />
                     </Link>
                     <button

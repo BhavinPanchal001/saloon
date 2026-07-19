@@ -3,6 +3,7 @@ const { sequelize } = require('./db');
 
 const PurchaseOrder = sequelize.define('PurchaseOrder', {
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  outlet_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   po_number: { type: DataTypes.STRING(50), allowNull: false, unique: true },
   supplier_name: { type: DataTypes.STRING(200), allowNull: false },
   supplier_contact: { type: DataTypes.STRING(100), allowNull: true },

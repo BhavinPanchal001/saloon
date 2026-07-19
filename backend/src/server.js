@@ -62,6 +62,19 @@ const startServer = async () => {
       console.log('[Migration] Column assigned_outlet_ids added successfully.');
     }
 
+    // Run migration check for purchase_orders table
+    const poTableInfo = await queryInterface.describeTable('purchase_orders');
+    if (!poTableInfo.outlet_id) {
+      console.log('[Migration] Adding column outlet_id to purchase_orders...');
+      const { DataTypes } = require('sequelize');
+      await queryInterface.addColumn('purchase_orders', 'outlet_id', {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: true,
+        defaultValue: null,
+      });
+      console.log('[Migration] Column outlet_id added successfully to purchase_orders.');
+    }
+
     const server = app.listen(PORT, () => {
       console.log(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     });

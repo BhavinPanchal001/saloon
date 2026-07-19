@@ -8,10 +8,12 @@ const Product = require('../models/Product');
 const Payment = require('../models/Payment');
 const PaymentDetail = require('../models/PaymentDetail');
 const Bank = require('../models/Bank');
+const Outlet = require('../models/Outlet');
 
 // Set up associations (idempotent)
 PurchaseOrder.hasMany(PurchaseOrderItem, { foreignKey: 'purchase_order_id', as: 'items' });
 PurchaseOrderItem.belongsTo(PurchaseOrder, { foreignKey: 'purchase_order_id' });
+PurchaseOrder.belongsTo(Outlet, { foreignKey: 'outlet_id' });
 
 const generatePoNumber = async (transaction) => {
   const today = new Date();
@@ -37,6 +39,8 @@ const toItemResponse = (item) => ({
 
 const toResponse = (po) => ({
   id: po.id,
+  outletId: po.outlet_id || null,
+  outlet: po.Outlet ? { id: po.Outlet.id, name: po.Outlet.name, code: po.Outlet.code } : null,
   poNumber: po.po_number,
   supplierName: po.supplier_name,
   supplierContact: po.supplier_contact || '',
@@ -78,8 +82,12 @@ const toResponse = (po) => ({
 
 const getAll = async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, outletId } = req.query;
     const where = {};
+
+    if (outletId) {
+      where.outlet_id = Number(outletId);
+    }
 
     if (status && status !== 'all') {
       if (!['pending', 'approved', 'received', 'cancelled'].includes(status)) {
@@ -94,21 +102,43 @@ const getAll = async (req, res) => {
       ];
     }
 
-    const orders = await PurchaseOrder.findAll({
-      where,
-      include: [
-        { model: PurchaseOrderItem, as: 'items' },
-        { 
-          model: Payment, 
-          as: 'Payments', 
-          include: [
-            { model: PaymentDetail, as: 'details' },
-            { model: Bank, as: 'bankAccount' }
-          ] 
-        },
-      ],
-      order: [['created_at', 'DESC']],
-    });
+    let orders;
+    try {
+      orders = await PurchaseOrder.findAll({
+        where,
+        include: [
+          { model: PurchaseOrderItem, as: 'items' },
+          { model: Outlet, attributes: ['id', 'name', 'code'] },
+          { 
+            model: Payment, 
+            as: 'Payments', 
+            include: [
+              { model: PaymentDetail, as: 'details' },
+              { model: Bank, as: 'bankAccount' }
+            ] 
+          },
+        ],
+        order: [['created_at', 'DESC']],
+      });
+    } catch (dbErr) {
+      console.warn('[PO getAll] Falling back without outlet_id filter:', dbErr.message);
+      delete where.outlet_id;
+      orders = await PurchaseOrder.findAll({
+        where,
+        include: [
+          { model: PurchaseOrderItem, as: 'items' },
+          { 
+            model: Payment, 
+            as: 'Payments', 
+            include: [
+              { model: PaymentDetail, as: 'details' },
+              { model: Bank, as: 'bankAccount' }
+            ] 
+          },
+        ],
+        order: [['created_at', 'DESC']],
+      });
+    }
 
     return res.json(orders.map(toResponse));
   } catch (err) {
@@ -122,6 +152,7 @@ const getOne = async (req, res) => {
     const po = await PurchaseOrder.findByPk(req.params.id, {
       include: [
         { model: PurchaseOrderItem, as: 'items' },
+        { model: Outlet, attributes: ['id', 'name', 'code'] },
         { 
           model: Payment, 
           as: 'Payments', 
@@ -146,6 +177,7 @@ const create = async (req, res) => {
     const supplierName = body.supplierName;
     const supplier_contact = body.supplier_contact;
     const supplier_phone = body.supplier_phone;
+    const outletId = body.outletId;
     const taxRate = body.taxRate;
     const notes = body.notes;
     const orderDate = body.orderDate;
@@ -199,6 +231,7 @@ const create = async (req, res) => {
 
     const po = await PurchaseOrder.create({
       po_number: poNumber,
+      outlet_id: outletId ? Number(outletId) : null,
       supplier_name: supplierName.trim(),
       supplier_contact: (supplier_contact || '').trim() || null,
       supplier_phone: (supplier_phone || '').trim() || null,
