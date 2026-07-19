@@ -1,12 +1,6 @@
 export const formatCurrency = (value) => {
-  const formatted = new Intl.NumberFormat("en-MY", {
-    style: "currency",
-    currency: "MYR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(value || 0));
-  // Replace 'RM' with 'RM ' to ensure a space
-  return formatted.replace("RM", "RM ");
+  const num = Number(value || 0);
+  return `RM ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 export const formatRoleLabel = (role) =>

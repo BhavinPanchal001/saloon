@@ -114,7 +114,7 @@ export default function BillingListPage() {
         </div>
         <div className="glass-card !p-5 flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600">
-            <span className="text-lg">RM</span>
+            <span className="text-lg font-black">RM</span>
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-navy-400">Revenue</p>

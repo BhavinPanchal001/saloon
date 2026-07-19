@@ -291,7 +291,7 @@ const SalaryCalculationPage: React.FC = () => {
                             {record.commissionInfo.badge.icon} {record.commissionInfo.badge.name}
                           </span>
                           <span className="text-slate-500">
-                            {record.commissionInfo.saleCount} sales · {record.commissionInfo.badge.commissionPercent}% of ₹{formatCurrency(record.commissionInfo.totalSales)}
+                            {record.commissionInfo.saleCount} sales · {record.commissionInfo.badge.commissionPercent}% of {formatCurrency(record.commissionInfo.totalSales)}
                           </span>
                         </div>
                       )}

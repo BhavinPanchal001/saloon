@@ -616,7 +616,7 @@ export default function PurchaseOrderPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-500 text-sm font-medium">RM</span>
+                    <span className="text-slate-500 text-sm font-bold">RM</span>
                     <input
                       type="number"
                       min="0"

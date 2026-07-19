@@ -180,7 +180,7 @@ const ContractMastersPage: React.FC = () => {
             </span>
             <span className="text-xs text-slate-500 font-bold capitalize">{item.calculationType}</span>
             <span className="text-sm font-extrabold text-slate-700">
-              {item.calculationType === 'percentage' ? `${item.defaultAmount ?? 0}%` : `₹${Number(item.defaultAmount ?? 0).toLocaleString('en-IN')}`}
+              {item.calculationType === 'percentage' ? `${item.defaultAmount ?? 0}%` : `RM ${Number(item.defaultAmount ?? 0).toLocaleString()}`}
             </span>
           </div>
         );

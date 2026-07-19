@@ -468,7 +468,7 @@ const ContractFormPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-base font-extrabold text-slate-900">
-                        {component.calculationType === 'percentage' ? `${component.amount ?? 0}%` : `₹${Number(component.amount ?? 0).toLocaleString('en-IN')}`}
+                        {component.calculationType === 'percentage' ? `${component.amount ?? 0}%` : `RM ${Number(component.amount ?? 0).toLocaleString()}`}
                       </span>
                       <button 
                         type="button" 

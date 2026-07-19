@@ -393,7 +393,7 @@ export function SalaryAddPage() {
                   <th className="text-right bg-violet-50/50">ADJUST.</th>
                   <th className="text-right bg-amber-50/50">O.TIME</th>
                   <th className="text-right bg-cyan-50/50">EXT. HR</th>
-                  <th className="text-right bg-rose-100/50">DEDUCT(₹)</th>
+                  <th className="text-right bg-rose-100/50">DEDUCT(RM)</th>
                   <th className="text-right bg-emerald-100/50">FINAL SALARY</th>
                 </tr>
               </thead>

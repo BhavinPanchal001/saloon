@@ -261,9 +261,9 @@ const CommissionMastersPage: React.FC = () => {
                   <span className={`text-xs font-bold ${tierInfo.color}`}>Example Calculation</span>
                 </div>
                 <p className={`text-sm ${tierInfo.color}`}>
-                  If an employee makes {config[tier].minSales} sales worth ₹50,000 in a month, 
+                  If an employee makes {config[tier].minSales} sales worth RM 50,000 in a month, 
                   they will earn <strong>{formatCurrency(50000 * config[tier].commissionPercent / 100)}</strong> commission 
-                  ({config[tier].commissionPercent}% of ₹50,000) as a <strong>{tierInfo.label}</strong> tier performer.
+                  ({config[tier].commissionPercent}% of RM 50,000) as a <strong>{tierInfo.label}</strong> tier performer.
                 </p>
               </div>
             </div>
@@ -281,7 +281,7 @@ const CommissionMastersPage: React.FC = () => {
                 <th className="text-left py-3 px-4 font-semibold text-navy-700">Badge</th>
                 <th className="text-left py-3 px-4 font-semibold text-navy-700">Sales Range</th>
                 <th className="text-left py-3 px-4 font-semibold text-navy-700">Commission %</th>
-                <th className="text-left py-3 px-4 font-semibold text-navy-700">Example (₹50K sales)</th>
+                <th className="text-left py-3 px-4 font-semibold text-navy-700">Example (RM 50K sales)</th>
               </tr>
             </thead>
             <tbody>

@@ -305,7 +305,7 @@ export function OutletTransactionsPage() {
                 Total Earned (Sales)
               </p>
               <h3 className="text-2xl font-black mt-1">
-                ₹{(summary?.totalEarned || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                RM {(summary?.totalEarned || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </h3>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-xs">
@@ -326,7 +326,7 @@ export function OutletTransactionsPage() {
                 Total Expenses
               </p>
               <h3 className="text-2xl font-black mt-1">
-                ₹{(summary?.totalExpenses || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                RM {(summary?.totalExpenses || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </h3>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-xs">
@@ -347,7 +347,7 @@ export function OutletTransactionsPage() {
                 Purchase Orders Cost
               </p>
               <h3 className="text-2xl font-black mt-1">
-                ₹{(summary?.totalPOCost || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                RM {(summary?.totalPOCost || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </h3>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-xs">
@@ -374,7 +374,7 @@ export function OutletTransactionsPage() {
                 Net Profit / Statistic
               </p>
               <h3 className="text-2xl font-black mt-1">
-                ₹{Math.abs(summary?.netProfit || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                RM {Math.abs(summary?.netProfit || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </h3>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-xs">
@@ -404,7 +404,7 @@ export function OutletTransactionsPage() {
                   Assigned Budget
                 </p>
                 <h3 className="text-xl font-bold text-navy-900 mt-1">
-                  ₹{(summary?.assignedBudget || 0).toLocaleString("en-IN")}
+                  RM {(summary?.assignedBudget || 0).toLocaleString("en-US")}
                 </h3>
               </div>
               <button
@@ -419,7 +419,7 @@ export function OutletTransactionsPage() {
             {/* Budget utilization progress bar */}
             <div className="mt-3 space-y-1">
               <div className="flex justify-between text-xs text-slate-600 font-medium">
-                <span>Spent: ₹{(summary?.totalExpenses || 0).toLocaleString()}</span>
+                <span>Spent: RM {(summary?.totalExpenses || 0).toLocaleString()}</span>
                 <span>{summary?.spendPercentage || 0}%</span>
               </div>
               <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -439,7 +439,7 @@ export function OutletTransactionsPage() {
           <div className="mt-2 text-xs text-slate-500 border-t border-slate-100 pt-1.5 flex justify-between">
             <span>Remaining Balance</span>
             <span className="font-bold text-navy-900">
-              ₹{(summary?.remainingBudget || 0).toLocaleString()}
+              RM {(summary?.remainingBudget || 0).toLocaleString()}
             </span>
           </div>
         </div>
@@ -461,7 +461,7 @@ export function OutletTransactionsPage() {
             1. Assigned Budget
             {summary?.assignedBudget > 0 && (
               <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-gold-500/20 text-gold-400 font-mono">
-                ₹{summary.assignedBudget.toLocaleString()}
+                RM {summary.assignedBudget.toLocaleString()}
               </span>
             )}
           </button>
@@ -575,10 +575,10 @@ export function OutletTransactionsPage() {
                             </span>
                           </td>
                           <td className="text-slate-500 font-mono">
-                            ₹{Number(history.previousAmount).toLocaleString("en-IN")}
+                            RM {Number(history.previousAmount).toLocaleString()}
                           </td>
                           <td className="font-bold text-navy-900 font-mono">
-                            ₹{Number(history.newAmount).toLocaleString("en-IN")}
+                            RM {Number(history.newAmount).toLocaleString()}
                           </td>
                           <td>
                             <span
@@ -588,8 +588,7 @@ export function OutletTransactionsPage() {
                                   : "bg-rose-50 text-rose-700 border border-rose-200"
                               }`}
                             >
-                              {history.changeType === "increase" ? "+" : "-"}₹
-                              {Number(history.changeAmount).toLocaleString("en-IN")}
+                              {history.changeType === "increase" ? "+" : "-"}RM {Number(history.changeAmount).toLocaleString()}
                             </span>
                           </td>
                           <td className="text-slate-600 text-xs">
@@ -661,12 +660,12 @@ export function OutletTransactionsPage() {
                           </td>
                           <td className="text-xs font-mono text-slate-600">{exp.monthKey}</td>
                           <td className="text-slate-600">{exp.qty ?? "—"}</td>
-                          <td className="text-slate-600 font-mono">₹{exp.price?.toLocaleString()}</td>
+                          <td className="text-slate-600 font-mono">RM {exp.price?.toLocaleString()}</td>
                           <td className="font-bold text-rose-700 font-mono">
-                            ₹{exp.totalAmount?.toLocaleString()}
+                            RM {exp.totalAmount?.toLocaleString()}
                           </td>
                           <td className="text-xs text-slate-500">
-                            {new Date(exp.createdAt).toLocaleDateString("en-IN")}
+                            {new Date(exp.createdAt).toLocaleDateString("en-US")}
                           </td>
                         </tr>
                       ))}
@@ -748,7 +747,7 @@ export function OutletTransactionsPage() {
                           <td className="text-slate-600 text-center font-bold">{po.items?.length || 0}</td>
                           <td className="text-slate-600">{po.taxRate}%</td>
                           <td className="font-bold text-blue-700 font-mono">
-                            ₹{po.totalCost?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            RM {po.totalCost?.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                           </td>
                           <td>
                             <span
@@ -850,13 +849,13 @@ export function OutletTransactionsPage() {
                           <td className="text-slate-600 text-center font-bold">
                             {bill.lineItems?.length || 0}
                           </td>
-                          <td className="text-slate-600 font-mono">₹{bill.subtotal?.toLocaleString()}</td>
-                          <td className="text-slate-600 font-mono">₹{bill.tax?.toLocaleString()}</td>
+                          <td className="text-slate-600 font-mono">RM {bill.subtotal?.toLocaleString()}</td>
+                          <td className="text-slate-600 font-mono">RM {bill.tax?.toLocaleString()}</td>
                           <td className="font-bold text-emerald-700 font-mono">
-                            ₹{bill.total?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            RM {bill.total?.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                           </td>
                           <td className="text-xs text-slate-500">
-                            {new Date(bill.createdAt).toLocaleString("en-IN", {
+                            {new Date(bill.createdAt).toLocaleString("en-US", {
                               dateStyle: "medium",
                               timeStyle: "short",
                             })}
@@ -910,7 +909,7 @@ export function OutletTransactionsPage() {
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  New Monthly Budget Amount (₹)
+                  New Monthly Budget Amount (RM)
                 </label>
                 <input
                   type="number"
@@ -992,7 +991,7 @@ export function OutletTransactionsPage() {
                 <div>
                   <span className="text-xs text-slate-400 block">Bill Date</span>
                   <span className="text-slate-700">
-                    {new Date(selectedBill.createdAt).toLocaleString("en-IN", {
+                    {new Date(selectedBill.createdAt).toLocaleString("en-US", {
                       dateStyle: "medium",
                       timeStyle: "short",
                     })}
@@ -1019,7 +1018,7 @@ export function OutletTransactionsPage() {
                           <td className="p-2 font-medium text-slate-800">{li.itemName}</td>
                           <td className="p-2 text-center font-bold text-slate-600">{li.qty}</td>
                           <td className="p-2 text-right font-mono text-slate-800">
-                            ₹{(li.price * li.qty).toLocaleString()}
+                            RM {(li.price * li.qty).toLocaleString()}
                           </td>
                         </tr>
                       ))}
@@ -1031,21 +1030,21 @@ export function OutletTransactionsPage() {
               <div className="border-t border-slate-200 pt-3 space-y-1.5 font-mono text-sm">
                 <div className="flex justify-between text-slate-600">
                   <span>Subtotal</span>
-                  <span>₹{selectedBill.subtotal?.toLocaleString()}</span>
+                  <span>RM {selectedBill.subtotal?.toLocaleString()}</span>
                 </div>
                 {selectedBill.discountAmount > 0 && (
                   <div className="flex justify-between text-rose-600">
                     <span>Discount</span>
-                    <span>-₹{selectedBill.discountAmount?.toLocaleString()}</span>
+                    <span>-RM {selectedBill.discountAmount?.toLocaleString()}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-slate-600">
                   <span>Tax</span>
-                  <span>₹{selectedBill.tax?.toLocaleString()}</span>
+                  <span>RM {selectedBill.tax?.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-base font-black text-navy-900 pt-2 border-t border-slate-200">
                   <span>Total Paid</span>
-                  <span className="text-emerald-700">₹{selectedBill.total?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                  <span className="text-emerald-700">RM {selectedBill.total?.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
             </div>
