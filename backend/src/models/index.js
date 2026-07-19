@@ -103,6 +103,7 @@ const ContractGroup = require('./ContractGroup');
 const Staff = require('./Staff');
 const Contract = require('./Contract');
 const ContractSalaryMapping = require('./ContractSalaryMapping');
+const Attendance = require('./Attendance');
 
 // Staff associations
 Staff.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
@@ -140,9 +141,14 @@ Contract.hasMany(ContractSalaryMapping, { foreignKey: 'contract_id', as: 'salary
 ContractSalaryMapping.belongsTo(Contract, { foreignKey: 'contract_id' });
 ContractSalaryMapping.belongsTo(SalaryComponentMaster, { foreignKey: 'salary_component_id', as: 'masterComponent' });
 
+// Attendance associations
+Attendance.belongsTo(Staff, { foreignKey: 'staff_id', as: 'employee' });
+Staff.hasMany(Attendance, { foreignKey: 'staff_id', as: 'attendances', onDelete: 'CASCADE' });
+
 module.exports = {
   sequelize,
   Sequelize,
+  Attendance,
   Product,
   Outlet,
   OutletInventory,

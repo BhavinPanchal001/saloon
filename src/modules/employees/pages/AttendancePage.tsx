@@ -21,7 +21,7 @@ import {
   checkOutStaff,
   breakInStaff,
   breakOutStaff,
-} from "../../../services/mockApi";
+} from "../../../services/api";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import { CheckInOutModal } from "../components/CheckInOutModal";
 import { useToastStore } from "../../../stores/toastStore";
@@ -282,13 +282,6 @@ export default function AttendancePage() {
                 ›
               </button>
             </div>
-            <button
-              onClick={() => navigate("/staff/add")}
-              className="btn-premium-primary flex items-center gap-2"
-            >
-              <UserPlus className="h-4 w-4" />
-              Add Staff
-            </button>
           </div>
         }
       />

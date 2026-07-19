@@ -29,14 +29,14 @@ export function AppLayout() {
   }, []);
 
   return (
-    <div className="min-h-screen md:flex">
+    <div className="min-h-screen lg:flex">
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen flex-1 flex-col min-w-0">
         <Navbar onOpenSidebar={() => setSidebarOpen(true)} />
         <main className="flex-1 px-4 py-4 md:px-6 md:py-5">
           <Outlet />

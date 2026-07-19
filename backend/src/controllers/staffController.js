@@ -89,7 +89,7 @@ const getAll = async (req, res) => {
     const { outletId, search } = req.query;
     const where = {};
 
-    if (outletId) {
+    if (outletId && outletId !== 'undefined' && outletId !== 'null') {
       where.assigned_outlet_id = outletId;
     }
 

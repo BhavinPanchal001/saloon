@@ -6,60 +6,64 @@ interface EmployeeFiltersProps {
   onFilterChange: (filters: any) => void;
   onAddClick: () => void;
   onImportClick?: () => void;
+  onExportClick?: () => void;
 }
 
 export const EmployeeFilters: React.FC<EmployeeFiltersProps> = ({ 
   onSearch, 
   onFilterChange, 
   onAddClick,
-  onImportClick
+  onImportClick,
+  onExportClick
 }) => {
   return (
-    <div className="filter-bar">
-      <div className="search-input-wrapper">
-        <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
+    <div className="flex flex-col gap-3.5 mb-6 w-full lg:flex-row lg:items-center lg:justify-between">
+      {/* Search Bar */}
+      <div className="relative w-full lg:w-[260px]">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
           <Search size={18} />
         </span>
         <input 
           type="text" 
           placeholder="Search by name, email or employee ID..." 
-          className="search-input"
+          className="premium-input pl-10 w-full"
           onChange={(e) => onSearch(e.target.value)}
         />
       </div>
       
-      <div style={{ display: 'flex', gap: '0.75rem' }}>
-        <select className="premium-input px-4 py-2" style={{ width: 'auto', paddingRight: '3.5rem' }} onChange={(e) => onFilterChange({ department: e.target.value })}>
-          <option value="">All Departments</option>
-          <option value="hr">Human Resources</option>
-          <option value="eng">Engineering</option>
-          <option value="sales">Sales</option>
-        </select>
-
-        <select className="premium-input px-4 py-2" style={{ width: 'auto', paddingRight: '3.5rem' }} onChange={(e) => onFilterChange({ status: e.target.value })}>
+      {/* Filters and Actions */}
+      <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+        <select 
+          className="premium-input px-3.5 py-2 w-full sm:w-[125px]" 
+          style={{ paddingRight: '2rem' }}
+          onChange={(e) => onFilterChange({ status: e.target.value })}
+        >
           <option value="">All Status</option>
           <option value="Active">Active</option>
           <option value="On Leave">On Leave</option>
           <option value="Resigned">Resigned</option>
         </select>
 
-        <button className="btn-premium-outline">
-          <Download size={18} />
-          Export
-        </button>
-
-        {onImportClick && (
-          <button className="btn-premium-outline" onClick={onImportClick}>
-            <Upload size={18} />
-            Import
+        {onExportClick && (
+          <button className="btn-premium-outline w-full sm:w-auto justify-center px-4 py-2.5 text-sm font-bold tracking-wide" onClick={onExportClick}>
+            <Download size={18} />
+            <span>Export</span>
           </button>
         )}
 
-        <button className="btn-premium-primary" onClick={onAddClick}>
+        {onImportClick && (
+          <button className="btn-premium-outline w-full sm:w-auto justify-center px-4 py-2.5 text-sm font-bold tracking-wide" onClick={onImportClick}>
+            <Upload size={18} />
+            <span>Import</span>
+          </button>
+        )}
+
+        <button className="btn-premium-primary w-full sm:w-auto justify-center px-4 py-2.5 text-sm font-bold tracking-wide whitespace-nowrap flex items-center gap-2" onClick={onAddClick}>
           <Plus size={18} />
-          Add Employee
+          <span>Add Employee</span>
         </button>
       </div>
     </div>
   );
 };
+

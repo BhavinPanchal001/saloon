@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 export const AuthSection: React.FC = () => {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <div>
       <h3 className="form-section-title">Login Credentials</h3>
@@ -11,11 +14,37 @@ export const AuthSection: React.FC = () => {
       <div className="form-grid">
         <div className="form-field">
           <label>Username / Login Email*</label>
-          <input type="text" placeholder="j.doe" />
+          <input type="text" placeholder="j.doe" autoComplete="off" />
         </div>
         <div className="form-field">
           <label>Initial Password</label>
-          <input type="password" placeholder="••••••••" />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="••••••••"
+              autoComplete="new-password"
+              style={{ width: '100%', paddingRight: '2.5rem' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: 'absolute',
+                right: '0.75rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#64748b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0.25rem'
+              }}
+              title={showPassword ? 'Hide Password' : 'Show Password'}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </div>
         <div className="form-field">
           <label>Access Role</label>

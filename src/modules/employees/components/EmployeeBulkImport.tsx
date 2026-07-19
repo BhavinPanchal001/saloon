@@ -171,41 +171,41 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/50 bg-white shadow-float">
+      <div className="w-full max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden rounded-3xl border border-white/50 bg-white shadow-float">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-navy-50/50 bg-gradient-to-r from-navy-900 to-navy-800 px-8 py-5">
-          <div className="flex items-center gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10">
+        <div className="flex-shrink-0 flex items-center justify-between border-b border-navy-50/50 bg-gradient-to-r from-navy-900 to-navy-800 px-5 sm:px-8 py-4 sm:py-5">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 flex-shrink-0">
               <FileSpreadsheet className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Bulk Import Employees</h3>
-              <p className="text-sm text-slate-300">
+              <h3 className="text-base sm:text-lg font-semibold text-white">Bulk Import Employees</h3>
+              <p className="text-xs sm:text-sm text-slate-300">
                 {step === 'upload' ? 'Upload a CSV file to import multiple employees' : 'Review data before importing'}
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white transition-colors hover:bg-white/20"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white transition-colors hover:bg-white/20 flex-shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="max-h-[calc(90vh-180px)] overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
           {step === 'upload' ? (
             <div className="space-y-6">
               {/* Download Template */}
-              <div className="rounded-2xl border border-gold-100 bg-gold-50/30 p-6">
+              <div className="rounded-2xl border border-gold-100 bg-gold-50/30 p-4 sm:p-6">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gold-100">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gold-100 flex-shrink-0">
                     <Download className="h-6 w-6 text-gold-600" />
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-semibold text-navy-900">Download Template</h4>
-                    <p className="mt-1 text-sm text-slate-600">
+                    <h4 className="font-semibold text-navy-900 text-sm sm:text-base">Download Template</h4>
+                    <p className="mt-1 text-xs sm:text-sm text-slate-600">
                       Get the CSV template with the correct format for bulk importing employees.
                     </p>
                     <button
@@ -225,7 +225,7 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`cursor-pointer rounded-2xl border-2 border-dashed p-12 text-center transition-all ${
+                className={`cursor-pointer rounded-2xl border-2 border-dashed p-6 sm:p-12 text-center transition-all ${
                   isDragging
                     ? 'border-navy-500 bg-navy-50'
                     : 'border-slate-300 bg-slate-50 hover:border-navy-300 hover:bg-slate-100'
@@ -238,21 +238,21 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
                   onChange={handleFileSelect}
                   className="hidden"
                 />
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-navy-100 mx-auto">
-                  <Upload className="h-8 w-8 text-navy-600" />
+                <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-navy-100 mx-auto">
+                  <Upload className="h-6 w-6 sm:h-8 sm:w-8 text-navy-600" />
                 </div>
-                <p className="mt-4 text-lg font-medium text-navy-900">
+                <p className="mt-4 text-base sm:text-lg font-medium text-navy-900">
                   Drop your CSV file here, or click to browse
                 </p>
-                <p className="mt-2 text-sm text-slate-500">
+                <p className="mt-2 text-xs sm:text-sm text-slate-500">
                   Supported format: .csv (max 5MB)
                 </p>
               </div>
 
               {/* Required Fields */}
-              <div className="rounded-2xl border border-slate-200 bg-white/50 p-6">
-                <h4 className="font-semibold text-navy-900">Required CSV Columns</h4>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-white/50 p-4 sm:p-6">
+                <h4 className="font-semibold text-navy-900 text-sm sm:text-base">Required CSV Columns</h4>
+                <div className="mt-4 grid gap-3 grid-cols-1 sm:grid-cols-2">
                   {[
                     { name: 'name', desc: 'Employee full name' },
                     { name: 'phone', desc: 'Contact number' },
@@ -265,7 +265,7 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
                       <span className={`text-xs font-medium ${field.name === 'name' || field.name === 'phone' || field.name === 'role' ? 'text-rose-600' : 'text-slate-400'}`}>
                         {field.name === 'name' || field.name === 'phone' || field.name === 'role' ? '* ' : ''}
                       </span>
-                      <code className="rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-navy-900">
+                      <code className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-navy-900">
                         {field.name}
                       </code>
                       <span className="text-xs text-slate-500">{field.desc}</span>
@@ -277,7 +277,7 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
           ) : (
             <div className="space-y-6">
               {/* Summary Stats */}
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
                 <div className="rounded-2xl border border-navy-100 bg-navy-50/30 p-4">
                   <p className="text-xs font-medium text-slate-500 uppercase">Total Records</p>
                   <p className="mt-1 text-2xl font-bold text-navy-900">{totalRecords}</p>
@@ -294,7 +294,7 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
 
               {/* Preview Table */}
               <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full">
+                <table className="w-full min-w-[600px] border-collapse">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">#</th>
@@ -346,7 +346,7 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-navy-50/50 bg-slate-50/50 px-8 py-5">
+        <div className="flex-shrink-0 flex items-center justify-between border-t border-navy-50/50 bg-slate-50/50 px-5 sm:px-8 py-4 sm:py-5">
           <button
             onClick={step === 'preview' ? () => setStep('upload') : handleClose}
             className="btn-premium-outline"

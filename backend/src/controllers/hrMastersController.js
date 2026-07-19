@@ -48,7 +48,7 @@ const toLeaveTypeResponse = (lt) => ({
 const toWorkWeekResponse = (ww) => ({
   id: ww.id,
   name: ww.name,
-  operationalDays: ww.operational_days ? ww.operational_days.split(',') : [],
+  operationalDays: Array.isArray(ww.operational_days) ? ww.operational_days : [],
   isActive: ww.is_active,
 });
 
@@ -321,7 +321,7 @@ const saveWorkWeek = async (req, res) => {
 
     const fields = {
       name,
-      operational_days: Array.isArray(operationalDays) ? operationalDays.join(',') : '',
+      operational_days: Array.isArray(operationalDays) ? operationalDays : [],
       is_active: isActive !== undefined ? !!isActive : true,
     };
 

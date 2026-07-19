@@ -16,6 +16,8 @@ import {
   Calendar
 } from "lucide-react";
 
+import { fetchStaff } from "../../services/api";
+
 // Mock month-wise salary data
 const generateMockSalaryData = (year) => {
   const months = [
@@ -80,11 +82,20 @@ export function PayrollPage() {
   const loadSalaryData = async () => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const year = selectedMonth.split("-")[0];
-      const data = generateMockSalaryData(year);
-      setSalaryData(data);
+      let activeStaff = [];
+      try {
+        activeStaff = await fetchStaff();
+      } catch (err) {
+        console.error("Failed to fetch staff list:", err);
+      }
+
+      if (activeStaff && activeStaff.length > 0) {
+        const year = selectedMonth.split("-")[0];
+        const data = generateMockSalaryData(year);
+        setSalaryData(data);
+      } else {
+        setSalaryData([]);
+      }
     } catch (err) {
       toast.error("Failed to load salary data");
     } finally {

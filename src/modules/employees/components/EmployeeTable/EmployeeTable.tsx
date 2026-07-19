@@ -54,13 +54,13 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
 
   return (
     <div className="glass-card" style={{ padding: 0 }}>
-      <div className="employee-table-container">
+      {/* Desktop/Tablet view: Hidden on mobile screens */}
+      <div className="hidden md:block employee-table-container">
         <table className="emp-table">
           <thead>
             <tr>
               <th>Employee</th>
               <th>Role / Outlet</th>
-              <th>Status</th>
               <th>Base Salary</th>
               <th>Actions</th>
             </tr>
@@ -71,7 +71,7 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
                 <td>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-navy-100 to-navy-200 flex items-center justify-center font-bold text-navy-600 text-sm">
-                      {getInitials(emp.name)}
+                       {getInitials(emp.name)}
                     </div>
                     <div>
                       <div className="font-semibold text-navy-900">{emp.name}</div>
@@ -82,11 +82,6 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
                 <td>
                   <div className="font-medium text-navy-900">{emp.role}</div>
                   <div className="text-xs text-navy-400">{emp.assignedOutletName}</div>
-                </td>
-                <td>
-                  <span className={`status-badge ${getStatusClass(emp.status)}`}>
-                    {emp.status || 'Active'}
-                  </span>
                 </td>
                 <td>
                   <div className="text-sm font-medium text-navy-900">{formatSalary(emp.baseSalary)}</div>
@@ -120,6 +115,63 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile view: Hidden on desktop/tablet screens */}
+      <div className="block md:hidden divide-y divide-navy-50/50">
+        {employees.map((emp) => (
+          <div key={emp.id} className="p-4 flex flex-col gap-3">
+            {/* Header info */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-navy-100 to-navy-200 flex items-center justify-center font-bold text-navy-600 text-sm">
+                  {getInitials(emp.name)}
+                </div>
+                <div>
+                  <div className="font-semibold text-navy-900 text-sm">{emp.name}</div>
+                  <div className="text-[10px] text-navy-400">{emp.id}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-2 text-xs py-2 border-t border-b border-navy-50/30 my-1">
+              <div>
+                <span className="text-navy-400 block mb-0.5 text-[10px] uppercase font-semibold">Role / Outlet</span>
+                <span className="font-semibold text-navy-800 text-sm">{emp.role}</span>
+                <span className="text-navy-500 block text-[10px]">{emp.assignedOutletName}</span>
+              </div>
+              <div>
+                <span className="text-navy-400 block mb-0.5 text-[10px] uppercase font-semibold">Base Salary</span>
+                <span className="font-bold text-navy-800 text-sm">{formatSalary(emp.baseSalary)}</span>
+              </div>
+            </div>
+
+            {/* Actions Bar */}
+            <div className="flex justify-end gap-2 mt-1">
+              <button 
+                onClick={() => onView(emp.id)} 
+                className="flex-1 py-2 flex items-center justify-center gap-1.5 rounded-xl border border-navy-100 bg-white/50 text-xs font-semibold text-navy-600 hover:bg-navy-50 hover:text-navy-900 transition-all"
+              >
+                <Eye size={14} />
+                <span>View</span>
+              </button>
+              <button 
+                onClick={() => onEdit(emp.id)} 
+                className="flex-1 py-2 flex items-center justify-center gap-1.5 rounded-xl border border-navy-100 bg-white/50 text-xs font-semibold text-navy-600 hover:bg-navy-50 hover:text-navy-900 transition-all"
+              >
+                <Edit size={14} />
+                <span>Edit</span>
+              </button>
+              <button 
+                onClick={() => onDelete(emp.id)} 
+                className="py-2 px-3.5 flex items-center justify-center rounded-xl border border-rose-100 bg-rose-50/30 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
       
       {/* Pagination Footer - Now shows actual count */}

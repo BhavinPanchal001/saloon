@@ -1,4 +1,5 @@
 import { slugFromName } from "../utils/format";
+import { fetchStaff as fetchStaffFromAPI } from "./api";
 
 const delay = (ms = 350) => new Promise((resolve) => setTimeout(resolve, ms));
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -105,89 +106,15 @@ const setLocalStorageItem = (key, value) => {
   }
 };
 
-const defaultOutlets = [
-  {
-    id: "outlet_hsr",
-    code: "HSR-01",
-    name: "HSR Layout",
-    city: "Bengaluru",
-    address: "Sector 2, HSR Layout, Bengaluru, Karnataka 560102",
-    invoicePrefix: "HSR-",
-    manager: "Meera Kapoor",
-    employeeCodePrefix: "HSR",
-    employeeCount: 2
-  },
-  {
-    id: "outlet_indiranagar",
-    code: "IND-01",
-    name: "Indiranagar",
-    city: "Bengaluru",
-    address: "100 Feet Road, Indiranagar, Bengaluru, Karnataka 560038",
-    invoicePrefix: "IND-",
-    manager: "Aarav Nair",
-    employeeCodePrefix: "IND",
-    employeeCount: 1
-  },
-  {
-    id: "outlet_banjara",
-    code: "BNJ-01",
-    name: "Banjara Hills",
-    city: "Hyderabad",
-    address: "Road No. 1, Banjara Hills, Hyderabad, Telangana 500034",
-    invoicePrefix: "BNJ-",
-    manager: "Sara Thomas",
-    employeeCodePrefix: "BNJ",
-    employeeCount: 0
-  },
-];
-
-let outlets = getLocalStorageItem("glowy_outlets", defaultOutlets);
-
-// ─── NEW HR MASTERS DEFAULT DATA ──────────────────────────────────────────────
-const defaultRoles = [
-  { id: "role_senior_stylist", name: "Senior Stylist", description: "Experienced hair stylists with 5+ years", isActive: true, isEmployee: true },
-  { id: "role_color_specialist", name: "Color Specialist", description: "Hair coloring and treatment expert", isActive: true, isEmployee: true },
-  { id: "role_reception_lead", name: "Reception Lead", description: "Front desk reception and scheduling lead", isActive: true, isEmployee: true },
-  { id: "role_manager", name: "Manager", description: "Outlet operations manager", isActive: true, isEmployee: true },
-];
-
-const defaultShifts = [
-  { id: "shift_day", name: "Standard Day Shift", startTime: "09:00", endTime: "18:00", breakDuration: 60, gracePeriod: 15, isActive: true },
-  { id: "shift_evening", name: "Evening Shift", startTime: "14:00", endTime: "22:00", breakDuration: 45, gracePeriod: 15, isActive: true },
-  { id: "shift_full", name: "Full Day Shift", startTime: "09:00", endTime: "21:00", breakDuration: 90, gracePeriod: 15, isActive: true },
-];
-
-const defaultLeaveTypes = [
-  { id: "lv_annual", name: "Annual Leave", code: "LV-ANN", daysAllowed: 12, maxMonthly: 2, advanceNoticeDays: 7, isPaid: true, allowAnytime: true, allowHourly: false, hourlyHours: 0, neededDocument: false },
-  { id: "lv_sick", name: "Sick Leave", code: "LV-SCK", daysAllowed: 14, maxMonthly: 3, advanceNoticeDays: 0, isPaid: true, allowAnytime: true, allowHourly: true, hourlyHours: 4, neededDocument: true },
-  { id: "lv_casual", name: "Casual Leave", code: "LV-CAS", daysAllowed: 8, maxMonthly: 1, advanceNoticeDays: 2, isPaid: true, allowAnytime: false, allowHourly: false, hourlyHours: 0, neededDocument: false },
-];
-
-const defaultWorkWeeks = [
-  { id: "ww_standard", name: "Standard Operational Week", operationalDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"], isActive: true },
-  { id: "ww_five_day", name: "Corporate 5-Day Week", operationalDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], isActive: true },
-];
-
-const defaultContractTypes = [
-  { id: "ct_fulltime", name: "Full-Time Employment", code: "CT-FTE", description: "Standard full-time employment contract", isActive: true, requiredDocuments: [{ templateName: "Standard Contract", version: "1.0", templateContent: "<h3>Employment Agreement</h3><p>This is a standard employment contract template...</p>" }] },
-  { id: "ct_parttime", name: "Part-Time Employment", code: "CT-PTE", description: "Part-time employment contract", isActive: true, requiredDocuments: [{ templateName: "Part-Time Contract", version: "1.0", templateContent: "<h3>Part-Time Agreement</h3><p>This is a part-time employment contract template...</p>" }] },
-];
-
-const defaultHolidayTemplates = [
-  { id: "ht_national", name: "National Holidays 2026", type: "National", description: "Official gazetted public holidays", isRecurring: true, isActive: true },
-  { id: "ht_company", name: "Company Holidays", type: "Company", description: "Company specific annual holidays", isRecurring: false, isActive: true },
-];
-
-const defaultHolidays = [
-  { id: "hol_newyear", templateId: "ht_national", occasionName: "New Year's Day", startDate: "2026-01-01", endDate: "2026-01-01", occasionType: "National", description: "Global new year celebration", isActive: true },
-  { id: "hol_republic", templateId: "ht_national", occasionName: "Republic Day", startDate: "2026-01-26", endDate: "2026-01-26", occasionType: "National", description: "National Republic day", isActive: true },
-  { id: "hol_founders", templateId: "ht_company", occasionName: "Founder's Day", startDate: "2026-03-15", endDate: "2026-03-15", occasionType: "Company", description: "Salon foundation day", isActive: true },
-];
-
-const defaultContractGroups = [
-  { id: "cg_senior", name: "Senior Stylists Group", duration: "12 Months", startDate: "2026-01-01", endDate: "2026-12-31" },
-  { id: "cg_support", name: "Support Staff Group", duration: "6 Months", startDate: "2026-01-01", endDate: "2026-06-30" },
-];
+const defaultOutlets = [];
+const defaultRoles = [];
+const defaultShifts = [];
+const defaultLeaveTypes = [];
+const defaultWorkWeeks = [];
+const defaultContractTypes = [];
+const defaultHolidayTemplates = [];
+const defaultHolidays = [];
+const defaultContractGroups = [];
 
 let roles = getLocalStorageItem("glowy_roles", defaultRoles);
 let shifts = getLocalStorageItem("glowy_shifts", defaultShifts);
@@ -198,196 +125,16 @@ let holidayTemplates = getLocalStorageItem("glowy_holiday_templates", defaultHol
 let holidays = getLocalStorageItem("glowy_holidays", defaultHolidays);
 let contractGroups = getLocalStorageItem("glowy_contract_groups", defaultContractGroups);
 
-let monthlyBudgets = [
-  { outletId: "outlet_hsr", monthKey: currentMonth, amount: 150000 },
-  { outletId: "outlet_indiranagar", monthKey: currentMonth, amount: 135000 },
-  { outletId: "outlet_banjara", monthKey: currentMonth, amount: 165000 },
-];
+let monthlyBudgets = [];
 
 // Budget history to track changes over time
-let budgetHistory = [
-  {
-    id: "bh_001",
-    outletId: "outlet_hsr",
-    monthKey: "2026-03",
-    previousAmount: 140000,
-    newAmount: 150000,
-    changeAmount: 10000,
-    changeType: "increase",
-    changedAt: "2026-03-25T10:30:00.000Z",
-    changedBy: "admin",
-    reason: "Additional marketing budget allocation",
-  },
-  {
-    id: "bh_002",
-    outletId: "outlet_indiranagar",
-    monthKey: "2026-03",
-    previousAmount: 130000,
-    newAmount: 135000,
-    changeAmount: 5000,
-    changeType: "increase",
-    changedAt: "2026-03-20T14:15:00.000Z",
-    changedBy: "admin",
-    reason: "Equipment maintenance buffer",
-  },
-];
+let budgetHistory = [];
 
-let purchaseOrders = [
-  {
-    id: "po_001",
-    poNumber: "PO-2026-001",
-    supplierName: "Beauty Supplies Co.",
-    supplierContact: "+60 3-1234 5678",
-    supplierEmail: "orders@beautysupplies.com",
-    status: "received",
-    orderDate: "2026-01-15",
-    expectedDate: "2026-01-25",
-    totalCost: 12500,
-    items: [
-      { productName: "Shampoo Premium 1L", qty: 20, unitPrice: 45 },
-      { productName: "Conditioner Premium 1L", qty: 20, unitPrice: 42 },
-      { productName: "Hair Serum 100ml", qty: 30, unitPrice: 85 },
-    ],
-  },
-  {
-    id: "po_002",
-    poNumber: "PO-2026-002",
-    supplierName: "Salon Equipment Ltd",
-    supplierContact: "+60 3-8765 4321",
-    supplierEmail: "sales@salonequip.com",
-    status: "approved",
-    orderDate: "2026-02-10",
-    expectedDate: "2026-02-28",
-    totalCost: 28500,
-    items: [
-      { productName: "Professional Hair Dryer", qty: 5, unitPrice: 350 },
-      { productName: "Salon Chair - Black", qty: 3, unitPrice: 1200 },
-      { productName: "Styling Station Mirror", qty: 2, unitPrice: 800 },
-    ],
-  },
-  {
-    id: "po_003",
-    poNumber: "PO-2026-003",
-    supplierName: "Organic Beauty Products",
-    supplierContact: "+60 3-5555 8888",
-    supplierEmail: "wholesale@organicbeauty.my",
-    status: "pending",
-    orderDate: "2026-03-05",
-    expectedDate: "2026-03-20",
-    totalCost: 8750,
-    items: [
-      { productName: "Organic Face Mask (Box of 10)", qty: 50, unitPrice: 65 },
-      { productName: "Essential Oil Set", qty: 25, unitPrice: 95 },
-      { productName: "Natural Body Scrub", qty: 40, unitPrice: 55 },
-    ],
-  },
-  {
-    id: "po_004",
-    poNumber: "PO-2026-004",
-    supplierName: "Beauty Supplies Co.",
-    supplierContact: "+60 3-1234 5678",
-    supplierEmail: "orders@beautysupplies.com",
-    status: "cancelled",
-    orderDate: "2026-03-12",
-    expectedDate: "2026-03-25",
-    totalCost: 4200,
-    items: [
-      { productName: "Nail Polish Set", qty: 100, unitPrice: 15 },
-      { productName: "Nail Dryer Lamp", qty: 5, unitPrice: 140 },
-    ],
-  },
-];
+let purchaseOrders = [];
 
-let productMasters = [
-  {
-    id: "inv_loreal_tube",
-    itemName: "L'Oreal Color Tube",
-    unitPrice: 580,
-    centralStock: 18,
-    unitMasterId: "unit_piece",
-    purchaseUnit: "primary",
-    consumptionUnit: "primary",
-    productMeasure: 1,
-    productMeasureUnit: "primary",
-  },
-  {
-    id: "inv_keratin_serum",
-    itemName: "Keratin Repair Serum",
-    unitPrice: 740,
-    centralStock: 12,
-    unitMasterId: "unit_liter_ml",
-    purchaseUnit: "primary",
-    consumptionUnit: "secondary",
-    productMeasure: 500,
-    productMeasureUnit: "secondary",
-  },
-  {
-    id: "inv_shampoo",
-    itemName: "Deep Nourish Shampoo",
-    unitPrice: 320,
-    centralStock: 25,
-    unitMasterId: "unit_liter_ml",
-    purchaseUnit: "primary",
-    consumptionUnit: "secondary",
-    productMeasure: 1,
-    productMeasureUnit: "primary",
-  },
-  {
-    id: "inv_bleach",
-    itemName: "Pro Bleach Powder",
-    unitPrice: 890,
-    centralStock: 9,
-    unitMasterId: "unit_kg_g",
-    purchaseUnit: "primary",
-    consumptionUnit: "secondary",
-    productMeasure: 500,
-    productMeasureUnit: "secondary",
-  },
-  {
-    id: "inv_hair_spa",
-    itemName: "Spa Cream Jar",
-    unitPrice: 540,
-    centralStock: 14,
-    unitMasterId: "unit_kg_g",
-    purchaseUnit: "primary",
-    consumptionUnit: "secondary",
-    productMeasure: 1,
-    productMeasureUnit: "primary",
-  },
-];
+let productMasters = [];
 
-let outletInventory = [
-  {
-    id: "stock_hsr_loreal",
-    productId: "inv_loreal_tube",
-    outletId: "outlet_hsr",
-    currentStock: 46,
-  },
-  {
-    id: "stock_hsr_keratin",
-    productId: "inv_keratin_serum",
-    outletId: "outlet_hsr",
-    currentStock: 24,
-  },
-  {
-    id: "stock_indiranagar_shampoo",
-    productId: "inv_shampoo",
-    outletId: "outlet_indiranagar",
-    currentStock: 62,
-  },
-  {
-    id: "stock_indiranagar_bleach",
-    productId: "inv_bleach",
-    outletId: "outlet_indiranagar",
-    currentStock: 19,
-  },
-  {
-    id: "stock_banjara_spa",
-    productId: "inv_hair_spa",
-    outletId: "outlet_banjara",
-    currentStock: 33,
-  },
-];
+let outletInventory = [];
 
 let outletProductPrices = [];
 
@@ -395,88 +142,11 @@ let outletServicePrices = [];
 
 let outletPackagePrices = [];
 
-let stockIssues = [
-  {
-    id: "issue_001",
-    productId: "inv_loreal_tube",
-    outletId: "outlet_hsr",
-    qty: 10,
-    createdAt: "2026-04-06T14:00:00.000Z",
-  },
-  {
-    id: "issue_002",
-    productId: "inv_hair_spa",
-    outletId: "outlet_banjara",
-    qty: 6,
-    createdAt: "2026-04-07T16:15:00.000Z",
-  },
-];
+let stockIssues = [];
 
-let services = [
-  {
-    id: "svc_hair_cut",
-    serviceName: "Classic Cut",
-    price: 1200,
-    duration: 45,
-    category: "hair",
-    productLinkages: [],
-  },
-  {
-    id: "svc_hair_color",
-    serviceName: "Premium Color",
-    price: 2800,
-    duration: 90,
-    category: "hair",
-    productLinkages: [{ inventoryId: "inv_loreal_tube", quantityUsed: 1, consumptionUnit: "primary" }],
-  },
-  {
-    id: "svc_keratin",
-    serviceName: "Keratin Treatment",
-    price: 4800,
-    duration: 120,
-    category: "hair",
-    productLinkages: [{ inventoryId: "inv_keratin_serum", quantityUsed: 50, consumptionUnit: "secondary" }],
-  },
-  {
-    id: "svc_hair_spa",
-    serviceName: "Hair Spa",
-    price: 1800,
-    duration: 60,
-    category: "hair",
-    productLinkages: [{ inventoryId: "inv_hair_spa", quantityUsed: 100, consumptionUnit: "secondary" }],
-  },
-  {
-    id: "svc_beard_trim",
-    serviceName: "Beard Sculpt",
-    price: 650,
-    duration: 25,
-    category: "grooming",
-    productLinkages: [],
-  },
-  {
-    id: "svc_facial",
-    serviceName: "Deep Cleansing Facial",
-    price: 2200,
-    duration: 75,
-    category: "skin",
-    productLinkages: [],
-  },
-  {
-    id: "svc_manicure",
-    serviceName: "Gel Manicure",
-    price: 1500,
-    duration: 60,
-    category: "nails",
-    productLinkages: [],
-  },
-];
+let services = [];
 
-let serviceCategories = [
-  { id: "cat_hair", name: "Hair", code: "HAIR", status: "active" },
-  { id: "cat_nails", name: "Nails", code: "NAILS", status: "active" },
-  { id: "cat_skin", name: "Skin", code: "SKIN", status: "active" },
-  { id: "cat_grooming", name: "Grooming", code: "GROOM", status: "active" },
-];
+let serviceCategories = [];
 
 // ─── Unit Masters ────────────────────────────────────────────────────────────
 
@@ -695,168 +365,11 @@ let packages = [
   }),
 ];
 
-const defaultStaffMembers = [
-  {
-    id: "staff_naina",
-    name: "Naina Shah",
-    firstName: "Naina",
-    middleName: "",
-    lastName: "Shah",
-    phone: "+91 98765 40001",
-    email: "naina.shah@glowy.com",
-    personalEmail: "naina.shah@gmail.com",
-    role: "Senior Stylist",
-    roleId: "role_senior_stylist",
-    assignedOutletId: "outlet_hsr",
-    baseSalary: 32000,
-    commissionSlab: "Tier 2",
-    pfDeduction: 1800,
-    taxType: "percentage",
-    taxValue: 8,
-    contractFileName: "naina-contract.pdf",
-    advances: [],
-    biometricCode: "BIO-101",
-    joiningDate: "2026-01-01",
-    onboardingStatus: "approved",
-    bankDetails: {
-      accountHolderName: "Naina Shah",
-      bankName: "HDFC Bank",
-      accountNumber: "50100234567890",
-      ifscCode: "HDFC0000001",
-      branchName: "HSR Layout",
-      accountType: "Savings"
-    },
-    address: {
-      street: "Sector 2, HSR Layout",
-      city: "Bengaluru",
-      state: "Karnataka",
-      country: "India",
-      pincode: "560102"
-    }
-  },
-  {
-    id: "staff_rohan",
-    name: "Rohan Iyer",
-    firstName: "Rohan",
-    middleName: "",
-    lastName: "Iyer",
-    phone: "+91 98765 40002",
-    email: "rohan.iyer@glowy.com",
-    personalEmail: "rohan.iyer@gmail.com",
-    role: "Color Specialist",
-    roleId: "role_color_specialist",
-    assignedOutletId: "outlet_indiranagar",
-    baseSalary: 36000,
-    commissionSlab: "Tier 3",
-    pfDeduction: 2200,
-    taxType: "flat",
-    taxValue: 2100,
-    contractFileName: "rohan-contract.pdf",
-    advances: [
-      {
-        id: "adv_rohan_1",
-        totalAdvanceAmount: 18000,
-        deductionStartMonth: "2026-05",
-        duration: 6,
-        emi: 3000,
-      },
-    ],
-    biometricCode: "BIO-102",
-    joiningDate: "2026-02-01",
-    onboardingStatus: "approved",
-    bankDetails: {
-      accountHolderName: "Rohan Iyer",
-      bankName: "ICICI Bank",
-      accountNumber: "000401234567",
-      ifscCode: "ICIC0000004",
-      branchName: "Indiranagar",
-      accountType: "Savings"
-    },
-    address: {
-      street: "100 Feet Road, Indiranagar",
-      city: "Bengaluru",
-      state: "Karnataka",
-      country: "India",
-      pincode: "560038"
-    }
-  },
-  {
-    id: "staff_sia",
-    name: "Sia Fernandes",
-    firstName: "Sia",
-    middleName: "",
-    lastName: "Fernandes",
-    phone: "+91 98765 40003",
-    email: "sia.fernandes@glowy.com",
-    personalEmail: "sia.f@gmail.com",
-    role: "Reception Lead",
-    roleId: "role_reception_lead",
-    assignedOutletId: "outlet_hsr",
-    baseSalary: 24000,
-    commissionSlab: "Tier 1",
-    pfDeduction: 1400,
-    taxType: "percentage",
-    taxValue: 5,
-    contractFileName: "sia-contract.pdf",
-    advances: [],
-    biometricCode: "BIO-103",
-    joiningDate: "2026-01-15",
-    onboardingStatus: "approved",
-    bankDetails: {
-      accountHolderName: "Sia Fernandes",
-      bankName: "Axis Bank",
-      accountNumber: "915010023456789",
-      ifscCode: "UTIB0000010",
-      branchName: "HSR Layout",
-      accountType: "Savings"
-    },
-    address: {
-      street: "Sector 3, HSR Layout",
-      city: "Bengaluru",
-      state: "Karnataka",
-      country: "India",
-      pincode: "560102"
-    }
-  },
-];
+const defaultStaffMembers = [];
 
 let staffMembers = getLocalStorageItem("glowy_staff_members", defaultStaffMembers);
 
-let expenses = [
-  {
-    id: "exp_1",
-    itemName: "Towels",
-    qty: 12,
-    price: 180,
-    totalAmount: 2160,
-    billNo: "BL-2041",
-    outletId: "outlet_hsr",
-    monthKey: currentMonth,
-    createdAt: "2026-04-02T10:00:00.000Z",
-  },
-  {
-    id: "exp_2",
-    itemName: "Coffee Pods",
-    qty: 8,
-    price: 450,
-    totalAmount: 3600,
-    billNo: "BL-2049",
-    outletId: "outlet_hsr",
-    monthKey: currentMonth,
-    createdAt: "2026-04-03T09:30:00.000Z",
-  },
-  {
-    id: "exp_3",
-    itemName: "Cleaning Supplies",
-    qty: 6,
-    price: 500,
-    totalAmount: 3000,
-    billNo: "BL-1187",
-    outletId: "outlet_indiranagar",
-    monthKey: currentMonth,
-    createdAt: "2026-04-03T13:00:00.000Z",
-  },
-];
+let expenses = [];
 
 const withOutletName = (record) => ({
   ...record,
@@ -1751,99 +1264,7 @@ export const fetchCatalog = async ({ outletId } = {}) => {
   return clone([...serviceCards, ...packageCards, ...products]);
 };
 
-let bills = [
-  {
-    id: "bill_001", billNumber: "GL-2026-1001", createdAt: "2026-04-22T10:30:00.000Z",
-    customer: { name: "Priya Sharma", phone: "+91 98765 10001" }, paymentMethod: "Card",
-    outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 5000, tax: 400, total: 5400,
-    lineItems: [
-      {
-        itemName: "Signature Hair Color", itemType: "service", qty: 1, price: 3200, staffAssigned: "staff_naina",
-        productConsumption: [
-          { productId: "inv_loreal_tube", qty: 1, unit: "primary" },
-          { productId: "inv_bleach", qty: 250, unit: "secondary" }
-        ]
-      },
-      {
-        itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia",
-        productConsumption: [
-          { productId: "inv_hair_spa", qty: 100, unit: "secondary" },
-          { productId: "inv_keratin_serum", qty: 20, unit: "secondary" }
-        ]
-      },
-    ],
-  },
-  {
-    id: "bill_002", billNumber: "GL-2026-1002", createdAt: "2026-04-21T14:15:00.000Z",
-    customer: { name: "Ananya Reddy", phone: "+91 98765 10002" }, paymentMethod: "UPI",
-    outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 4300, tax: 344, total: 4644,
-    lineItems: [
-      {
-        itemName: "Color Reset Ritual", itemType: "package", qty: 1, price: 4300, staffAssigned: null,
-        productConsumption: [
-          { productId: "inv_shampoo", qty: 50, unit: "secondary" },
-          { productId: "inv_bleach", qty: 100, unit: "secondary" }
-        ]
-      },
-    ],
-  },
-  {
-    id: "bill_003", billNumber: "GL-2026-1003", createdAt: "2026-04-20T11:00:00.000Z",
-    customer: { name: "Meera Joshi", phone: "+91 98765 10003" }, paymentMethod: "Cash",
-    outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 2380, tax: 190.4, total: 2570.4,
-    lineItems: [
-      { itemName: "L'Oreal Color Tube", itemType: "product", qty: 2, price: 580, staffAssigned: null },
-      { itemName: "Keratin Repair Serum", itemType: "product", qty: 1, price: 740, staffAssigned: null },
-      { itemName: "Deep Nourish Shampoo", itemType: "product", qty: 1, price: 320, staffAssigned: null },
-    ],
-  },
-  {
-    id: "bill_004", billNumber: "GL-2026-1004", createdAt: "2026-04-19T16:45:00.000Z",
-    customer: { name: "Kavitha Nair", phone: "+91 98765 10004" }, paymentMethod: "Card",
-    outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 650, tax: 52, total: 702,
-    lineItems: [
-      {
-        itemName: "Beard Sculpt", itemType: "service", qty: 1, price: 650, staffAssigned: "staff_naina",
-        productConsumption: [
-          { productId: "inv_hair_spa", qty: 10, unit: "secondary" }
-        ]
-      },
-    ],
-  },
-  {
-    id: "bill_005", billNumber: "GL-2026-1005", createdAt: "2026-04-18T09:30:00.000Z",
-    customer: { name: "Divya Patel", phone: "+91 98765 10005" }, paymentMethod: "UPI",
-    outletId: "outlet_hsr", outletName: "HSR Layout", status: "paid", subtotal: 5540, tax: 443.2, total: 5983.2,
-    lineItems: [
-      {
-        itemName: "Signature Hair Color", itemType: "service", qty: 1, price: 3200, staffAssigned: "staff_naina",
-        productConsumption: [
-          { productId: "inv_loreal_tube", qty: 1, unit: "primary" }
-        ]
-      },
-      { itemName: "Spa Cream Jar", itemType: "product", qty: 1, price: 540, staffAssigned: null },
-      {
-        itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia",
-        productConsumption: [
-          { productId: "inv_hair_spa", qty: 50, unit: "secondary" }
-        ]
-      },
-    ],
-  },
-  {
-    id: "bill_006", billNumber: "GL-2026-1006", createdAt: "2026-04-17T13:00:00.000Z",
-    customer: { name: "Ritu Kapoor", phone: "+91 98765 10006" }, paymentMethod: "Cash",
-    outletId: "outlet_hsr", outletName: "HSR Layout", status: "refunded", subtotal: 1800, tax: 144, total: 1944,
-    lineItems: [
-      {
-        itemName: "Luxury Hair Spa", itemType: "service", qty: 1, price: 1800, staffAssigned: "staff_sia",
-        productConsumption: [
-          { productId: "inv_hair_spa", qty: 80, unit: "secondary" }
-        ]
-      },
-    ],
-  },
-];
+let bills = [];
 
 export const fetchBills = async ({ outletId } = {}) => {
   await delay();
@@ -1990,16 +1411,29 @@ export const createOutlet = async (payload) => {
   return clone(outlet);
 };
 
-let attendanceRecords = [];
+let attendanceRecords = getLocalStorageItem("glowy_attendance_records", []);
 
 export const fetchAttendanceData = async ({ date, outletId }) => {
   await delay();
-  const filteredStaff = filterByOutlet(staffMembers, outletId, "assignedOutletId");
+  let dbStaff = [];
+  try {
+    dbStaff = await fetchStaffFromAPI();
+  } catch (err) {
+    console.error("Failed to fetch staff from API in mockApi:", err);
+    dbStaff = staffMembers;
+  }
+
+  const filteredStaff = outletId 
+    ? dbStaff.filter(staff => staff.assignedOutletId === outletId)
+    : dbStaff;
+
   return clone(
     filteredStaff.map((staff) => {
       const record = attendanceRecords.find((r) => r.staffId === staff.id && r.date === date);
       return {
-        ...withOutletName(staff),
+        ...staff,
+        name: staff.name || `${staff.firstName} ${staff.lastName}`,
+        assignedOutletName: staff.assignedOutletName || (staff.assignedOutletId ? staff.assignedOutletId.replace("outlet_", "").toUpperCase() : "Unassigned"),
         attendanceStatus: record?.status || "not_marked",
         checkIn: record?.checkIn || null,
         checkOut: record?.checkOut || null,
@@ -2017,6 +1451,7 @@ export const markAttendance = async ({ staffId, date, status }) => {
   } else {
     attendanceRecords.push({ staffId, date, status, checkIn: null, checkOut: null, breaks: [] });
   }
+  setLocalStorageItem("glowy_attendance_records", attendanceRecords);
   return { success: true };
 };
 
@@ -2037,6 +1472,7 @@ export const checkInStaff = async ({ staffId, date, photoData }) => {
       breaks: [],
     });
   }
+  setLocalStorageItem("glowy_attendance_records", attendanceRecords);
   return { success: true, timestamp };
 };
 
@@ -2056,6 +1492,7 @@ export const checkOutStaff = async ({ staffId, date, photoData }) => {
       breaks: [],
     });
   }
+  setLocalStorageItem("glowy_attendance_records", attendanceRecords);
   return { success: true, timestamp };
 };
 
@@ -2075,6 +1512,7 @@ export const breakInStaff = async ({ staffId, date, photoData }) => {
       breaks: [{ in: timestamp, out: null, photo: photoData }],
     });
   }
+  setLocalStorageItem("glowy_attendance_records", attendanceRecords);
   return { success: true, timestamp };
 };
 
@@ -2090,6 +1528,7 @@ export const breakOutStaff = async ({ staffId, date, photoData }) => {
       lastBreak.outPhoto = photoData;
     }
   }
+  setLocalStorageItem("glowy_attendance_records", attendanceRecords);
   return { success: true, timestamp };
 };
 

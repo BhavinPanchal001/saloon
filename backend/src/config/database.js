@@ -9,6 +9,7 @@ module.exports = {
     port: process.env.DB_PORT || 3306,
     dialect: 'mysql',
     logging: false,
+    seederStorage: 'sequelize',
   },
   test: {
     username: process.env.DB_USER,
@@ -18,6 +19,7 @@ module.exports = {
     port: process.env.DB_PORT || 3306,
     dialect: 'mysql',
     logging: false,
+    seederStorage: 'sequelize',
   },
   production: {
     username: process.env.DB_USER,
@@ -27,5 +29,6 @@ module.exports = {
     port: process.env.DB_PORT || 3306,
     dialect: 'mysql',
     logging: false,
+    seederStorage: 'sequelize',
   },
 };

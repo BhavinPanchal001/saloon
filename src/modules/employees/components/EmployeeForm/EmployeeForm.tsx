@@ -35,7 +35,7 @@ export const EmployeeForm: React.FC = () => {
     role: '',
     roleId: '',
     assignedOutletId: '',
-    onboardingStatus: 'pending',
+    onboardingStatus: 'approved',
     baseSalary: '',
     commissionSlab: 'Tier 1',
     pfDeduction: '',
@@ -84,7 +84,7 @@ export const EmployeeForm: React.FC = () => {
             role: data.role || '',
             roleId: data.roleId || '',
             assignedOutletId: data.assignedOutletId || '',
-            onboardingStatus: data.onboardingStatus || 'pending',
+            onboardingStatus: data.onboardingStatus || 'approved',
             baseSalary: data.baseSalary || '',
             commissionSlab: data.commissionSlab || 'Tier 1',
             pfDeduction: data.pfDeduction || '',
@@ -225,16 +225,82 @@ export const EmployeeForm: React.FC = () => {
         <div style={{ 
           marginTop: '2rem', 
           display: 'flex', 
-          justifyContent: 'flex-end', 
-          gap: '1rem',
+          justifyContent: 'space-between', 
+          alignItems: 'center',
           borderTop: '1px solid #e2e8f0',
           paddingTop: '1.5rem'
         }}>
-          <button type="button" onClick={() => navigate('/staff')} className="btn-premium-outline">Cancel</button>
-          <button type="submit" disabled={isSaving} className="btn-premium-primary">
-            <CheckCircle size={18} />
-            {isSaving ? 'Saving...' : id ? 'Update Employee' : 'Save Employee'}
-          </button>
+          {/* Back button — show on all tabs except profile */}
+          {activeTab !== 'profile' ? (
+            <button
+              type="button"
+              onClick={() => {
+                const tabIdx = tabs.findIndex(t => t.id === activeTab);
+                if (tabIdx > 0) setActiveTab(tabs[tabIdx - 1].id as FormTab);
+              }}
+              className="btn-premium-outline"
+            >
+              Back
+            </button>
+          ) : (
+            <div /> // Spacer
+          )}
+
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            {/* If not the last tab, show "Next Step" and "Cancel" */}
+            {activeTab !== 'bank' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate('/staff')}
+                  className="btn-premium-outline"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Quick validation before moving to next tab
+                    if (activeTab === 'profile') {
+                      if (!formData.firstName || !formData.lastName || !formData.phone || !formData.personalEmail) {
+                        toast.error('Please fill in all required profile fields');
+                        return;
+                      }
+                    } else if (activeTab === 'employment') {
+                      if (!formData.assignedOutletId || !formData.joiningDate || !formData.roleId) {
+                        toast.error('Please fill in all required employment details');
+                        return;
+                      }
+                    }
+                    const tabIdx = tabs.findIndex(t => t.id === activeTab);
+                    if (tabIdx < tabs.length - 1) setActiveTab(tabs[tabIdx + 1].id as FormTab);
+                  }}
+                  className="btn-premium-primary"
+                >
+                  Next Step
+                </button>
+              </>
+            ) : (
+              /* If the last tab (bank), show "Cancel" and "Save/Update Employee" */
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate('/staff')}
+                  className="btn-premium-outline"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="btn-premium-primary"
+                >
+                  <CheckCircle size={18} />
+                  {isSaving ? 'Saving...' : id ? 'Update Employee' : 'Save Employee'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </form>

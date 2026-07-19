@@ -1364,3 +1364,71 @@ export const fetchDashboardSummaryFromAPI = async (params = {}) => {
   return handleResponse(res);
 };
 
+// ─── Attendance ──────────────────────────────────────────────────────────────
+export const fetchAttendanceData = async (params = {}) => {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, v]) => v !== undefined && v !== null)
+  );
+  const query = new URLSearchParams(cleanParams).toString();
+  const res = await fetch(`${API_BASE}/attendance${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchAttendanceSummary = async (params = {}) => {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, v]) => v !== undefined && v !== null)
+  );
+  const query = new URLSearchParams(cleanParams).toString();
+  const res = await fetch(`${API_BASE}/attendance/summary${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const markAttendance = async (payload) => {
+  const res = await fetch(`${API_BASE}/attendance/mark`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const checkInStaff = async (payload) => {
+  const res = await fetch(`${API_BASE}/attendance/check-in`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const checkOutStaff = async (payload) => {
+  const res = await fetch(`${API_BASE}/attendance/check-out`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const breakInStaff = async (payload) => {
+  const res = await fetch(`${API_BASE}/attendance/break-in`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const breakOutStaff = async (payload) => {
+  const res = await fetch(`${API_BASE}/attendance/break-out`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+

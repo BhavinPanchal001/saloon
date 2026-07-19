@@ -123,20 +123,6 @@ export const EmploymentSection: React.FC<EmploymentSectionProps> = ({
             ))}
           </select>
         </div>
-
-        <div className="form-field">
-          <label>Onboarding Status*</label>
-          <select 
-            value={formData.onboardingStatus || 'pending'} 
-            onChange={(e) => onChange('onboardingStatus', e.target.value)}
-            required
-          >
-            <option value="pending">Pending</option>
-            <option value="contract_accepted">Contract Accepted</option>
-            <option value="document_uploaded">Document Uploaded</option>
-            <option value="approved">Approved</option>
-          </select>
-        </div>
       </div>
     </div>
   );

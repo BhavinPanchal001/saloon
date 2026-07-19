@@ -16,14 +16,23 @@ const WorkWeek = sequelize.define('WorkWeek', {
     allowNull: false,
     get() {
       const raw = this.getDataValue('operational_days');
+      if (!raw) return [];
       try {
-        return raw ? JSON.parse(raw) : [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
       } catch {
-        return [];
+        return raw.split(',').map(s => s.trim()).filter(Boolean);
       }
     },
     set(val) {
-      this.setDataValue('operational_days', JSON.stringify(val || []));
+      if (Array.isArray(val)) {
+        this.setDataValue('operational_days', JSON.stringify(val));
+      } else if (typeof val === 'string') {
+        const arr = val.split(',').map(s => s.trim()).filter(Boolean);
+        this.setDataValue('operational_days', JSON.stringify(arr));
+      } else {
+        this.setDataValue('operational_days', JSON.stringify([]));
+      }
     }
   },
   is_active: {

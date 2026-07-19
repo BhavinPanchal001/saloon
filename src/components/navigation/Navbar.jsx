@@ -111,7 +111,7 @@ export function Navbar({ onOpenSidebar }) {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-700 md:hidden"
+              className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-700 lg:hidden"
               onClick={onOpenSidebar}
             >
               <Menu size={18} />
@@ -121,7 +121,6 @@ export function Navbar({ onOpenSidebar }) {
                 <Sparkles size={14} />
                 Salon OS
               </div>
-              <h2 className="mt-1 text-2xl text-ink">{pageTitle}</h2>
             </div>
           </div>
 

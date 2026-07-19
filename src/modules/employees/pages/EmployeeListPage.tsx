@@ -29,7 +29,7 @@ const EmployeeListPage: React.FC = () => {
   const [filteredEmployees, setFilteredEmployees] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState({ department: '', status: '' });
+  const [filters, setFilters] = useState({ status: '' });
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<string | null>(null);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
@@ -67,12 +67,6 @@ const EmployeeListPage: React.FC = () => {
       );
     }
 
-    // Apply filters
-    if (filters.department) {
-      // Note: Staff members don't have department in current schema
-      // This would need schema update for full functionality
-    }
-
     if (filters.status) {
       result = result.filter(emp => emp.status === filters.status || !emp.status);
     }
@@ -95,7 +89,7 @@ const EmployeeListPage: React.FC = () => {
     setSearchQuery(query);
   };
 
-  const handleFilterChange = (newFilters: { department?: string; status?: string }) => {
+  const handleFilterChange = (newFilters: { status?: string }) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   };
 
@@ -150,22 +144,38 @@ const EmployeeListPage: React.FC = () => {
       />
 
       {/* Stats Summary Panel - Now derived from actual data */}
-      <div className="grid gap-2 grid-cols-2 lg:grid-cols-4 mb-3">
-        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
-          <span className="text-xs text-navy-600 font-medium">Total Employees</span>
-          <span className="text-base font-bold text-navy-900">{stats.total}</span>
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 mb-6">
+        <div className="glass-card !p-3.5 sm:!p-4 flex items-center justify-between px-4">
+          <div className="flex flex-col">
+            <span className="text-[10px] sm:text-xs text-navy-500 font-bold uppercase tracking-wider">Total Employees</span>
+            <span className="text-lg sm:text-2xl font-extrabold text-navy-900 mt-1">{stats.total}</span>
+          </div>
+          <div className="p-2 rounded-xl bg-navy-50 text-navy-500 hidden sm:block">
+            <Users size={18} />
+          </div>
         </div>
-        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
-          <span className="text-xs text-navy-600 font-medium">Active</span>
-          <span className="text-base font-bold text-emerald-600">{stats.active}</span>
+        <div className="glass-card !p-3.5 sm:!p-4 flex items-center justify-between px-4">
+          <div className="flex flex-col">
+            <span className="text-[10px] sm:text-xs text-navy-500 font-bold uppercase tracking-wider">Active</span>
+            <span className="text-lg sm:text-2xl font-extrabold text-emerald-600 mt-1">{stats.active}</span>
+          </div>
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse hidden sm:block" />
         </div>
-        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
-          <span className="text-xs text-navy-600 font-medium">On Leave</span>
-          <span className="text-base font-bold text-amber-600">{stats.onLeave}</span>
+        <div className="glass-card !p-3.5 sm:!p-4 flex items-center justify-between px-4">
+          <div className="flex flex-col">
+            <span className="text-[10px] sm:text-xs text-navy-500 font-bold uppercase tracking-wider">On Leave</span>
+            <span className="text-lg sm:text-2xl font-extrabold text-amber-600 mt-1">{stats.onLeave}</span>
+          </div>
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-500 hidden sm:block" />
         </div>
-        <div className="glass-card !p-2.5 flex items-center justify-between px-3">
-          <span className="text-xs text-navy-600 font-medium">Unique Roles</span>
-          <span className="text-base font-bold text-navy-800">{stats.uniqueRoles}</span>
+        <div className="glass-card !p-3.5 sm:!p-4 flex items-center justify-between px-4">
+          <div className="flex flex-col">
+            <span className="text-[10px] sm:text-xs text-navy-500 font-bold uppercase tracking-wider">Unique Roles</span>
+            <span className="text-lg sm:text-2xl font-extrabold text-navy-800 mt-1">{stats.uniqueRoles}</span>
+          </div>
+          <div className="p-2 rounded-xl bg-navy-50 text-navy-500 hidden sm:block">
+            <Users size={14} />
+          </div>
         </div>
       </div>
 
@@ -173,7 +183,6 @@ const EmployeeListPage: React.FC = () => {
         onSearch={handleSearch}
         onFilterChange={handleFilterChange}
         onAddClick={() => navigate('/staff/add')}
-        onImportClick={() => setBulkImportOpen(true)}
       />
 
       {filteredEmployees.length === 0 ? (

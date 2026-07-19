@@ -1,3 +1,4 @@
+import React from "react";
 import { NavLink } from "react-router-dom";
 import {
   Boxes,
@@ -261,24 +262,40 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const navigation = isAdmin ? adminNav : staffNav;
 
+  const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const [isHovered, setIsHovered] = React.useState(false);
+  const isSidebarCollapsed = collapsed && !isMobile && !isHovered;
+
   return (
     <>
+      {/* Desktop layout space reserving wrapper */}
+      <div className={`hidden lg:block shrink-0 transition-all duration-300 ${collapsed ? "w-[80px]" : "w-[280px]"}`} />
+
       {/* Mobile overlay */}
       <div
-        className={`fixed inset-0 z-30 bg-slate-950/30 transition md:hidden ${
+        className={`fixed inset-0 z-30 bg-slate-950/30 transition lg:hidden ${
           isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 bg-navy-900 text-white shadow-2xl transition md:sticky md:top-0 md:h-screen md:translate-x-0 md:rounded-r-[2rem] flex flex-col ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        } ${collapsed ? "w-[80px] px-3 py-6" : "w-[280px] px-5 py-6"}`}
+        onMouseEnter={() => { if (collapsed) setIsHovered(true); }}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`fixed inset-y-0 left-0 z-40 bg-navy-900 text-white shadow-2xl transition-all duration-300 lg:rounded-r-[2rem] flex flex-col shrink-0 ${
+          (isOpen || !isMobile) ? "translate-x-0" : "-translate-x-full"
+        } ${isSidebarCollapsed ? "w-[80px] px-3 py-6" : "w-[280px] px-5 py-6"}`}
       >
         <div className="flex-1 overflow-y-auto no-scrollbar pb-4 pr-1">
           {/* ── Brand ── */}
-          {!collapsed ? (
+          {!isSidebarCollapsed ? (
             <div className="flex items-start justify-between shrink-0 gap-2 mb-6">
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.35em] text-gold-400">
@@ -294,7 +311,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
                 <button
                   type="button"
                   onClick={onToggleCollapse}
-                  className="hidden md:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition shrink-0"
+                  className="hidden lg:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition shrink-0"
                   title="Collapse sidebar"
                 >
                   <ChevronLeft size={18} />
@@ -302,7 +319,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
                 {/* Close button - mobile only */}
                 <button
                   type="button"
-                  className="rounded-full border border-white/10 p-2 text-slate-300 md:hidden shrink-0"
+                  className="rounded-full border border-white/10 p-2 text-slate-300 lg:hidden shrink-0"
                   onClick={onClose}
                 >
                   <X size={18} />
@@ -318,7 +335,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
               <button
                 type="button"
                 onClick={onToggleCollapse}
-                className="hidden md:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition"
+                className="hidden lg:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition"
                 title="Expand sidebar"
               >
                 <ChevronRight size={18} />
@@ -327,7 +344,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
           )}
 
           {/* ── User card ── */}
-          {!collapsed && (
+          {!isSidebarCollapsed && (
             <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shrink-0 mb-6">
               <p className="text-xs uppercase tracking-[0.28em] text-slate-400">Signed In As</p>
               <p className="mt-3 text-lg font-semibold text-white">{user?.name}</p>
@@ -339,7 +356,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
           )}
 
           {/* ── Navigation ── */}
-          <nav className={`${collapsed ? "space-y-4" : "space-y-3"}`}>
+          <nav className={`${isSidebarCollapsed ? "space-y-4" : "space-y-3"}`}>
             {navigation.map((group) => (
               <NavSection
                 key={group.section}
@@ -347,7 +364,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
                 icon={group.icon}
                 links={group.links}
                 onClose={onClose}
-                collapsed={collapsed}
+                collapsed={isSidebarCollapsed}
               />
             ))}
           </nav>
