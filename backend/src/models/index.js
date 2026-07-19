@@ -147,9 +147,15 @@ ContractSalaryMapping.belongsTo(SalaryComponentMaster, { foreignKey: 'salary_com
 Attendance.belongsTo(Staff, { foreignKey: 'staff_id', as: 'employee' });
 Staff.hasMany(Attendance, { foreignKey: 'staff_id', as: 'attendances', onDelete: 'CASCADE' });
 
+const Admin = require('./Admin');
+
+Admin.belongsTo(Outlet, { foreignKey: 'outlet_id', as: 'outlet' });
+Outlet.hasMany(Admin, { foreignKey: 'outlet_id', as: 'admins' });
+
 module.exports = {
   sequelize,
   Sequelize,
+  Admin,
   Attendance,
   Product,
   Outlet,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchStaff } from "../../services/mockApi";
+import { fetchStaff, fetchSettings } from "../../services/mockApi";
 import { fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
@@ -35,10 +35,25 @@ export function POSPage() {
   const [discountType, setDiscountType] = useState("percent");
   const [discountValue, setDiscountValue] = useState("");
   const [stockErrors, setStockErrors] = useState([]);
+  const [allowOutOfStockCheckout, setAllowOutOfStockCheckout] = useState(false);
   const [paymentDetails, setPaymentDetails] = useState([{ paymentMode: "cash", amount: "", bankAccountId: "" }]);
   const [transactionReference, setTransactionReference] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+
+  useEffect(() => {
+    const loadPOSSettings = async () => {
+      try {
+        const data = await fetchSettings();
+        if (data?.inventory?.allowOutOfStockCheckout !== undefined) {
+          setAllowOutOfStockCheckout(Boolean(data.inventory.allowOutOfStockCheckout));
+        }
+      } catch (err) {
+        console.error("Failed to load settings in POS:", err);
+      }
+    };
+    loadPOSSettings();
+  }, []);
 
   const productNameById = useMemo(() => {
     return Object.fromEntries(productMasters.map((p) => [p.id, p.itemName]));
@@ -64,24 +79,16 @@ export function POSPage() {
     refreshOutletInventory();
   }, [selectedOutlet]);
 
-  // Load outlets for admin and pre-select first outlet
+  // Load outlets and pre-select outlet
   useEffect(() => {
-    if (isAdmin) {
-      fetchOutletsFromAPI().then((outletList) => {
-        setOutlets(outletList);
-        if (outletList.length > 0 && !selectedOutlet) {
-          setSelectedOutlet(outletList[0].id);
-        }
-      });
-    }
-  }, [isAdmin]);
-
-  // Set default outlet for non-admin
-  useEffect(() => {
-    if (!isAdmin && user?.outlet_id) {
-      setSelectedOutlet(user.outlet_id);
-    }
-  }, [isAdmin, user]);
+    fetchOutletsFromAPI().then((outletList) => {
+      setOutlets(outletList);
+      if (outletList.length > 0 && !selectedOutlet) {
+        const defaultId = user?.outlet_id || outletList[0].id;
+        setSelectedOutlet(defaultId);
+      }
+    }).catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     const loadPos = async () => {
@@ -478,7 +485,8 @@ export function POSPage() {
 
   // Bank required for any non-cash payment detail row
   const isBankRequired = paymentMethod && paymentMethod !== "Cash";
-  const canCheckout = cart.length > 0 && paymentMethod;
+  const hasStockErrors = stockErrors.length > 0;
+  const canCheckout = cart.length > 0 && paymentMethod && (!hasStockErrors || allowOutOfStockCheckout);
 
   const paymentModeMap = { Cash: "cash", Card: "card", UPI: "upi" };
 
@@ -509,22 +517,45 @@ export function POSPage() {
     paymentDetails.some((d) => d.paymentMode !== "cash" && !d.bankAccountId);
 
   const handleCheckout = async () => {
+    if (hasStockErrors && !allowOutOfStockCheckout) {
+      toast.error("Checkout blocked: Product(s) out of stock. Enable out-of-stock checkout in Settings to proceed.");
+      return;
+    }
+
     const resolvedDetails = paymentDetails
       .map((d) => ({ paymentMode: d.paymentMode, amount: Number(d.amount) || 0, bankAccountId: d.bankAccountId || null }))
       .filter((d) => d.amount > 0);
+
+    // Validate outlet selection with automatic fallback
+    let outletId = selectedOutlet || user?.outlet_id;
+    if (!outletId) {
+      try {
+        const outletList = outlets.length > 0 ? outlets : await fetchOutletsFromAPI();
+        if (outletList && outletList.length > 0) {
+          outletId = outletList[0].id;
+          setSelectedOutlet(outletId);
+        }
+      } catch (e) {}
+    }
+
+    if (!outletId) {
+      toast.error("Please ensure at least one outlet is registered in the system.");
+      return;
+    }
 
     const payload = {
       customer,
       paymentMethod,
       bankId: primaryBankAccountId,
       bankAccountId: primaryBankAccountId,
-      outletId: selectedOutlet || user?.outlet_id || "all_outlets",
+      outletId,
       subtotal,
       discountType: discountAmount > 0 ? discountType : null,
       discountValue: discountAmount > 0 ? Number(discountValue) : 0,
       discountAmount,
       tax,
       total,
+      allowOutOfStockCheckout,
       paymentDetails: resolvedDetails.length > 0 ? resolvedDetails : undefined,
       transactionReference: transactionReference.trim() || undefined,
       paymentNotes: paymentNotes.trim() || undefined,
@@ -570,18 +601,25 @@ export function POSPage() {
       })),
     };
 
-    const result = await checkoutBillAPI(payload);
-    setCurrentBill(result);
-    setShowInvoice(true);
-    setCart([]);
-    setPaymentMethod("");
-    setSelectedBankId("");
-    setDiscountValue("");
-    setCustomer({ name: "", phone: "" });
-    setPaymentDetails([{ paymentMode: "cash", amount: "", bankAccountId: "" }]);
-    setTransactionReference("");
-    setPaymentNotes("");
-    toast.success(`Bill ${result.billNumber} created successfully!`);
+    try {
+      const result = await checkoutBillAPI(payload);
+      setCurrentBill(result);
+      setShowInvoice(true);
+      setCart([]);
+      setPaymentMethod("");
+      setSelectedBankId("");
+      setDiscountValue("");
+      setCustomer({ name: "", phone: "" });
+      setPaymentDetails([{ paymentMode: "cash", amount: "", bankAccountId: "" }]);
+      setTransactionReference("");
+      setPaymentNotes("");
+      toast.success(`Bill ${result.billNumber} created successfully!`);
+      // Refresh outlet inventory after successful checkout
+      refreshOutletInventory();
+    } catch (err) {
+      console.error("Checkout failed:", err);
+      toast.error(err.message || "Checkout failed. Please try again. Your cart has been preserved.");
+    }
   };
 
   return (
@@ -1336,17 +1374,35 @@ export function POSPage() {
 
             {/* Stock Validation Warnings */}
             {stockErrors.length > 0 && (
-              <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3">
+              <div className={`mt-3 rounded-xl border p-3 ${
+                allowOutOfStockCheckout
+                  ? "bg-amber-50 border-amber-200"
+                  : "bg-rose-50 border-rose-200"
+              }`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                  <span className="text-xs font-black uppercase tracking-widest text-amber-700">Stock Warning</span>
+                  <AlertCircle className={`h-4 w-4 flex-shrink-0 ${
+                    allowOutOfStockCheckout ? "text-amber-600" : "text-rose-600"
+                  }`} />
+                  <span className={`text-xs font-black uppercase tracking-widest ${
+                    allowOutOfStockCheckout ? "text-amber-700" : "text-rose-700"
+                  }`}>
+                    {allowOutOfStockCheckout ? "Stock Warning (Checkout Allowed)" : "Stock Error (Checkout Blocked)"}
+                  </span>
                 </div>
-                <p className="text-[11px] text-amber-600 mb-1.5">Some items have low stock. You can still proceed.</p>
+                <p className={`text-[11px] mb-1.5 ${
+                  allowOutOfStockCheckout ? "text-amber-600" : "text-rose-600"
+                }`}>
+                  {allowOutOfStockCheckout
+                    ? "Some items have insufficient stock. Proceeding as out-of-stock checkout is enabled in Settings."
+                    : "Some items are out of stock. Enable out-of-stock checkout in Settings to proceed."}
+                </p>
                 <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
                   {stockErrors.map((error, idx) => (
-                    <div key={idx} className="text-[11px] text-amber-700 leading-tight">
+                    <div key={idx} className={`text-[11px] leading-tight ${
+                      allowOutOfStockCheckout ? "text-amber-700" : "text-rose-700"
+                    }`}>
                       <span className="font-semibold">{error.itemName}</span>: need {error.required}, have {error.available}
-                      <span className="text-amber-500"> (short {error.shortfall})</span>
+                      <span className={allowOutOfStockCheckout ? "text-amber-500" : "text-rose-500"}> (short {error.shortfall})</span>
                     </div>
                   ))}
                 </div>

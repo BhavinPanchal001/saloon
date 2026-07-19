@@ -4,7 +4,7 @@ import { fetchSettings, saveSettings } from '../../services/mockApi';
 import { fetchPrinterStatusAPI, togglePrinterAPI, testPrintAPI, switchPrinterConnectionAPI, savePrinterSettingsAPI } from '../../services/api';
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
-import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound, Printer, Usb, Wifi, Save, HelpCircle, Info } from "lucide-react";
+import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound, Printer, Usb, Wifi, Save, HelpCircle, Info, Package } from "lucide-react";
 
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user);
@@ -16,6 +16,7 @@ export function SettingsPage() {
     notifications: { emailAlerts: true, pushNotifications: true, marketingEmails: false, securityAlerts: true },
     appearance: { theme: 'light', compactMode: false, highContrast: false },
     security: { twoFactorEnabled: false, sessionTimeout: 30 },
+    inventory: { allowOutOfStockCheckout: false },
   });
   const [activeTab, setActiveTab] = useState("profile");
 
@@ -103,10 +104,17 @@ export function SettingsPage() {
 
   useEffect(() => {
     const loadSettings = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
         const data = await fetchSettings();
-        setSettings(data);
+        setSettings((prev) => ({
+          ...prev,
+          ...data,
+          inventory: {
+            allowOutOfStockCheckout: false,
+            ...data?.inventory,
+          },
+        }));
       } catch (err) {
         toast.error('Failed to load settings');
       } finally {
@@ -116,51 +124,54 @@ export function SettingsPage() {
     loadSettings();
   }, []);
 
-  // Load printer status when printer tab is active
-  useEffect(() => {
-    if (activeTab === 'printer') {
-      const loadPrinterStatus = async () => {
-        setPrinterLoading(true);
-        try {
-          const status = await fetchPrinterStatusAPI();
-          setPrinterStatus(status);
-          setPrinterForm({
-            enabled: status.enabled || false,
-            connectionType: status.connectionType || 'usb',
-            vid: status.vid || '',
-            pid: status.pid || '',
-            ip: status.ip || '',
-            port: status.port || 9100,
-            paperWidth: status.paperWidth || 48,
-          });
-        } catch (err) {
-          toast.error('Failed to load printer status');
-        } finally {
-          setPrinterLoading(false);
-        }
-      };
-      loadPrinterStatus();
-    }
-  }, [activeTab]);
-
-  const handlePrinterToggle = async () => {
-    setPrinterToggling(true);
-    const newEnabled = !printerForm.enabled;
-    setPrinterForm((prev) => ({ ...prev, enabled: newEnabled }));
+  const fetchPrinterStatus = async () => {
+    setPrinterLoading(true);
     try {
-      const result = await togglePrinterAPI(newEnabled);
-      setPrinterStatus(result);
-      toast.success(result.message || `Printing ${newEnabled ? 'enabled' : 'disabled'}`);
+      const status = await fetchPrinterStatusAPI();
+      setPrinterStatus(status);
+      setPrinterForm({
+        enabled: status.enabled,
+        connectionType: status.connectionType || 'usb',
+        vid: status.vid || '',
+        pid: status.pid || '',
+        ip: status.ip || '',
+        port: status.port || 9100,
+        paperWidth: status.paperWidth || 48,
+      });
     } catch (err) {
-      toast.error(err.message || 'Failed to toggle printer');
-      setPrinterForm((prev) => ({ ...prev, enabled: !newEnabled }));
+      console.error('Failed to fetch printer status:', err);
+    } finally {
+      setPrinterLoading(false);
+    }
+  };
+
+  const handleTogglePrinter = async () => {
+    setPrinterToggling(true);
+    try {
+      const updatedStatus = await togglePrinterAPI(!printerStatus.enabled);
+      setPrinterStatus((prev) => ({ ...prev, enabled: updatedStatus.enabled }));
+      setPrinterForm((prev) => ({ ...prev, enabled: updatedStatus.enabled }));
+      toast.success(updatedStatus.message || `Printer ${updatedStatus.enabled ? 'enabled' : 'disabled'}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to toggle printer state');
     } finally {
       setPrinterToggling(false);
     }
   };
 
-  const handleSavePrinterForm = async (e) => {
-    if (e) e.preventDefault();
+  const handleConnectionTypeChange = async (type) => {
+    try {
+      const updatedStatus = await switchPrinterConnectionAPI(type);
+      setPrinterStatus((prev) => ({ ...prev, connectionType: updatedStatus.connectionType }));
+      setPrinterForm((prev) => ({ ...prev, connectionType: updatedStatus.connectionType }));
+      toast.success(`Switched connection mode to ${type.toUpperCase()}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to switch connection mode');
+    }
+  };
+
+  const handleSavePrinterSettings = async (e) => {
+    e.preventDefault();
     setPrinterSaving(true);
     try {
       const updatedStatus = await savePrinterSettingsAPI(printerForm);
@@ -176,17 +187,13 @@ export function SettingsPage() {
   const handleTestPrint = async () => {
     setTestPrinting(true);
     try {
-      const result = await testPrintAPI();
-      toast.success(result.message || 'Test receipt printed!');
+      const res = await testPrintAPI();
+      toast.success(res.message || 'Test receipt printed successfully!');
     } catch (err) {
       toast.error(err.message || 'Test print failed');
     } finally {
       setTestPrinting(false);
     }
-  };
-
-  const handleConnectionTypeSwitch = (type) => {
-    setPrinterForm((prev) => ({ ...prev, connectionType: type }));
   };
 
   useEffect(() => {
@@ -219,6 +226,7 @@ export function SettingsPage() {
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "appearance", label: "Appearance", icon: Moon },
     { id: "security", label: "Security", icon: Shield },
+    { id: "inventory", label: "Inventory & POS", icon: Package },
     { id: "printer", label: "Printer", icon: Printer },
   ];
 
@@ -671,6 +679,61 @@ export function SettingsPage() {
                     className="btn-premium-primary"
                   >
                     {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Inventory & POS Tab */}
+            {activeTab === "inventory" && (
+              <div className="space-y-6">
+                <div className="border-b border-slate-100 pb-4">
+                  <h3 className="text-xl font-semibold text-navy-900">Inventory & POS Settings</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Configure inventory rules and POS checkout behaviors
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/50 p-5 hover:bg-slate-50/50 transition-colors">
+                    <div className="space-y-1 max-w-lg">
+                      <label className="text-sm font-bold text-navy-900 block cursor-pointer" htmlFor="allowOutOfStockCheckout">
+                        Allow Out-of-Stock Checkout
+                      </label>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        When enabled, users will be able to check out and generate bills for products even when stock is zero or insufficient.
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        id="allowOutOfStockCheckout"
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={settings.inventory?.allowOutOfStockCheckout || false}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            inventory: {
+                              ...settings.inventory,
+                              allowOutOfStockCheckout: e.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-navy-900"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => handleSave("Inventory")}
+                    className="btn-premium-primary flex items-center gap-2"
+                  >
+                    <Save className="h-4 w-4" />
+                    {saving ? "Saving..." : "Save Inventory Settings"}
                   </button>
                 </div>
               </div>

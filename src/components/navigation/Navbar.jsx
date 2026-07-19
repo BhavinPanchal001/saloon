@@ -4,8 +4,7 @@ import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { ConfirmModal } from "../ui/Modal";
-import { fetchOutlets } from "../../services/mockApi";
-import { fetchNotificationsAPI } from "../../services/api";
+import { fetchOutletsFromAPI, fetchNotificationsAPI } from "../../services/api";
 
 const pageTitles = {
   "/dashboard": "Dashboard",
@@ -32,6 +31,8 @@ const pageTitles = {
   "/contracts/groups": "Contract Groups",
   "/contracts/masters": "Master Management",
   "/settings": "Settings",
+  "/users": "App Users Management",
+  "/roles": "Roles & Permissions Management",
   "/profile": "User Profile",
 };
 
@@ -64,7 +65,7 @@ export function Navbar({ onOpenSidebar }) {
     const loadOutletName = async () => {
       if (user?.outlet_id) {
         try {
-          const outlets = await fetchOutlets();
+          const outlets = await fetchOutletsFromAPI();
           const outlet = outlets.find((o) => o.id === user.outlet_id);
           setOutletName(outlet?.name || user.outlet_id.replace("outlet_", "").toUpperCase());
         } catch {

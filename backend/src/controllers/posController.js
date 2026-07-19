@@ -335,6 +335,7 @@ const checkout = async (req, res) => {
       transactionReference,
       paymentNotes,
       bankAccountId,
+      allowOutOfStockCheckout,
     } = req.body;
 
     // Validation
@@ -450,6 +451,15 @@ const checkout = async (req, res) => {
           }
         }
       }
+    }
+
+    // If any stock errors and out-of-stock checkout is NOT allowed, reject the checkout
+    if (stockErrors.length > 0 && !allowOutOfStockCheckout) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: `Insufficient stock for ${stockErrors.length} item(s). Out-of-stock checkout is disabled in Settings.`,
+        stockErrors,
+      });
     }
 
     // Generate bill number
@@ -705,7 +715,7 @@ const checkout = async (req, res) => {
 const getBills = async (req, res) => {
   try {
     const { outletId, search, paymentMethod } = req.query;
-    const user = req.user;
+    const user = req.admin;
 
     // Build where clause
     const where = {};

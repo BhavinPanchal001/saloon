@@ -12,6 +12,7 @@ import {
 } from '../../../services/api';
 import { getAvailableUnits, getUnitAbbr, convertToBase } from '../../../utils/unitConversion';
 import { ImageUpload } from '../../../components/ui/ImageUpload';
+import { useAuthStore } from '../../../stores/authStore';
 import '../styles/services.css';
 
 interface ProductLinkage {
@@ -47,6 +48,8 @@ const createInitialServiceForm = (): ServiceForm => ({
 });
 
 const ServiceFormPage: React.FC = () => {
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -260,46 +263,48 @@ const ServiceFormPage: React.FC = () => {
                   maxImages={5}
                 />
 
-                <div className="form-field">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <Store size={18} className="text-navy-600" />
-                    <label style={{ fontWeight: 600, color: 'var(--svc-text-main)', fontSize: '0.875rem' }}>Select Outlets</label>
+                {isAdmin && (
+                  <div className="form-field">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <Store size={18} className="text-navy-600" />
+                      <label style={{ fontWeight: 600, color: 'var(--svc-text-main)', fontSize: '0.875rem' }}>Select Outlets</label>
+                    </div>
+                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.75rem' }}>
+                      Select outlets where this service will be available. If none are selected, it will be available at all outlets.
+                    </p>
+                    <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))' }}>
+                      {outlets.map((outlet) => {
+                        const isSelected = form.assignedOutletIds.includes(outlet.id);
+                        return (
+                          <label
+                            key={outlet.id}
+                            className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${
+                              isSelected
+                                ? 'border-navy-600 bg-navy-50'
+                                : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                            style={{ minHeight: '44px' }}
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-slate-300 text-navy-600 focus:ring-navy-600"
+                              checked={isSelected}
+                              onChange={() => toggleOutlet(outlet.id)}
+                            />
+                            <div className="flex flex-col" style={{ lineHeight: '1.2' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isSelected ? 'var(--svc-text-main)' : '#475569' }}>
+                                {outlet.name}
+                              </span>
+                              <span style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+                                {outlet.city}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.75rem' }}>
-                    Select outlets where this service will be available. If none are selected, it will be available at all outlets.
-                  </p>
-                  <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))' }}>
-                    {outlets.map((outlet) => {
-                      const isSelected = form.assignedOutletIds.includes(outlet.id);
-                      return (
-                        <label
-                          key={outlet.id}
-                          className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${
-                            isSelected
-                              ? 'border-navy-600 bg-navy-50'
-                              : 'border-slate-200 bg-white hover:border-slate-300'
-                          }`}
-                          style={{ minHeight: '44px' }}
-                        >
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-slate-300 text-navy-600 focus:ring-navy-600"
-                            checked={isSelected}
-                            onChange={() => toggleOutlet(outlet.id)}
-                          />
-                          <div className="flex flex-col" style={{ lineHeight: '1.2' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isSelected ? 'var(--svc-text-main)' : '#475569' }}>
-                              {outlet.name}
-                            </span>
-                            <span style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>
-                              {outlet.city}
-                            </span>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 

@@ -20,6 +20,7 @@ const notificationRoutes = require('./notifications');
 const printerRoutes = require('./printer');
 const dashboardRoutes = require('./dashboard');
 const attendanceRoutes = require('./attendance');
+const userRoutes = require('./users');
 
 // HR and Contract routes
 const staffRoutes = require('./staff');
@@ -39,6 +40,7 @@ router.get('/', (req, res) => {
 });
 
 router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
 router.use('/products', productRoutes);
 router.use('/services', serviceRoutes);
 router.use('/expenses', expenseRoutes);

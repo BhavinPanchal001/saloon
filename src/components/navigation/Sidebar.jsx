@@ -10,11 +10,13 @@ import {
   DollarSign,
   FileText,
   LayoutDashboard,
+  Lock,
   Package,
   Receipt,
   Ruler,
   Scissors,
   Settings,
+  Shield,
   Store,
   Tags,
   Users,
@@ -97,6 +99,14 @@ const adminNav = [
     ],
   },
   {
+    section: "User Access",
+    icon: Shield,
+    links: [
+      { label: "App Users", to: "/users", icon: Users, exact: true },
+      { label: "Roles & Permissions", to: "/roles", icon: Lock, exact: true },
+    ],
+  },
+  {
     section: "Settings",
     icon: Settings,
     links: [
@@ -118,54 +128,62 @@ const staffNav = [
     section: "Inventory",
     icon: Package,
     links: [
-      { label: "Inventory", to: "/inventory", icon: Package, exact: true },
-      { label: "Purchase Orders", to: "/inventory/purchase-orders", icon: ClipboardList },
-      { label: "Unit Master", to: "/inventory/units", icon: Ruler },
+      { label: "Inventory", to: "/inventory", icon: Package, exact: true, permission: "inventory:view" },
+      { label: "Purchase Orders", to: "/inventory/purchase-orders", icon: ClipboardList, permission: "inventory:view" },
+      { label: "Unit Master", to: "/inventory/units", icon: Ruler, permission: "inventory:view" },
     ],
   },
   {
     section: "Services & Packages",
     icon: Scissors,
     links: [
-      { label: "Services", to: "/services", icon: Scissors, exact: true },
-      { label: "Service Categories", to: "/services/categories", icon: Tags },
-      { label: "Packages", to: "/packages", icon: Boxes, exact: true },
+      { label: "Services", to: "/services", icon: Scissors, exact: true, permission: "services:view" },
+      { label: "Service Categories", to: "/services/categories", icon: Tags, permission: "services:view" },
+      { label: "Packages", to: "/packages", icon: Boxes, exact: true, permission: "services:view" },
     ],
   },
   {
     section: "POS & Billing",
     icon: CreditCard,
     links: [
-      { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
-      { label: "Billing History", to: "/pos/bills", icon: Receipt },
+      { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true, permission: "pos:view" },
+      { label: "Billing History", to: "/pos/bills", icon: Receipt, permission: "pos:view" },
     ],
   },
   {
     section: "Employee",
     icon: Users,
     links: [
-      { label: "Employees", to: "/staff", icon: Users, exact: true },
-      { label: "Attendance", to: "/attendance", icon: CalendarCheck, exact: true },
-      { label: "Attendance Summary", to: "/attendance/summary", icon: UserCheck },
-      { label: "Contracts", to: "/contracts", icon: FileText, exact: true },
-      { label: "Contract Masters", to: "/contracts/masters", icon: BookOpen },
+      { label: "Employees", to: "/staff", icon: Users, exact: true, permission: "staff:view" },
+      { label: "Attendance", to: "/attendance", icon: CalendarCheck, exact: true, permission: "attendance:view" },
+      { label: "Attendance Summary", to: "/attendance/summary", icon: UserCheck, permission: "attendance:view" },
+      { label: "Contracts", to: "/contracts", icon: FileText, exact: true, permission: "contracts:view" },
+      { label: "Contract Masters", to: "/contracts/masters", icon: BookOpen, permission: "contracts:view" },
     ],
   },
   {
     section: "HR & Payroll",
     icon: DollarSign,
     links: [
-      { label: "Payroll", to: "/payroll", icon: Wallet, exact: true },
-      { label: "Commission Rules", to: "/payroll/commission-masters", icon: Briefcase },
+      { label: "Payroll", to: "/payroll", icon: Wallet, exact: true, permission: "payroll:view" },
+      { label: "Commission Rules", to: "/payroll/commission-masters", icon: Briefcase, permission: "payroll:view" },
     ],
   },
   {
     section: "Finance",
     icon: Wallet,
     links: [
-      { label: "Expenses", to: "/expenses", icon: Receipt, exact: true },
-      { label: "Budgets", to: "/budgets", icon: Wallet },
-      { label: "Bank Accounts", to: "/bank", icon: Building2, exact: true },
+      { label: "Expenses", to: "/expenses", icon: Receipt, exact: true, permission: "expenses:view" },
+      { label: "Budgets", to: "/budgets", icon: Wallet, permission: "expenses:view" },
+      { label: "Bank Accounts", to: "/bank", icon: Building2, exact: true, permission: "finance:view" },
+    ],
+  },
+  {
+    section: "User Access",
+    icon: Shield,
+    links: [
+      { label: "App Users", to: "/users", icon: Users, exact: true, permission: "users:view" },
+      { label: "Roles & Permissions", to: "/roles", icon: Lock, exact: true, permission: "users:view" },
     ],
   },
   {
@@ -351,23 +369,31 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
               <p className="mt-3 text-lg font-semibold text-white">{user?.name}</p>
               <div className="mt-4 flex items-center gap-2 text-sm text-slate-300">
                 <Briefcase size={16} />
-                <span>{isAdmin ? "Super Admin" : "Outlet Manager"}</span>
+                <span>{user?.role ? user.role.toUpperCase() : (isAdmin ? "Super Admin" : "Staff")}</span>
               </div>
             </div>
           )}
 
           {/* ── Navigation ── */}
           <nav className={`${isSidebarCollapsed ? "space-y-4" : "space-y-3"}`}>
-            {navigation.map((group) => (
-              <NavSection
-                key={group.section}
-                section={group.section}
-                icon={group.icon}
-                links={group.links}
-                onClose={onClose}
-                collapsed={isSidebarCollapsed}
-              />
-            ))}
+            {navigation
+              .map((group) => ({
+                ...group,
+                links: group.links.filter(
+                  (item) => !item.permission || useAuthStore.getState().hasPermission(item.permission)
+                ),
+              }))
+              .filter((group) => group.links.length > 0)
+              .map((group) => (
+                <NavSection
+                  key={group.section}
+                  section={group.section}
+                  icon={group.icon}
+                  links={group.links}
+                  onClose={onClose}
+                  collapsed={isSidebarCollapsed}
+                />
+              ))}
           </nav>
         </div>
 

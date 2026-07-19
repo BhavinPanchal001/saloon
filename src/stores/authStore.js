@@ -6,12 +6,18 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
 
 export const useAuthStore = create(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
       isLoading: false,
       loginError: null,
       pendingEmail: null,
+      hasPermission: (permKey) => {
+        const user = get().user;
+        if (!user) return false;
+        if (user.role === 'admin' || user.role === 'super_admin' || user.permissions?.includes('*')) return true;
+        return user.permissions?.includes(permKey) || false;
+      },
       login: async (credentials) => {
         set({ isLoading: true, loginError: null });
 
@@ -33,7 +39,8 @@ export const useAuthStore = create(
             return { requires2FA: true, email: data.email, twoFaMethod: data.twoFaMethod, redirectTo: "/verify-otp" };
           }
 
-          const user = { ...data.admin, token: data.token };
+          const userData = data.user || data.admin;
+          const user = { ...userData, token: data.token };
 
           set({
             user,

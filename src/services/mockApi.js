@@ -1595,7 +1595,7 @@ export const generatePayrollPreviewOrders = async () => {
   return clone(purchaseOrders);
 };
 
-let settings = {
+const defaultSettings = {
   profile: {
     companyName: "Luxury Salon",
     email: "contact@luxurysalon.com",
@@ -1617,7 +1617,12 @@ let settings = {
     twoFactorAuth: false,
     sessionTimeout: 30,
   },
+  inventory: {
+    allowOutOfStockCheckout: false,
+  },
 };
+
+let settings = getLocalStorageItem("glowy_settings", defaultSettings);
 
 export const fetchSettings = async () => {
   await delay(300);
@@ -1630,6 +1635,7 @@ export const saveSettings = async (newSettings) => {
     ...settings,
     ...newSettings,
   };
+  setLocalStorageItem("glowy_settings", settings);
   return clone(settings);
 };
 

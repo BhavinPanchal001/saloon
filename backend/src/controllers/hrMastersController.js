@@ -19,6 +19,7 @@ const toRoleResponse = (role) => ({
   description: role.description || '',
   isActive: role.is_active,
   isEmployee: role.is_employee,
+  permissions: ['pos:view', 'inventory:view', 'services:view', 'expenses:view'],
 });
 
 const toShiftResponse = (shift) => ({
@@ -122,7 +123,7 @@ const getRoles = async (req, res) => {
 
 const saveRole = async (req, res) => {
   try {
-    const { id, name, description, isActive, isEmployee } = req.body;
+    const { id, name, description, isActive, isEmployee, permissions } = req.body;
     if (!name) return res.status(400).json({ message: 'Name is required.' });
 
     const fields = {

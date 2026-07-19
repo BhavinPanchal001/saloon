@@ -42,6 +42,8 @@ import SalaryCalculationPage from '../modules/employees/pages/SalaryCalculationP
 import CommissionMastersPage from '../modules/employees/pages/CommissionMastersPage';
 import BankListPage from "../modules/bank/pages/BankListPage";
 import BankFormPage from "../modules/bank/pages/BankFormPage";
+import UserManagementPage from "../pages/users/UserManagementPage";
+import RolePermissionsPage from "../pages/users/RolePermissionsPage";
 import { SettingsPage } from "../pages/settings/SettingsPage";
 import { NotificationsPage } from "../pages/notifications/NotificationsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
@@ -113,6 +115,14 @@ export const router = createBrowserRouter([
               {
                 path: "/budgets",
                 element: <BudgetsPage />,
+              },
+              {
+                path: "/users",
+                element: <UserManagementPage />,
+              },
+              {
+                path: "/roles",
+                element: <RolePermissionsPage />,
               },
             ],
           },

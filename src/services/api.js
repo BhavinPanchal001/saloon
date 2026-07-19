@@ -25,12 +25,10 @@ const handleResponse = async (res) => {
 export const fetchOutletsFromAPI = async (params = {}) => {
   const query = new URLSearchParams(params).toString();
   const url = `${API_BASE}/outlets${query ? `?${query}` : ""}`;
-  console.log('[API] Fetching outlets from:', url);
   const res = await fetch(url, {
     headers: authHeaders(),
   });
   const data = await handleResponse(res);
-  console.log('[API] Outlets response:', data);
   return data;
 };
 
@@ -1437,6 +1435,84 @@ export const breakOutStaff = async (payload) => {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+// ─── App Users Management ───────────────────────────────────────────────────
+
+export const fetchUsersFromAPI = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/users${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const createUserAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/users`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const updateUserAPI = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/users/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const toggleUserStatusAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/users/${id}/toggle-status`, {
+    method: "PATCH",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const deleteUserAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/users/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── Roles & Permissions Management ─────────────────────────────────────────
+
+export const fetchRolesFromAPI = async () => {
+  const res = await fetch(`${API_BASE}/roles`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveRoleAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/roles`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const toggleRoleStatusAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/roles/${id}/toggle`, {
+    method: "PUT",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const deleteRoleAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/roles/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
   });
   return handleResponse(res);
 };

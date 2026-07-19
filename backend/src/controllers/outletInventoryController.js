@@ -40,7 +40,7 @@ const issueProduct = async (req, res) => {
   
   try {
     const { outletId, productId, qty, sellingPrice } = req.body;
-    const userId = req.user?.id;
+    const userId = req.admin?.id;
 
     // Validation
     if (!outletId || outletId === '') {

@@ -11,13 +11,16 @@ const getCurrentMonthKey = () => {
 const getExpenses = async (req, res) => {
   try {
     const { outletId, monthKey } = req.query;
+    const user = req.user || req.admin;
     const targetMonth = monthKey || getCurrentMonthKey();
 
     const where = {
       month_key: targetMonth,
     };
 
-    if (outletId) {
+    if (user && user.role !== 'super_admin' && user.role !== 'admin' && user.outlet_id) {
+      where.outlet_id = user.outlet_id;
+    } else if (outletId) {
       where.outlet_id = outletId;
     }
 
@@ -64,9 +67,16 @@ const createExpense = async (req, res) => {
       await t.rollback();
       return res.status(400).json({ message: 'total_amount must be greater than 0.' });
     }
-    if (!outlet_id) {
+    const user = req.user || req.admin;
+    let targetOutletId = outlet_id || user?.outlet_id;
+    if (!targetOutletId) {
+      const firstOutlet = await Outlet.findOne({ transaction: t });
+      if (firstOutlet) targetOutletId = firstOutlet.id;
+    }
+
+    if (!targetOutletId) {
       await t.rollback();
-      return res.status(400).json({ message: 'outlet_id is required.' });
+      return res.status(400).json({ message: 'No registered outlet found in system.' });
     }
 
     const expenseMonth = month_key || getCurrentMonthKey();
@@ -75,7 +85,7 @@ const createExpense = async (req, res) => {
     // Budget validation
     const budget = await MonthlyBudget.findOne({
       where: {
-        outlet_id,
+        outlet_id: targetOutletId,
         month_key: expenseMonth,
       },
     });
@@ -107,7 +117,7 @@ const createExpense = async (req, res) => {
       price: Number(price),
       total_amount: expenseAmount,
       bill_no: bill_no ? bill_no.trim() : null,
-      outlet_id: Number(outlet_id),
+      outlet_id: Number(targetOutletId),
       month_key: expenseMonth,
     }, { transaction: t });
 
@@ -184,17 +194,30 @@ const createExpense = async (req, res) => {
 
 // Delete expense
 const deleteExpense = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { id } = req.params;
 
-    const expense = await Expense.findByPk(id);
+    const expense = await Expense.findByPk(id, {
+      include: [{ model: Payment, as: 'payments' }],
+    });
     if (!expense) {
+      await t.rollback();
       return res.status(404).json({ message: 'Expense not found.' });
     }
 
-    await expense.destroy();
+    // Delete associated payment details and payments first
+    if (expense.payments && expense.payments.length > 0) {
+      const paymentIds = expense.payments.map((p) => p.id);
+      await PaymentDetail.destroy({ where: { payment_id: paymentIds }, transaction: t });
+      await Payment.destroy({ where: { id: paymentIds }, transaction: t });
+    }
+
+    await expense.destroy({ transaction: t });
+    await t.commit();
     return res.json({ message: 'Expense deleted successfully.' });
   } catch (err) {
+    await t.rollback();
     console.error('Error deleting expense:', err);
     return res.status(500).json({ message: 'Server error.' });
   }
@@ -341,14 +364,14 @@ const updateMonthlyBudget = async (req, res) => {
         change_amount: changeAmount,
         change_type: changeType,
         reason: reason || `Budget ${changeType}d`,
-        changed_by: req.user?.id || null,
+        changed_by: req.admin?.id || null,
         changed_at: new Date(),
       });
     }
 
     // Return updated budget summary
     return getBudgetSummary(
-      { query: { outletId: outlet_id, monthKey: targetMonth }, user: req.user },
+      { query: { outletId: outlet_id, monthKey: targetMonth }, admin: req.admin },
       res
     );
   } catch (err) {

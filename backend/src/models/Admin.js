@@ -22,8 +22,12 @@ const Admin = sequelize.define('Admin', {
     allowNull: false,
   },
   role: {
-    type: DataTypes.ENUM('super_admin', 'admin'),
+    type: DataTypes.STRING(50),
     defaultValue: 'admin',
+  },
+  outlet_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
   },
   is_active: {
     type: DataTypes.BOOLEAN,

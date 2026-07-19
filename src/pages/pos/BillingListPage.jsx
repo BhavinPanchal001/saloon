@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchBillsFromAPI, printReceiptAPI } from "../../services/api";
+import { fetchBillsFromAPI, printReceiptAPI, fetchOutletsFromAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
@@ -38,6 +38,16 @@ export default function BillingListPage() {
   const [selectedBill, setSelectedBill] = useState(null);
   const [error, setError] = useState(null);
   const [printingBillId, setPrintingBillId] = useState(null);
+  
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+  const [outlets, setOutlets] = useState([]);
+  const [selectedOutlet, setSelectedOutlet] = useState(searchParams.get("outletId") ?? "");
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchOutletsFromAPI().then(setOutlets).catch(console.error);
+    }
+  }, [isAdmin]);
 
   const handleThermalPrint = async (billId) => {
     setPrintingBillId(billId);
@@ -56,7 +66,7 @@ export default function BillingListPage() {
       setLoading(true);
       setError(null);
       try {
-        const outletId = (user?.role === "admin" || user?.role === "super_admin") ? undefined : user?.outlet_id;
+        const outletId = !isAdmin ? user?.outlet_id : (selectedOutlet || undefined);
         const billsData = await fetchBillsFromAPI({ outletId });
         setBills(billsData);
       } catch (err) {
@@ -66,7 +76,7 @@ export default function BillingListPage() {
       }
     };
     if (user) load();
-  }, [user]);
+  }, [user, isAdmin, selectedOutlet]);
 
   const filtered = bills.filter((b) => {
     const matchesSearch =
@@ -177,7 +187,21 @@ export default function BillingListPage() {
               </button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <select
+                value={selectedOutlet}
+                onChange={(e) => setSelectedOutlet(e.target.value)}
+                className="premium-input !py-2.5 !text-xs !w-40 mr-2"
+              >
+                <option value="">All Outlets</option>
+                {outlets.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            )}
             {paymentFilters.map((f) => (
               <button
                 key={f}

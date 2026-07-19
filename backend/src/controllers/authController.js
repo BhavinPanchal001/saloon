@@ -3,7 +3,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
-const Admin = require('../models/Admin');
+const { Admin, Staff, Role } = require('../models');
+const { Op } = require('sequelize');
 const { sendOTPEmail } = require('../services/emailService');
 
 const OTP_EXPIRY_MINUTES = 10;
@@ -18,42 +19,57 @@ const login = async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required.' });
     }
 
-    const admin = await Admin.findOne({ where: { email: email.toLowerCase().trim() } });
+    const searchStr = email.toLowerCase().trim();
 
-    if (!admin || !admin.is_active) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
+    // 1. Try Admin login
+    const admin = await Admin.findOne({ where: { email: searchStr } });
+
+    if (admin && admin.is_active) {
+      const isMatch = await bcrypt.compare(password, admin.password);
+      if (isMatch) {
+        if (admin.totp_enabled && admin.totp_secret) {
+          return res.json({
+            requires2FA: true,
+            twoFaMethod: 'totp',
+            email: admin.email,
+            message: 'Enter the 6-digit code from your authenticator app.',
+          });
+        }
+
+        const permissions = ['*']; // Admins have full access
+        const payload = {
+          id: admin.id,
+          email: admin.email,
+          role: admin.role,
+          outlet_id: admin.outlet_id || null,
+          userType: 'admin',
+          permissions,
+        };
+
+        const token = jwt.sign(payload, process.env.JWT_SECRET, {
+          expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+        });
+
+        const userData = {
+          id: admin.id,
+          name: admin.name,
+          email: admin.email,
+          role: admin.role,
+          outlet_id: admin.outlet_id || null,
+          userType: 'admin',
+          totp_enabled: admin.totp_enabled,
+          permissions,
+        };
+
+        return res.json({
+          token,
+          user: userData,
+          admin: userData,
+        });
+      }
     }
 
-    const isMatch = await bcrypt.compare(password, admin.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
-    }
-
-    if (admin.totp_enabled && admin.totp_secret) {
-      return res.json({
-        requires2FA: true,
-        twoFaMethod: 'totp',
-        email: admin.email,
-        message: 'Enter the 6-digit code from your authenticator app.',
-      });
-    }
-
-    const token = jwt.sign(
-      { id: admin.id, email: admin.email, role: admin.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
-
-    return res.json({
-      token,
-      admin: {
-        id: admin.id,
-        name: admin.name,
-        email: admin.email,
-        role: admin.role,
-        totp_enabled: admin.totp_enabled,
-      },
-    });
+    return res.status(401).json({ message: 'Invalid email or password.' });
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ message: 'Server error.' });
@@ -103,7 +119,7 @@ const verifyOTP = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: admin.id, email: admin.email, role: admin.role },
+      { id: admin.id, email: admin.email, role: admin.role, outlet_id: admin.outlet_id || null },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -115,6 +131,7 @@ const verifyOTP = async (req, res) => {
         name: admin.name,
         email: admin.email,
         role: admin.role,
+        outlet_id: admin.outlet_id || null,
         totp_enabled: admin.totp_enabled,
       },
     });
