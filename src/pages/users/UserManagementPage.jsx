@@ -23,11 +23,16 @@ import {
   Key,
 } from "lucide-react";
 
-const availableRoles = [
-  { value: "admin", label: "Admin" },
-  { value: "super_admin", label: "Super Admin" },
+const creatableRoles = [
   { value: "manager", label: "Outlet Manager" },
   { value: "cashier", label: "Cashier / POS Operator" },
+];
+
+const availableRoles = [
+  { value: "manager", label: "Outlet Manager" },
+  { value: "cashier", label: "Cashier / POS Operator" },
+  { value: "admin", label: "Admin" },
+  { value: "super_admin", label: "Super Admin" },
 ];
 
 export default function UserManagementPage() {
@@ -49,7 +54,7 @@ export default function UserManagementPage() {
     name: "",
     email: "",
     password: "",
-    role: "admin",
+    role: "manager",
     outlet_id: "",
   });
 
@@ -94,7 +99,7 @@ export default function UserManagementPage() {
       name: user.name,
       email: user.email,
       password: "",
-      role: user.role || "admin",
+      role: user.role || "manager",
       outlet_id: user.outlet_id ? String(user.outlet_id) : "",
     });
     setIsModalOpen(true);
@@ -454,7 +459,7 @@ export default function UserManagementPage() {
                     value={formData.role}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   >
-                    {availableRoles.map((r) => (
+                    {creatableRoles.map((r) => (
                       <option key={r.value} value={r.value}>
                         {r.label}
                       </option>

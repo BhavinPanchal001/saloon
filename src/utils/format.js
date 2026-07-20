@@ -3,11 +3,18 @@ export const formatCurrency = (value) => {
   return `RM ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-export const formatRoleLabel = (role) =>
-  role === "admin" || role === "super_admin" ? "Super Admin" : "Outlet Manager";
+export const formatRoleLabel = (role) => {
+  if (role === "admin" || role === "super_admin") return "Super Admin";
+  if (role === "cashier" || role === "pos") return "POS / Cashier";
+  return "Outlet Manager";
+};
 
-export const getDefaultRouteForRole = (role) =>
-  "/dashboard";
+export const getDefaultRouteForRole = (role) => {
+  if (role === "cashier" || role === "pos") {
+    return "/pos";
+  }
+  return "/dashboard";
+};
 
 export const slugFromName = (value) =>
   value

@@ -100,13 +100,20 @@ function RevenueBarChart({ data }) {
 export function GlobalDashboardPage() {
   const toast = useToastStore();
   const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const [metrics, setMetrics] = useState(null);
   const [outlets, setOutlets] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [todayData, setTodayData] = useState(null);
   const [reports, setReports] = useState(null);
-  const [selectedOutlet, setSelectedOutlet] = useState("all");
+  const [selectedOutlet, setSelectedOutlet] = useState(() => (!isAdmin && user?.outlet_id ? String(user.outlet_id) : "all"));
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isAdmin && user?.outlet_id) {
+      setSelectedOutlet(String(user.outlet_id));
+    }
+  }, [user, isAdmin]);
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -153,21 +160,23 @@ export function GlobalDashboardPage() {
         description="Monitor every outlet, keep an eye on headcount and catalog growth, and jump straight into the areas that need attention."
         action={
           <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-slate-400" />
-              <select
-                value={selectedOutlet}
-                onChange={(e) => setSelectedOutlet(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm focus:border-navy-500 focus:outline-none"
-              >
-                <option value="all">All Outlets</option>
-                {outlets.map((outlet) => (
-                  <option key={outlet.id} value={outlet.id}>
-                    {outlet.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {isAdmin && (
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-slate-400" />
+                <select
+                  value={selectedOutlet}
+                  onChange={(e) => setSelectedOutlet(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm focus:border-navy-500 focus:outline-none"
+                >
+                  <option value="all">All Outlets</option>
+                  {outlets.map((outlet) => (
+                    <option key={outlet.id} value={outlet.id}>
+                      {outlet.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <Link to="/pos" className="btn-premium-outline">
               Create Bill
             </Link>

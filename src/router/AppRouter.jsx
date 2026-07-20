@@ -97,10 +97,6 @@ export const router = createBrowserRouter([
             element: <ProtectedRoute allowedRoles={["admin", "super_admin"]} />,
             children: [
               {
-                path: "/dashboard",
-                element: <GlobalDashboardPage />,
-              },
-              {
                 path: "/outlets",
                 element: <OutletsPage />,
               },
@@ -113,10 +109,6 @@ export const router = createBrowserRouter([
                 element: <OutletTransactionsPage />,
               },
               {
-                path: "/budgets",
-                element: <BudgetsPage />,
-              },
-              {
                 path: "/users",
                 element: <UserManagementPage />,
               },
@@ -127,124 +119,177 @@ export const router = createBrowserRouter([
             ],
           },
           {
-            path: "/expenses",
-            element: <ExpenseListPage />,
-          },
-          {
-            path: "/expenses/add",
-            element: <ExpenseAddPage />,
-          },
-          {
-            path: "/inventory",
-            element: <InventoryPage />,
-          },
-          {
-            path: "/inventory/products/:id/sales",
-            element: <ProductSaleHistoryPage />,
-          },
-          {
-            path: "/inventory/purchase-orders",
-            element: <PurchaseOrderHistoryPage />,
-          },
-          {
-            path: "/inventory/purchase-orders/new",
-            element: <PurchaseOrderPage />,
-          },
-          {
-            path: "/inventory/purchase-orders/:id/edit",
-            element: <PurchaseOrderPage />,
-          },
-          {
-            path: "/inventory/units",
-            element: <UnitMasterPage />,
-          },
-          {
-            path: "/services",
-            element: <ServiceListPage />,
-          },
-          {
-            path: "/services/add",
-            element: <ServiceFormPage />,
-          },
-          {
-            path: "/services/edit/:id",
-            element: <ServiceFormPage />,
-          },
-          {
-            path: "/services/categories",
-            element: <ServiceCategoryMasterPage />,
-          },
-          {
-            path: "/services/:id",
-            element: <ServiceDetailPage />,
-          },
-          {
-            path: "/packages",
-            element: <PackageListPage />,
-          },
-          {
-            path: "/packages/new",
-            element: <PackageFormPage />,
-          },
-          {
-            path: "/packages/:packageId/edit",
-            element: <PackageFormPage />,
-          },
-          {
-            path: "/packages/:packageId",
-            element: <PackageProfilePage />,
-          },
-          {
-            path: "/staff",
-            element: <EmployeeListPage />,
-          },
-          {
-            path: "/staff/add",
-            element: <EmployeeFormPage />,
-          },
-          {
-            path: "/staff/edit/:id",
-            element: <EmployeeFormPage />,
-          },
-          {
-            path: "/staff/:id",
-            element: <EmployeeDetailPage />,
-          },
-          {
-            path: "/attendance",
-            element: <AttendancePage />,
-          },
-          {
-            path: "/attendance/summary",
-            element: <AttendanceSummaryPage />,
-          },
-          {
-            path: "/contracts",
-            element: <ContractListPage />,
-          },
-          {
-            path: "/contracts/list",
-            element: <ContractListPage />,
-          },
-          {
-            path: "/contracts/new",
-            element: <ContractFormPage />,
-          },
-          {
-            path: "/contracts/groups",
-            element: <Navigate to="/contracts/list" replace />,
-          },
-          {
-            path: "/contracts/groups/:id",
-            element: <Navigate to="/contracts/list" replace />,
-          },
-          {
-            path: "/contracts/masters",
-            element: <ContractMastersPage />,
-          },
-          {
-            path: "/contracts/masters/:type",
-            element: <ContractMastersPage />,
+            element: <ProtectedRoute allowedRoles={["admin", "super_admin", "manager"]} />,
+            children: [
+              {
+                path: "/dashboard",
+                element: <GlobalDashboardPage />,
+              },
+              {
+                path: "/budgets",
+                element: <BudgetsPage />,
+              },
+              {
+                path: "/expenses",
+                element: <ExpenseListPage />,
+              },
+              {
+                path: "/expenses/add",
+                element: <ExpenseAddPage />,
+              },
+              {
+                path: "/inventory",
+                element: <InventoryPage />,
+              },
+              {
+                path: "/inventory/products/:id/sales",
+                element: <ProductSaleHistoryPage />,
+              },
+              {
+                path: "/inventory/purchase-orders",
+                element: <PurchaseOrderHistoryPage />,
+              },
+              {
+                path: "/inventory/purchase-orders/new",
+                element: <PurchaseOrderPage />,
+              },
+              {
+                path: "/inventory/purchase-orders/:id/edit",
+                element: <PurchaseOrderPage />,
+              },
+              {
+                path: "/inventory/units",
+                element: <UnitMasterPage />,
+              },
+              {
+                path: "/services",
+                element: <ServiceListPage />,
+              },
+              {
+                path: "/services/add",
+                element: <ServiceFormPage />,
+              },
+              {
+                path: "/services/edit/:id",
+                element: <ServiceFormPage />,
+              },
+              {
+                path: "/services/categories",
+                element: <ServiceCategoryMasterPage />,
+              },
+              {
+                path: "/services/:id",
+                element: <ServiceDetailPage />,
+              },
+              {
+                path: "/packages",
+                element: <PackageListPage />,
+              },
+              {
+                path: "/packages/new",
+                element: <PackageFormPage />,
+              },
+              {
+                path: "/packages/:packageId/edit",
+                element: <PackageFormPage />,
+              },
+              {
+                path: "/packages/:packageId",
+                element: <PackageProfilePage />,
+              },
+              {
+                path: "/staff",
+                element: <EmployeeListPage />,
+              },
+              {
+                path: "/staff/add",
+                element: <EmployeeFormPage />,
+              },
+              {
+                path: "/staff/edit/:id",
+                element: <EmployeeFormPage />,
+              },
+              {
+                path: "/staff/:id",
+                element: <EmployeeDetailPage />,
+              },
+              {
+                path: "/attendance",
+                element: <AttendancePage />,
+              },
+              {
+                path: "/attendance/summary",
+                element: <AttendanceSummaryPage />,
+              },
+              {
+                path: "/contracts",
+                element: <ContractListPage />,
+              },
+              {
+                path: "/contracts/list",
+                element: <ContractListPage />,
+              },
+              {
+                path: "/contracts/new",
+                element: <ContractFormPage />,
+              },
+              {
+                path: "/contracts/groups",
+                element: <Navigate to="/contracts/list" replace />,
+              },
+              {
+                path: "/contracts/groups/:id",
+                element: <Navigate to="/contracts/list" replace />,
+              },
+              {
+                path: "/contracts/masters",
+                element: <ContractMastersPage />,
+              },
+              {
+                path: "/contracts/masters/:type",
+                element: <ContractMastersPage />,
+              },
+              {
+                path: "/payroll",
+                element: <PayrollPage />,
+              },
+              {
+                path: "/salary/add",
+                element: <SalaryAddPage />,
+              },
+              {
+                path: "/salary/view/:id",
+                element: <SalaryViewPage />,
+              },
+              {
+                path: "/salary/pay",
+                element: <SalaryPayPage />,
+              },
+              {
+                path: "/payroll/calculate",
+                element: <SalaryCalculationPage />,
+              },
+              {
+                path: "/payroll/commission-masters",
+                element: <CommissionMastersPage />,
+              },
+              {
+                path: "/bank",
+                element: <BankListPage />,
+              },
+              {
+                path: "/bank/new",
+                element: <BankFormPage />,
+              },
+              {
+                path: "/bank/edit/:id",
+                element: <BankFormPage />,
+              },
+              {
+                path: "/settings",
+                element: <SettingsPage />,
+              },
+            ],
           },
           {
             path: "/pos",
@@ -257,46 +302,6 @@ export const router = createBrowserRouter([
           {
             path: "/pos/bills/:id",
             element: <BillDetailPage />,
-          },
-          {
-            path: "/payroll",
-            element: <PayrollPage />,
-          },
-          {
-            path: "/salary/add",
-            element: <SalaryAddPage />,
-          },
-          {
-            path: "/salary/view/:id",
-            element: <SalaryViewPage />,
-          },
-          {
-            path: "/salary/pay",
-            element: <SalaryPayPage />,
-          },
-          {
-            path: "/payroll/calculate",
-            element: <SalaryCalculationPage />,
-          },
-          {
-            path: "/payroll/commission-masters",
-            element: <CommissionMastersPage />,
-          },
-          {
-            path: "/bank",
-            element: <BankListPage />,
-          },
-          {
-            path: "/bank/new",
-            element: <BankFormPage />,
-          },
-          {
-            path: "/bank/edit/:id",
-            element: <BankFormPage />,
-          },
-          {
-            path: "/settings",
-            element: <SettingsPage />,
           },
           {
             path: "/notifications",

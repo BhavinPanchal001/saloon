@@ -35,6 +35,17 @@ import { useAuthStore } from "../../stores/authStore";
 
 // ─── Navigation structure ───────────────────────────────────────────────────
 
+const posNav = [
+  {
+    section: "POS & Billing",
+    icon: CreditCard,
+    links: [
+      { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
+      { label: "Billing History", to: "/pos/bills", icon: Receipt },
+    ],
+  },
+];
+
 const adminNav = [
   {
     section: "Dashboard",
@@ -103,7 +114,6 @@ const adminNav = [
     icon: Shield,
     links: [
       { label: "App Users", to: "/users", icon: Users, exact: true },
-      { label: "Roles & Permissions", to: "/roles", icon: Lock, exact: true },
     ],
   },
   {
@@ -183,7 +193,6 @@ const staffNav = [
     icon: Shield,
     links: [
       { label: "App Users", to: "/users", icon: Users, exact: true, permission: "users:view" },
-      { label: "Roles & Permissions", to: "/roles", icon: Lock, exact: true, permission: "users:view" },
     ],
   },
   {
@@ -279,7 +288,8 @@ function NavSection({ section, icon: SectionIcon, links, onClose, collapsed }) {
 export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }) {
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
-  const navigation = isAdmin ? adminNav : staffNav;
+  const isPosUser = user?.role === "cashier" || user?.role === "pos";
+  const navigation = isPosUser ? posNav : (isAdmin ? adminNav : staffNav);
 
   const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
   React.useEffect(() => {
