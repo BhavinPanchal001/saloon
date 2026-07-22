@@ -270,7 +270,14 @@ export default function BillDetailPage() {
             {bill.discountAmount > 0 && (
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Discount</p>
-                <p className="mt-1 font-bold text-gold-400">−{formatCurrency(bill.discountAmount)}</p>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="font-bold text-gold-400">−{formatCurrency(bill.discountAmount)}</span>
+                  {bill.couponCode && (
+                    <span className="rounded bg-amber-400/20 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-300 border border-amber-400/30 uppercase tracking-wider">
+                      {bill.couponCode}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
             <div>

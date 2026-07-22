@@ -48,6 +48,10 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
 
+    // Ensure models & tables exist
+    await sequelize.sync({ alter: true });
+    console.log('Database models synchronized successfully.');
+
     // Run migration check for services table
     const queryInterface = sequelize.getQueryInterface();
     const tableInfo = await queryInterface.describeTable('services');
@@ -73,6 +77,15 @@ const startServer = async () => {
         defaultValue: null,
       });
       console.log('[Migration] Column outlet_id added successfully to purchase_orders.');
+    }
+
+    // Run migration check for coupons table
+    const tables = await queryInterface.showAllTables();
+    if (!tables.includes('coupons')) {
+      console.log('[Migration] Creating coupons table...');
+      const { Coupon } = require('./models');
+      await Coupon.sync({ force: true });
+      console.log('[Migration] Table coupons created successfully.');
     }
 
     const server = app.listen(PORT, () => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchStaff, fetchSettings } from "../../services/mockApi";
-import { fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI } from "../../services/api";
+import { fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI, validateCouponAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
@@ -34,6 +34,9 @@ export function POSPage() {
   const [outletInventory, setOutletInventory] = useState([]);
   const [discountType, setDiscountType] = useState("percent");
   const [discountValue, setDiscountValue] = useState("");
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
   const [stockErrors, setStockErrors] = useState([]);
   const [allowOutOfStockCheckout, setAllowOutOfStockCheckout] = useState(false);
   const [paymentDetails, setPaymentDetails] = useState([{ paymentMode: "cash", amount: "", bankAccountId: "" }]);
@@ -189,11 +192,19 @@ export function POSPage() {
         if (line.lineId !== lineId) return line;
         return {
           ...line,
-          productLinkages: line.productLinkages.map((link) =>
-            link.inventoryId === inventoryId
-              ? { ...link, currentQty: Math.max(0, (Number(link.currentQty) || 0) + delta) }
-              : link
-          ),
+          productLinkages: line.productLinkages.map((link) => {
+            if (link.inventoryId !== inventoryId) return link;
+            const currentQty = Number(link.currentQty) || 0;
+            let nextQty;
+            if (delta < 0) {
+              const floor = Math.floor(currentQty);
+              nextQty = floor < currentQty ? floor : floor - 1;
+            } else {
+              const ceil = Math.ceil(currentQty);
+              nextQty = ceil > currentQty ? ceil : ceil + 1;
+            }
+            return { ...link, currentQty: Math.max(0, nextQty) };
+          }),
         };
       })
     );
@@ -256,8 +267,18 @@ export function POSPage() {
     setCart((current) =>
       current.map((line) => {
         if (line.lineId === lineId) {
-          const newQuantity = Math.max(1, line.quantity + delta);
-          return { ...line, quantity: newQuantity };
+          const isProduct = line.type === "product";
+          const minQty = isProduct ? 0.001 : 1;
+          const currentQty = Number(line.quantity) || 0;
+          let nextQty;
+          if (delta < 0) {
+            const floor = Math.floor(currentQty);
+            nextQty = floor < currentQty ? floor : floor - 1;
+          } else {
+            const ceil = Math.ceil(currentQty);
+            nextQty = ceil > currentQty ? ceil : ceil + 1;
+          }
+          return { ...line, quantity: Math.max(minQty, nextQty) };
         }
         return line;
       }),
@@ -362,11 +383,19 @@ export function POSPage() {
             if (svc.serviceId !== serviceId) return svc;
             return {
               ...svc,
-              productLinkages: svc.productLinkages.map((link) =>
-                link.inventoryId === inventoryId
-                  ? { ...link, currentQty: Math.max(0, (Number(link.currentQty) || 0) + delta) }
-                  : link
-              ),
+              productLinkages: svc.productLinkages.map((link) => {
+                if (link.inventoryId !== inventoryId) return link;
+                const currentQty = Number(link.currentQty) || 0;
+                let nextQty;
+                if (delta < 0) {
+                  const floor = Math.floor(currentQty);
+                  nextQty = floor < currentQty ? floor : floor - 1;
+                } else {
+                  const ceil = Math.ceil(currentQty);
+                  nextQty = ceil > currentQty ? ceil : ceil + 1;
+                }
+                return { ...link, currentQty: Math.max(0, nextQty) };
+              }),
             };
           }),
         };
@@ -394,12 +423,44 @@ export function POSPage() {
     setFilteredCatalog(filtered);
   }, [searchQuery, activeCategory, catalog]);
 
+  const handleApplyCoupon = async () => {
+    if (!couponCodeInput.trim()) {
+      toast.error("Please enter a coupon code");
+      return;
+    }
+    try {
+      setCouponLoading(true);
+      const res = await validateCouponAPI(couponCodeInput, subtotal);
+      if (res.success) {
+        setAppliedCoupon(res.data);
+        setDiscountType(res.data.discount_type);
+        setDiscountValue(res.data.discount_value);
+        toast.success(`Coupon ${res.data.code} applied! Saved ${formatCurrency(res.data.discount_amount)}`);
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to apply coupon");
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCodeInput("");
+    setDiscountValue("");
+    toast.info("Coupon removed");
+  };
+
   const subtotal = cart.reduce((sum, line) => sum + getLinePrice(line) * line.quantity, 0);
-  const discountAmount = discountValue
-    ? discountType === "percent"
-      ? Math.min(subtotal, (subtotal * Math.min(100, Number(discountValue))) / 100)
-      : Math.min(subtotal, Number(discountValue))
-    : 0;
+  
+  const discountAmount = appliedCoupon
+    ? appliedCoupon.discount_amount
+    : discountValue
+      ? discountType === "percent"
+        ? Math.min(subtotal, (subtotal * Math.min(100, Number(discountValue))) / 100)
+        : Math.min(subtotal, Number(discountValue))
+      : 0;
+
   const discountedSubtotal = subtotal - discountAmount;
   const tax = Math.round((discountedSubtotal * 0.08) * 100) / 100;
   const total = Math.round((discountedSubtotal + tax) * 100) / 100;
@@ -556,6 +617,8 @@ export function POSPage() {
       tax,
       total,
       allowOutOfStockCheckout,
+      couponId: appliedCoupon?.coupon_id || undefined,
+      couponCode: appliedCoupon?.code || undefined,
       paymentDetails: resolvedDetails.length > 0 ? resolvedDetails : undefined,
       transactionReference: transactionReference.trim() || undefined,
       paymentNotes: paymentNotes.trim() || undefined,
@@ -947,7 +1010,7 @@ export function POSPage() {
                                     <div className="flex items-center gap-1.5">
                                       <button
                                         type="button"
-                                        onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, link.currentUnit === 'secondary' ? -1 : -0.1)}
+                                        onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, -1)}
                                         className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
                                         disabled={finalQty <= 0}
                                       >
@@ -963,7 +1026,7 @@ export function POSPage() {
                                       />
                                       <button
                                         type="button"
-                                        onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, link.currentUnit === 'secondary' ? 1 : 0.1)}
+                                        onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, 1)}
                                         className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
                                       >
                                         <Plus className="h-2.5 w-2.5" />
@@ -1066,29 +1129,29 @@ export function POSPage() {
                                         </span>
                                         {link.enabled && (
                                           <div className="flex items-center gap-1">
-                                            <button
-                                              type="button"
-                                              onClick={() => updatePackageServiceProductQty(line.lineId, svc.serviceId, link.inventoryId, link.currentUnit === "secondary" ? -1 : -0.1)}
-                                              disabled={finalQty <= 0}
-                                              className="flex h-4 w-4 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
-                                            >
-                                              <Minus className="h-2 w-2" />
-                                            </button>
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              step="any"
-                                              value={finalQty}
-                                              onChange={(e) => updatePackageServiceProductField(line.lineId, svc.serviceId, link.inventoryId, "currentQty", Number(e.target.value) || 0)}
-                                              className="w-12 text-center text-[11px] font-semibold text-navy-700 border border-navy-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:border-navy-400"
-                                            />
-                                            <button
-                                              type="button"
-                                              onClick={() => updatePackageServiceProductQty(line.lineId, svc.serviceId, link.inventoryId, link.currentUnit === "secondary" ? 1 : 0.1)}
-                                              className="flex h-4 w-4 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
-                                            >
-                                              <Plus className="h-2 w-2" />
-                                            </button>
+                                             <button
+                                               type="button"
+                                               onClick={() => updatePackageServiceProductQty(line.lineId, svc.serviceId, link.inventoryId, -1)}
+                                               disabled={finalQty <= 0}
+                                               className="flex h-4 w-4 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                             >
+                                               <Minus className="h-2 w-2" />
+                                             </button>
+                                             <input
+                                               type="number"
+                                               min="0"
+                                               step="any"
+                                               value={finalQty}
+                                               onChange={(e) => updatePackageServiceProductField(line.lineId, svc.serviceId, link.inventoryId, "currentQty", Number(e.target.value) || 0)}
+                                               className="w-12 text-center text-[11px] font-semibold text-navy-700 border border-navy-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:border-navy-400"
+                                             />
+                                             <button
+                                               type="button"
+                                               onClick={() => updatePackageServiceProductQty(line.lineId, svc.serviceId, link.inventoryId, 1)}
+                                               className="flex h-4 w-4 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                             >
+                                               <Plus className="h-2 w-2" />
+                                             </button>
                                             {unitOptions.length > 0 && (
                                               <select
                                                 className="text-[10px] font-semibold text-navy-600 bg-white border border-navy-200 rounded px-1 py-0.5 appearance-none"
@@ -1150,8 +1213,46 @@ export function POSPage() {
 
           {/* Totals + payment */}
           <div className="rounded-2xl border border-navy-100 bg-navy-950/5 p-4">
-            {/* Discount Row */}
-            <div className="mb-3 flex items-center gap-2">
+            {/* Coupon Code Row */}
+            <div className="mb-3">
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  placeholder="Coupon Code"
+                  value={couponCodeInput}
+                  onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                  disabled={Boolean(appliedCoupon)}
+                  className="flex-1 rounded-lg border border-navy-200 bg-white px-2.5 py-1 text-xs font-mono font-bold uppercase text-navy-800 focus:outline-none focus:border-navy-400 disabled:bg-gray-100"
+                />
+                {appliedCoupon ? (
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="rounded-lg bg-red-100 text-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-red-200 transition"
+                  >
+                    Remove
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleApplyCoupon}
+                    disabled={couponLoading || !couponCodeInput.trim()}
+                    className="rounded-lg bg-gold-500 text-navy-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-gold-400 transition disabled:opacity-50"
+                  >
+                    {couponLoading ? "..." : "Apply"}
+                  </button>
+                )}
+              </div>
+              {appliedCoupon && (
+                <div className="mt-1 text-[10px] font-bold text-emerald-600 flex items-center justify-between px-0.5">
+                  <span>Code '{appliedCoupon.code}' Applied</span>
+                  <span>- {formatCurrency(appliedCoupon.discount_amount)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Manual Discount Row (Disabled if Coupon is Applied) */}
+            <div className={`mb-3 flex items-center gap-2 ${appliedCoupon ? "opacity-40 pointer-events-none" : ""}`}>
               <Tag className="h-3.5 w-3.5 text-gold-500 shrink-0" />
               <span className="text-[10px] font-black uppercase tracking-widest text-navy-400">Discount</span>
               <div className="flex flex-1 items-center gap-1.5 ml-auto">

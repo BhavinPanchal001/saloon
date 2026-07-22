@@ -65,6 +65,14 @@ const Bill = sequelize.define('Bill', {
     type: DataTypes.ENUM('paid', 'refunded'),
     defaultValue: 'paid',
   },
+  coupon_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+  },
+  coupon_code: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
 }, {
   tableName: 'bills',
   underscored: true,

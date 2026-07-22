@@ -336,6 +336,8 @@ const checkout = async (req, res) => {
       paymentNotes,
       bankAccountId,
       allowOutOfStockCheckout,
+      couponId,
+      couponCode,
     } = req.body;
 
     // Validation
@@ -481,9 +483,16 @@ const checkout = async (req, res) => {
         tax: tax || 0,
         total: total || 0,
         status: 'paid',
+        coupon_id: couponId || null,
+        coupon_code: couponCode || null,
       },
       { transaction }
     );
+
+    if (couponId) {
+      const Coupon = require('../models/Coupon');
+      await Coupon.increment('used_count', { by: 1, where: { id: couponId }, transaction });
+    }
 
     // Create line items
     const lineItemRecords = lineItems.map((item) => ({
@@ -766,6 +775,11 @@ const getBills = async (req, res) => {
       outletName: bill.Outlet?.name || 'Unknown',
       status: bill.status,
       subtotal: Number(bill.subtotal),
+      discountType: bill.discount_type,
+      discountValue: Number(bill.discount_value),
+      discountAmount: Number(bill.discount_amount),
+      couponId: bill.coupon_id,
+      couponCode: bill.coupon_code,
       tax: Number(bill.tax),
       total: Number(bill.total),
       lineItems: bill.lineItems.map((li) => ({
@@ -834,6 +848,8 @@ const getBillById = async (req, res) => {
       discountType: bill.discount_type,
       discountValue: Number(bill.discount_value),
       discountAmount: Number(bill.discount_amount),
+      couponId: bill.coupon_id,
+      couponCode: bill.coupon_code,
       tax: Number(bill.tax),
       total: Number(bill.total),
       lineItems: bill.lineItems.map((li) => ({

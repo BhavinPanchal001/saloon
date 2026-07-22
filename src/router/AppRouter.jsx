@@ -46,6 +46,7 @@ import UserManagementPage from "../pages/users/UserManagementPage";
 import RolePermissionsPage from "../pages/users/RolePermissionsPage";
 import { SettingsPage } from "../pages/settings/SettingsPage";
 import { NotificationsPage } from "../pages/notifications/NotificationsPage";
+import { CouponManagementPage } from "../pages/coupons/CouponManagementPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { useAuthStore } from "../stores/authStore";
 import { getDefaultRouteForRole } from "../utils/format";
@@ -298,6 +299,10 @@ export const router = createBrowserRouter([
           {
             path: "/pos/bills",
             element: <BillingListPage />,
+          },
+          {
+            path: "/coupons",
+            element: <CouponManagementPage />,
           },
           {
             path: "/pos/bills/:id",

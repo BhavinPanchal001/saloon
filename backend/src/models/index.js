@@ -26,6 +26,7 @@ const Bill = require('./Bill');
 const BillLineItem = require('./BillLineItem');
 const InventoryAuditLog = require('./InventoryAuditLog');
 const Notification = require('./Notification');
+const Coupon = require('./Coupon');
 
 // Define associations
 OutletInventory.belongsTo(Product, { foreignKey: 'product_id' });
@@ -70,6 +71,9 @@ Payment.belongsTo(Bill, { foreignKey: 'bill_id' });
 
 Bill.belongsTo(Outlet, { foreignKey: 'outlet_id' });
 Outlet.hasMany(Bill, { foreignKey: 'outlet_id' });
+
+Bill.belongsTo(Coupon, { foreignKey: 'coupon_id', as: 'coupon' });
+Coupon.hasMany(Bill, { foreignKey: 'coupon_id' });
 
 // Expense associations
 Expense.belongsTo(Outlet, { foreignKey: 'outlet_id' });
@@ -197,4 +201,5 @@ module.exports = {
   Staff,
   Contract,
   ContractSalaryMapping,
+  Coupon,
 };

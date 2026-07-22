@@ -18,6 +18,7 @@ import {
   Settings,
   Shield,
   Store,
+  Tag,
   Tags,
   Users,
   Wallet,
@@ -42,6 +43,7 @@ const posNav = [
     links: [
       { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
       { label: "Billing History", to: "/pos/bills", icon: Receipt },
+      { label: "Coupons", to: "/coupons", icon: Tag },
     ],
   },
 ];
@@ -78,6 +80,7 @@ const adminNav = [
     links: [
       { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
       { label: "Billing History", to: "/pos/bills", icon: Receipt },
+      { label: "Coupons", to: "/coupons", icon: Tag },
     ],
   },
   {

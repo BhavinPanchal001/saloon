@@ -1517,3 +1517,47 @@ export const deleteRoleAPI = async (id) => {
   return handleResponse(res);
 };
 
+// ─── Coupons Management ───────────────────────────────────────────────────────
+
+export const fetchCouponsFromAPI = async () => {
+  const res = await fetch(`${API_BASE}/coupons`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const createCouponAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/coupons`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const updateCouponAPI = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/coupons/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteCouponAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/coupons/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const validateCouponAPI = async (code, subtotal) => {
+  const res = await fetch(`${API_BASE}/coupons/validate`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ code, subtotal }),
+  });
+  return handleResponse(res);
+};
+

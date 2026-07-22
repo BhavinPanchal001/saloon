@@ -166,6 +166,14 @@ export function InvoiceModal({ bill, onClose }) {
               <span>Subtotal</span>
               <span>{formatCurrency(bill.subtotal)}</span>
             </div>
+            {bill.discountAmount > 0 && (
+              <div className="invoice-totals-row text-emerald-600 font-semibold">
+                <span>
+                  Discount {bill.couponCode ? `(Coupon: ${bill.couponCode})` : bill.discountType === "percent" ? `(${bill.discountValue}%)` : "(Flat)"}
+                </span>
+                <span>− {formatCurrency(bill.discountAmount)}</span>
+              </div>
+            )}
             <div className="invoice-totals-row">
               <span>Tax (8%)</span>
               <span>{formatCurrency(bill.tax)}</span>
