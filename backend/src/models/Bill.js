@@ -25,7 +25,7 @@ const Bill = sequelize.define('Bill', {
     allowNull: true,
   },
   payment_method: {
-    type: DataTypes.ENUM('Cash', 'Card', 'UPI'),
+    type: DataTypes.ENUM('Cash', 'Card', 'UPI', 'Split'),
     allowNull: false,
   },
   bank_id: {

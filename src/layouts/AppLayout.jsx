@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { Navbar } from "../components/navigation/Navbar";
 import { Sidebar } from "../components/navigation/Sidebar";
 import { ToastContainer } from "../components/ui/ToastContainer";
@@ -15,18 +15,41 @@ export function AppLayout() {
     localStorage.setItem("sidebarCollapsed", JSON.stringify(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
-  // Keyboard shortcut: Ctrl+B to toggle sidebar
+  const navigate = useNavigate();
+
+  // Global Keyboard shortcuts: Ctrl+B (sidebar), Alt+P (POS), Alt+B (Bills), Alt+I (Inventory), Alt+E (Expenses)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.key === "b") {
+      // Don't trigger navigation shortcuts if user is holding Ctrl or typing in an editable field (except Ctrl+B)
+      const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+      
+      if (e.ctrlKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
         setSidebarCollapsed((prev) => !prev);
+        return;
+      }
+
+      if (e.altKey && !isInput) {
+        const key = e.key.toLowerCase();
+        if (key === "p") {
+          e.preventDefault();
+          navigate("/pos");
+        } else if (key === "b") {
+          e.preventDefault();
+          navigate("/pos/bills");
+        } else if (key === "i") {
+          e.preventDefault();
+          navigate("/inventory");
+        } else if (key === "e") {
+          e.preventDefault();
+          navigate("/expenses");
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen lg:flex">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchStaff, fetchSettings } from "../../services/mockApi";
 import { fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI, validateCouponAPI } from "../../services/api";
@@ -7,10 +7,10 @@ import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase } from "../../utils/unitConversion";
 import { InvoiceModal } from "./InvoiceModal";
-import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle, CreditCard } from "lucide-react";
+import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle, CreditCard, Keyboard, HelpCircle, X } from "lucide-react";
 import BankSelector from "../../modules/bank/components/BankSelector";
 
-const paymentMethods = ["Cash", "Card", "UPI"];
+const paymentMethods = ["Cash", "Card", "UPI", "Split"];
 
 const createLineId = () => `line_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -42,6 +42,8 @@ export function POSPage() {
   const [paymentDetails, setPaymentDetails] = useState([{ paymentMode: "cash", amount: "", bankAccountId: "" }]);
   const [transactionReference, setTransactionReference] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
+  const [showShortcutGuide, setShowShortcutGuide] = useState(false);
+  const searchInputRef = useRef(null);
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
   useEffect(() => {
@@ -547,17 +549,33 @@ export function POSPage() {
   // Bank required for any non-cash payment detail row
   const isBankRequired = paymentMethod && paymentMethod !== "Cash";
   const hasStockErrors = stockErrors.length > 0;
-  const canCheckout = cart.length > 0 && paymentMethod && (!hasStockErrors || allowOutOfStockCheckout);
 
-  const paymentModeMap = { Cash: "cash", Card: "card", UPI: "upi" };
+  const paymentModeMap = { Cash: "cash", Card: "card", UPI: "upi", Split: "split" };
 
   const syncPaymentDetailsWithMethod = (method) => {
-    const mode = paymentModeMap[method] || "cash";
-    setPaymentDetails([{ paymentMode: mode, amount: "", bankAccountId: "" }]);
+    if (method === "Split") {
+      const half = Number((total / 2).toFixed(2));
+      const rest = Number((total - half).toFixed(2));
+      setPaymentDetails([
+        { paymentMode: "cash", amount: half > 0 ? half : "", bankAccountId: "" },
+        { paymentMode: "card", amount: rest > 0 ? rest : "", bankAccountId: "" },
+      ]);
+    } else {
+      const mode = paymentModeMap[method] || "cash";
+      setPaymentDetails([{ paymentMode: mode, amount: total > 0 ? total : "", bankAccountId: selectedBankId || "" }]);
+    }
   };
 
   const addPaymentDetail = () => {
-    setPaymentDetails((prev) => [...prev, { paymentMode: "cash", amount: "", bankAccountId: "" }]);
+    if (paymentMethod !== "Split") {
+      setPaymentMethod("Split");
+    }
+    const currentSum = paymentDetails.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+    const remaining = Math.max(0, Number((total - currentSum).toFixed(2)));
+    setPaymentDetails((prev) => [
+      ...prev,
+      { paymentMode: "card", amount: remaining > 0 ? remaining : "", bankAccountId: "" },
+    ]);
   };
 
   const removePaymentDetail = (idx) => {
@@ -573,9 +591,18 @@ export function POSPage() {
   // Derive the primary bank for the Payment record: first non-cash detail's bank, fallback to selectedBankId
   const primaryBankAccountId = paymentDetails.find((d) => d.paymentMode !== "cash" && d.bankAccountId)?.bankAccountId || selectedBankId || null;
 
-  // isBankRequired: true if any non-cash detail has no bank selected
-  const nonCashNeedsBank = paymentMethod && paymentMethod !== "Cash" &&
-    paymentDetails.some((d) => d.paymentMode !== "cash" && !d.bankAccountId);
+  // nonCashNeedsBank: true if any non-cash detail with an amount has no bank selected
+  const nonCashNeedsBank = paymentDetails.some(
+    (d) => d.paymentMode !== "cash" && (Number(d.amount) > 0 || paymentDetails.length === 1) && !d.bankAccountId
+  );
+
+  // Check if total entered in split breakdown matches the bill total
+  const totalEnteredInBreakdown = paymentDetails.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  const isSplitCovered = paymentMethod === "Split" || paymentDetails.length > 1
+    ? Math.abs(total - totalEnteredInBreakdown) < 0.01
+    : true;
+
+  const canCheckout = cart.length > 0 && paymentMethod && isSplitCovered && !nonCashNeedsBank && (!hasStockErrors || allowOutOfStockCheckout);
 
   const handleCheckout = async () => {
     if (hasStockErrors && !allowOutOfStockCheckout) {
@@ -685,6 +712,90 @@ export function POSPage() {
     }
   };
 
+  // POS Keyboard Shortcuts listener
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+
+      // F1 or Shift+? -> Toggle Shortcuts Guide
+      if (e.key === "F1" || (e.shiftKey && e.key === "?")) {
+        e.preventDefault();
+        setShowShortcutGuide((prev) => !prev);
+        return;
+      }
+
+      // Esc -> Close modals or clear search query
+      if (e.key === "Escape") {
+        if (showShortcutGuide) {
+          setShowShortcutGuide(false);
+          return;
+        }
+        if (showInvoice) {
+          setShowInvoice(false);
+          return;
+        }
+        if (searchQuery) {
+          setSearchQuery("");
+          return;
+        }
+      }
+
+      // F2 or Ctrl+K -> Focus Catalog Search input
+      if (e.key === "F2" || (e.ctrlKey && e.key.toLowerCase() === "k")) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      // F12 or Ctrl+Enter -> Complete Billing / Checkout
+      if (e.key === "F12" || (e.ctrlKey && e.key === "Enter")) {
+        e.preventDefault();
+        if (canCheckout) {
+          handleCheckout();
+        } else if (cart.length === 0) {
+          toast.error("Cart is empty.");
+        } else if (!paymentMethod) {
+          toast.error("Please select a payment method.");
+        }
+        return;
+      }
+
+      // Payment shortcuts (F4/Alt+1 -> Cash, F8/Alt+2 -> Card, F9/Alt+3 -> UPI, F10/Alt+4 -> Split)
+      if (e.key === "F4" || (e.altKey && (e.key === "1" || e.key.toLowerCase() === "c"))) {
+        e.preventDefault();
+        setPaymentMethod("Cash");
+        syncPaymentDetailsWithMethod("Cash");
+        setSelectedBankId("");
+        toast.info("Selected Cash Payment (F4)");
+        return;
+      }
+      if (e.key === "F8" || (e.altKey && (e.key === "2" || e.key.toLowerCase() === "d"))) {
+        e.preventDefault();
+        setPaymentMethod("Card");
+        syncPaymentDetailsWithMethod("Card");
+        toast.info("Selected Card Payment (F8)");
+        return;
+      }
+      if (e.key === "F9" || (e.altKey && (e.key === "3" || e.key.toLowerCase() === "u"))) {
+        e.preventDefault();
+        setPaymentMethod("UPI");
+        syncPaymentDetailsWithMethod("UPI");
+        toast.info("Selected UPI Payment (F9)");
+        return;
+      }
+      if (e.key === "F10" || (e.altKey && (e.key === "4" || e.key.toLowerCase() === "s"))) {
+        e.preventDefault();
+        setPaymentMethod("Split");
+        syncPaymentDetailsWithMethod("Split");
+        toast.info("Selected Split Payment (F10)");
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [canCheckout, cart.length, paymentMethod, searchQuery, showInvoice, showShortcutGuide, toast]);
+
   return (
     <div>
       <PageHeader
@@ -698,6 +809,16 @@ export function POSPage() {
           <div className="flex items-center justify-between">
             <p className="premium-label !mb-0">Catalog Menu</p>
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowShortcutGuide(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-navy-200 bg-white px-2.5 py-1 text-xs font-semibold text-navy-700 hover:bg-navy-50 transition-colors"
+                title="Keyboard Shortcuts (F1 or Shift+?)"
+              >
+                <Keyboard className="h-3.5 w-3.5 text-navy-500" />
+                <span className="hidden sm:inline">Shortcuts</span>
+                <span className="rounded bg-navy-100 px-1 py-0.2 text-[9px] font-mono text-navy-600">F1</span>
+              </button>
               {isAdmin && (
                 <select
                   className="premium-input !py-1.5 !px-3 !text-xs appearance-none min-w-[140px]"
@@ -721,12 +842,16 @@ export function POSPage() {
             <div className="relative flex-1 min-w-[180px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
+                ref={searchInputRef}
                 type="text"
-                placeholder="Search services, packages, products..."
+                placeholder="Search catalog... (F2 or Ctrl+K)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="premium-input !py-2.5 !pl-9 !text-sm"
+                className="premium-input !py-2.5 !pl-9 !pr-10 !text-sm"
               />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded px-1 py-0.5 pointer-events-none">
+                F2
+              </span>
             </div>
             <div className="flex gap-1.5 flex-shrink-0">
               {["All", "Service", "Package", "Product"].map((category) => (
@@ -1311,27 +1436,33 @@ export function POSPage() {
               </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {paymentMethods.map((method) => (
-                <button
-                  key={method}
-                  type="button"
-                  className={
-                    paymentMethod === method
-                      ? "rounded-xl bg-navy-900 py-3 text-[10px] font-black uppercase tracking-widest text-white ring-2 ring-navy-300"
-                      : "rounded-xl border border-navy-100 bg-white py-3 text-[10px] font-black uppercase tracking-widest text-navy-600 transition hover:bg-navy-50"
-                  }
-                  onClick={() => {
-                    setPaymentMethod(method);
-                    syncPaymentDetailsWithMethod(method);
-                    if (method === "Cash") {
-                      setSelectedBankId("");
+            <div className="mt-3 grid grid-cols-4 gap-1.5">
+              {paymentMethods.map((method) => {
+                const hotkeys = { Cash: "F4", Card: "F8", UPI: "F9", Split: "F10" };
+                return (
+                  <button
+                    key={method}
+                    type="button"
+                    className={
+                      paymentMethod === method
+                        ? "rounded-xl bg-navy-900 py-2.5 text-[10px] font-black uppercase tracking-widest text-white ring-2 ring-navy-300"
+                        : "rounded-xl border border-navy-100 bg-white py-2.5 text-[10px] font-black uppercase tracking-widest text-navy-600 transition hover:bg-navy-50"
                     }
-                  }}
-                >
-                  {method}
-                </button>
-              ))}
+                    onClick={() => {
+                      setPaymentMethod(method);
+                      syncPaymentDetailsWithMethod(method);
+                      if (method === "Cash") {
+                        setSelectedBankId("");
+                      }
+                    }}
+                  >
+                    <div>{method}</div>
+                    <span className={`text-[8px] font-mono font-bold ${paymentMethod === method ? "text-navy-300" : "text-navy-400"}`}>
+                      [{hotkeys[method]}]
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Split Payment Details */}
@@ -1369,15 +1500,13 @@ export function POSPage() {
                       <input
                         type="number"
                         min="0"
+                        step="any"
                         placeholder="Amount"
                         value={detail.amount}
                         onChange={(e) => {
-                          const val = Number(e.target.value);
-                          const otherTotal = paymentDetails.reduce((s, d, i) => i === idx ? s : s + (Number(d.amount) || 0), 0);
-                          const capped = Math.min(val, total - otherTotal);
-                          updatePaymentDetail(idx, "amount", capped >= 0 ? capped : 0);
+                          updatePaymentDetail(idx, "amount", e.target.value);
                         }}
-                        className="w-24 rounded-lg border border-navy-200 bg-white px-2 py-1.5 text-xs font-semibold text-navy-700 text-right focus:outline-none focus:border-navy-400"
+                        className="w-28 rounded-lg border border-navy-200 bg-white px-2 py-1.5 text-xs font-semibold text-navy-700 text-right focus:outline-none focus:border-navy-400"
                       />
                       {paymentDetails.length > 1 && (
                         <button
@@ -1455,6 +1584,15 @@ export function POSPage() {
               </div>
             )}
 
+            {cart.length > 0 && paymentMethod && !isSplitCovered && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
+                <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>Split breakdown total ({totalEnteredInBreakdown.toFixed(2)}) must equal total ({total.toFixed(2)})</span>
+              </div>
+            )}
+
             {cart.length > 0 && nonCashNeedsBank && (
               <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
                 <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1512,11 +1650,12 @@ export function POSPage() {
 
             <button
               type="button"
-              className="btn-premium-primary mt-3 w-full disabled:opacity-50 disabled:grayscale"
+              className="btn-premium-primary mt-3 w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:grayscale"
               onClick={handleCheckout}
               disabled={!canCheckout}
             >
-              Complete Billing
+              <span>Complete Billing</span>
+              <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-mono font-bold text-white">Ctrl+↵ / F12</kbd>
             </button>
           </div>
 
@@ -1528,6 +1667,118 @@ export function POSPage() {
           bill={currentBill}
           onClose={() => setShowInvoice(false)}
         />
+      )}
+
+      {/* Keyboard Shortcuts Reference Guide Modal */}
+      {showShortcutGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-lg rounded-3xl border border-white/20 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-navy-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-navy-900 text-white">
+                  <Keyboard className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-navy-900">Keyboard Shortcuts Guide</h3>
+                  <p className="text-xs font-medium text-slate-500">Fast hands-on-keyboard POS controls</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShortcutGuide(false)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-2">POS & Billing Controls</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-navy-800">Focus Catalog Search</span>
+                    <div className="flex gap-1">
+                      <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">F2</kbd>
+                      <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Ctrl+K</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-navy-800">Select Cash Payment</span>
+                    <div className="flex gap-1">
+                      <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">F4</kbd>
+                      <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Alt+1</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-navy-800">Select Card Payment</span>
+                    <div className="flex gap-1">
+                      <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">F8</kbd>
+                      <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Alt+2</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-navy-800">Select UPI Payment</span>
+                    <div className="flex gap-1">
+                      <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">F9</kbd>
+                      <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Alt+3</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-navy-800">Select Split Payment</span>
+                    <div className="flex gap-1">
+                      <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">F10</kbd>
+                      <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Alt+4</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-100 p-2.5">
+                    <span className="text-xs font-bold text-emerald-900">Complete Billing</span>
+                    <div className="flex gap-1">
+                      <kbd className="rounded bg-emerald-700 px-2 py-0.5 text-xs font-mono font-bold text-white shadow-sm">Ctrl+↵</kbd>
+                      <kbd className="rounded bg-emerald-700 px-2 py-0.5 text-xs font-mono font-bold text-white shadow-sm">F12</kbd>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-2">Global Navigation Hotkeys</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-navy-800">Go to POS Desk</span>
+                    <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Alt+P</kbd>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-navy-800">Go to Billing Invoices</span>
+                    <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Alt+B</kbd>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-navy-800">Go to Inventory</span>
+                    <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Alt+I</kbd>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-navy-800">Go to Expenses</span>
+                    <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Alt+E</kbd>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-xs font-semibold text-navy-800">Toggle Sidebar</span>
+                    <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Ctrl+B</kbd>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-3 border-t border-navy-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowShortcutGuide(false)}
+                className="btn-premium-primary !py-2 !px-6 !text-xs"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

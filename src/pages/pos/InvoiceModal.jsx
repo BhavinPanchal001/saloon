@@ -185,6 +185,16 @@ export function InvoiceModal({ bill, onClose }) {
             </div>
             <div className="invoice-payment-method">
               Payment Method: <strong>{bill.paymentMethod}</strong>
+              {bill.payments && bill.payments.length > 0 && bill.payments.some(p => (p.details || []).length > 1) && (
+                <div className="mt-1.5 space-y-0.5 text-xs text-navy-700">
+                  {bill.payments.flatMap(p => p.details || []).map((d, i) => (
+                    <div key={i} className="flex justify-between gap-4">
+                      <span className="capitalize">{d.payment_mode || d.paymentMode}:</span>
+                      <span className="font-semibold">{formatCurrency(d.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

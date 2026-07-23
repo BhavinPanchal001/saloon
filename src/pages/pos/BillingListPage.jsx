@@ -8,7 +8,7 @@ import { formatCurrency } from "../../utils/format";
 import { InvoiceModal } from "./InvoiceModal";
 import { Search, Download, Filter, FileText, Eye, Calendar, CreditCard, Printer } from "lucide-react";
 
-const paymentFilters = ["All", "Cash", "Card", "UPI"];
+const paymentFilters = ["All", "Cash", "Card", "UPI", "Split"];
 
 const formatDate = (iso) => {
   if (!iso) return "—";
@@ -288,6 +288,7 @@ export default function BillingListPage() {
                       <span className={`status-badge ${
                         bill.paymentMethod === "Cash" ? "bg-emerald-50 text-emerald-700" :
                         bill.paymentMethod === "Card" ? "bg-indigo-50 text-indigo-700" :
+                        bill.paymentMethod === "Split" ? "bg-purple-50 text-purple-700 border border-purple-200" :
                         "bg-violet-50 text-violet-700"
                       }`}>
                         {bill.paymentMethod}

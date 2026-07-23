@@ -345,7 +345,7 @@ const checkout = async (req, res) => {
       await transaction.rollback();
       return res.status(400).json({ message: 'outletId is required.' });
     }
-    if (!paymentMethod || !['Cash', 'Card', 'UPI'].includes(paymentMethod)) {
+    if (!paymentMethod || !['Cash', 'Card', 'UPI', 'Split'].includes(paymentMethod)) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Valid paymentMethod is required.' });
     }
@@ -738,7 +738,7 @@ const getBills = async (req, res) => {
       where.outlet_id = outletId;
     }
 
-    if (paymentMethod && ['Cash', 'Card', 'UPI'].includes(paymentMethod)) {
+    if (paymentMethod && ['Cash', 'Card', 'UPI', 'Split'].includes(paymentMethod)) {
       where.payment_method = paymentMethod;
     }
 

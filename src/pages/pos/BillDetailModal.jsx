@@ -89,9 +89,21 @@ export function BillDetailModal({ bill, onClose }) {
                     <span className="text-navy-700">{bill.customer.phone}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-3 text-sm">
-                  <CreditCard size={14} className="text-navy-400" />
-                  <span className="text-navy-700">Paid via {bill.paymentMethod}</span>
+                <div className="flex flex-col gap-1 text-sm">
+                  <div className="flex items-center gap-3">
+                    <CreditCard size={14} className="text-navy-400" />
+                    <span className="text-navy-700">Paid via {bill.paymentMethod}</span>
+                  </div>
+                  {bill.payments && bill.payments.length > 0 && bill.payments.some(p => (p.details || []).length > 0) && (
+                    <div className="pl-6 space-y-0.5 text-xs text-navy-600">
+                      {bill.payments.flatMap(p => p.details || []).map((d, i) => (
+                        <div key={i} className="flex items-center justify-between">
+                          <span className="capitalize">{d.payment_mode || d.paymentMode}:</span>
+                          <span className="font-semibold">{formatCurrency(d.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
