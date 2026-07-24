@@ -15,43 +15,18 @@ import {
   ArrowRight
 } from "lucide-react";
 
-// Mock bank accounts
-const BANK_ACCOUNTS = [
-  { id: "bank_1", name: "HDFC Bank - 1234567890", bank: "HDFC" },
-  { id: "bank_2", name: "ICICI Bank - 9876543210", bank: "ICICI" },
-  { id: "bank_3", name: "SBI Bank - 5555666677", bank: "SBI" },
-];
-
-// Mock employees for payment
-const generateMockEmployees = (month) => {
-  const employees = [
-    { id: "emp_1", code: "NST0058", name: "Aayushi Patel", salary: 3800 },
-    { id: "emp_2", code: "NST0056", name: "Abhi Patel", salary: 11760 },
-    { id: "emp_3", code: "NST0051", name: "Abhi Patel", salary: 29800 },
-    { id: "emp_4", code: "NS0026", name: "Bhavin Panchal", salary: 50800 },
-    { id: "emp_5", code: "NS0031", name: "Feni Patel", salary: 22685 },
-    { id: "emp_6", code: "NS0032", name: "Kinjal Patel", salary: 26534 },
-    { id: "emp_7", code: "NST0049", name: "Nishi Avadhiya", salary: 14800 },
-    { id: "emp_8", code: "NST0052", name: "Raj Panchal", salary: 14800 },
-  ];
-  
-  return employees.map(emp => ({
-    ...emp,
-    selected: true,
-    payAccount: "",
-    payDate: "",
-  }));
-};
+import { fetchActiveBanksFromAPI, fetchPayrollById, payPayrollRun } from "../../services/api";
 
 export function SalaryPayPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToastStore();
   
-  const { month = "Apr-2026", salaryData = {} } = location.state || {};
+  const { month = "Apr-2026", monthKey, salaryData = {} } = location.state || {};
   
   const [paymentDate, setPaymentDate] = useState("");
   const [selectedBank, setSelectedBank] = useState("");
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [payOnDiffDate, setPayOnDiffDate] = useState(false);
   const [payOnDiffAcc, setPayOnDiffAcc] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -59,10 +34,38 @@ export function SalaryPayPage() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    // Load employees for this month
-    const empData = generateMockEmployees(month);
-    setEmployees(empData);
-  }, [month]);
+    loadPaymentData();
+  }, [monthKey]);
+
+  const loadPaymentData = async () => {
+    try {
+      const banks = await fetchActiveBanksFromAPI();
+      setBankAccounts(banks || []);
+      if (banks && banks.length > 0) {
+        setSelectedBank(banks[0].id);
+      }
+
+      if (monthKey) {
+        const payrollRecord = await fetchPayrollById(monthKey);
+        if (payrollRecord && payrollRecord.details) {
+          const empData = payrollRecord.details.map(d => ({
+            id: d.id,
+            staffId: d.staff_id,
+            code: d.employee ? `NST${String(d.staff_id).padStart(4, '0')}` : 'NST0000',
+            name: d.employee ? `${d.employee.first_name} ${d.employee.last_name}` : 'Unknown',
+            salary: Number(d.payable || 0),
+            selected: true,
+            payAccount: "",
+            payDate: "",
+          }));
+          setEmployees(empData);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load payment details");
+    }
+  };
 
   const handleSelectAll = () => {
     const newSelectAll = !selectAll;
@@ -116,11 +119,16 @@ export function SalaryPayPage() {
 
     setIsProcessing(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      toast.success(`Salary payment of ${formatCurrency(totalAmount)} processed for ${selectedEmployees.length} employees`);
+      const payload = {
+        bankAccountId: selectedBank,
+        paymentDate: paymentDate,
+      };
+
+      await payPayrollRun(monthKey, payload);
+      toast.success(`Salary payment of ${formatCurrency(totalAmount)} processed successfully`);
       navigate("/payroll");
     } catch (err) {
+      console.error(err);
       toast.error("Failed to process payment");
     } finally {
       setIsProcessing(false);
@@ -183,8 +191,8 @@ export function SalaryPayPage() {
                 className="premium-input !py-2.5 !pr-10 appearance-none"
               >
                 <option value="">Select Bank Account</option>
-                {BANK_ACCOUNTS.map(bank => (
-                  <option key={bank.id} value={bank.id}>{bank.name}</option>
+                {bankAccounts.map(bank => (
+                  <option key={bank.id} value={bank.id}>{bank.bankName} - {bank.accountNumber}</option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-navy-400 pointer-events-none" />
@@ -280,8 +288,8 @@ export function SalaryPayPage() {
                         disabled={!emp.selected}
                       >
                         <option value="">Select Account</option>
-                        {BANK_ACCOUNTS.map(bank => (
-                          <option key={bank.id} value={bank.id}>{bank.name}</option>
+                        {bankAccounts.map(bank => (
+                          <option key={bank.id} value={bank.id}>{bank.bankName} - {bank.accountNumber}</option>
                         ))}
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-navy-400 pointer-events-none" />
@@ -329,7 +337,7 @@ export function SalaryPayPage() {
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Bank Account</p>
             <p className="text-lg font-bold text-navy-900">
-              {selectedBank ? BANK_ACCOUNTS.find(b => b.id === selectedBank)?.bank : "Not Selected"}
+              {selectedBank ? bankAccounts.find(b => String(b.id) === String(selectedBank))?.bankName : "Not Selected"}
             </p>
           </div>
         </div>

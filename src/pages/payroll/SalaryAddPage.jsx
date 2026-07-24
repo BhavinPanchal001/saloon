@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchPayrollWithCommission, calculateAllSalaries } from "../../services/mockApi";
+import { fetchStaff, savePayrollRun } from "../../services/api";
 import { useToastStore } from "../../stores/toastStore";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
@@ -69,38 +69,52 @@ export function SalaryAddPage() {
   const loadPayrollData = async () => {
     setIsLoading(true);
     try {
-      const records = await fetchPayrollWithCommission(monthKey);
-      const transformed = records.map((record) => ({
-        id: record.id,
-        employeeId: record.employeeId,
-        employeeCode: record.employeeId.replace("staff_", "NST").toUpperCase(),
-        name: record.name,
-        baseSalary: record.baseSalary,
-        professionalTax: record.deductions * 0.2,
-        cl: 0,
-        sl: 0,
-        ol: 0,
-        full: "C",
-        hour: "C",
-        r: "C",
-        deductionDays: 0,
-        adjustment: 0,
-        overtime: 0,
-        extraHours: 0,
-        deductionAmount: record.deductions,
-        commission: record.commissions,
-        commissionInfo: record.commissionInfo,
-        finalSalary: record.netPay,
-        status: record.status,
-        present: record.attendance?.present || 26,
-        absent: record.attendance?.absent || 0,
-        leaves: record.attendance?.leaves || 0,
-      }));
+      const activeStaff = await fetchStaff();
+      const transformed = activeStaff.map((staff) => {
+        const baseSalary = Number(staff.baseSalary) || 30000;
+        const pfDeduction = Number(staff.pfDeduction) || Math.round(baseSalary * 0.12);
+        const taxRate = Number(staff.taxValue) || 5;
+        const taxDeduction = Math.round(baseSalary * (taxRate / 100));
+        const allowances = 3500;
+        const commissionAmount = 0;
+
+        const grossPay = baseSalary + allowances + commissionAmount;
+        const totalDeductions = pfDeduction + taxDeduction;
+        const netPay = grossPay - totalDeductions;
+
+        return {
+          id: staff.id,
+          employeeId: staff.id,
+          employeeCode: `NST${String(staff.id).padStart(4, '0')}`,
+          name: staff.name,
+          baseSalary,
+          professionalTax: taxDeduction,
+          cl: 0,
+          sl: 0,
+          ol: 0,
+          full: "C",
+          hour: "C",
+          r: "C",
+          deductionDays: 0,
+          adjustment: 0,
+          overtime: 0,
+          extraHours: 0,
+          deductionAmount: pfDeduction,
+          commission: commissionAmount,
+          commissionInfo: null,
+          finalSalary: netPay,
+          status: 'calculated',
+          present: 26,
+          absent: 0,
+          leaves: 0,
+        };
+      });
       setPayrollData(transformed);
       setEditedData({});
       setSelectedRows(new Set());
       setSelectAll(false);
     } catch (err) {
+      console.error(err);
       toast.error("Failed to load payroll data");
     } finally {
       setIsLoading(false);
@@ -182,7 +196,6 @@ export function SalaryAddPage() {
   const handleRecalculate = async () => {
     setIsCalculating(true);
     try {
-      await calculateAllSalaries(monthKey);
       await loadPayrollData();
       toast.success("Salaries recalculated successfully");
     } catch (err) {
@@ -193,12 +206,39 @@ export function SalaryAddPage() {
   };
 
   const handleSave = async () => {
+    if (payrollData.length === 0) {
+      toast.error("No payroll data to save");
+      return;
+    }
+
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      setIsLoading(true);
+      const payload = {
+        monthKey,
+        outletId: "all",
+        details: payrollData.map(row => ({
+          employeeId: row.employeeId,
+          baseSalary: row.baseSalary,
+          professionalTax: row.professionalTax,
+          deductionAmount: row.deductionAmount,
+          commission: row.commission,
+          finalSalary: row.finalSalary,
+          status: row.status,
+          present: row.present,
+          absent: row.absent,
+          leaves: row.leaves,
+          overtime: row.overtime,
+        }))
+      };
+
+      await savePayrollRun(payload);
       toast.success("Payroll saved successfully");
-      setEditedData({});
+      navigate("/payroll");
     } catch (err) {
-      toast.error("Failed to save payroll");
+      console.error(err);
+      toast.error("Failed to save payroll to database");
+    } finally {
+      setIsLoading(false);
     }
   };
 

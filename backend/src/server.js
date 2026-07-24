@@ -88,6 +88,19 @@ const startServer = async () => {
       console.log('[Migration] Table coupons created successfully.');
     }
 
+    // Run migration check for admins table
+    const adminsTableInfo = await queryInterface.describeTable('admins');
+    if (!adminsTableInfo.outlet_id) {
+      console.log('[Migration] Adding column outlet_id to admins...');
+      const { DataTypes } = require('sequelize');
+      await queryInterface.addColumn('admins', 'outlet_id', {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: true,
+        defaultValue: null,
+      });
+      console.log('[Migration] Column outlet_id added successfully to admins.');
+    }
+
     const server = app.listen(PORT, () => {
       console.log(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     });

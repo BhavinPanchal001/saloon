@@ -110,6 +110,8 @@ const Staff = require('./Staff');
 const Contract = require('./Contract');
 const ContractSalaryMapping = require('./ContractSalaryMapping');
 const Attendance = require('./Attendance');
+const ProcessedPayroll = require('./ProcessedPayroll');
+const ProcessedPayrollDetail = require('./ProcessedPayrollDetail');
 
 // Staff associations
 Staff.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
@@ -134,6 +136,7 @@ Staff.hasMany(ContractGroup, { foreignKey: 'employee_id', as: 'contractGroups' }
 Contract.belongsTo(Staff, { foreignKey: 'employee_id', as: 'employee' });
 Staff.hasMany(Contract, { foreignKey: 'employee_id', as: 'contracts', onDelete: 'CASCADE' });
 
+// Contract Group contract associations
 Contract.belongsTo(ContractGroup, { foreignKey: 'group_id', as: 'group' });
 ContractGroup.hasMany(Contract, { foreignKey: 'group_id', as: 'contracts' });
 
@@ -150,6 +153,16 @@ ContractSalaryMapping.belongsTo(SalaryComponentMaster, { foreignKey: 'salary_com
 // Attendance associations
 Attendance.belongsTo(Staff, { foreignKey: 'staff_id', as: 'employee' });
 Staff.hasMany(Attendance, { foreignKey: 'staff_id', as: 'attendances', onDelete: 'CASCADE' });
+
+// Processed Payroll associations
+ProcessedPayroll.hasMany(ProcessedPayrollDetail, { as: 'details', foreignKey: 'processed_payroll_id', onDelete: 'CASCADE' });
+ProcessedPayrollDetail.belongsTo(ProcessedPayroll, { foreignKey: 'processed_payroll_id' });
+
+ProcessedPayroll.belongsTo(Outlet, { foreignKey: 'outlet_id' });
+Outlet.hasMany(ProcessedPayroll, { foreignKey: 'outlet_id' });
+
+ProcessedPayrollDetail.belongsTo(Staff, { foreignKey: 'staff_id', as: 'employee' });
+Staff.hasMany(ProcessedPayrollDetail, { foreignKey: 'staff_id', as: 'payrollDetails', onDelete: 'CASCADE' });
 
 const Admin = require('./Admin');
 
@@ -202,4 +215,6 @@ module.exports = {
   Contract,
   ContractSalaryMapping,
   Coupon,
+  ProcessedPayroll,
+  ProcessedPayrollDetail,
 };
