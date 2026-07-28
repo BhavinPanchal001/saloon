@@ -6,9 +6,11 @@ import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { InvoiceModal } from "./InvoiceModal";
-import { Search, Download, Filter, FileText, Eye, Calendar, CreditCard, Printer } from "lucide-react";
+import { EditInvoiceModal } from "./EditInvoiceModal";
+import { AddPaymentModal } from "../../components/pos/AddPaymentModal";
+import { Search, Download, Filter, FileText, Eye, Calendar, CreditCard, Printer, Edit } from "lucide-react";
 
-const paymentFilters = ["All", "Cash", "Card", "UPI", "Split"];
+const paymentFilters = ["All", "Cash", "Card", "UPI", "Split", "Store Credit", "Unpaid"];
 
 const formatDate = (iso) => {
   if (!iso) return "—";
@@ -36,6 +38,8 @@ export default function BillingListPage() {
   const [dateTo, setDateTo] = useState("");
   const navigate = useNavigate();
   const [selectedBill, setSelectedBill] = useState(null);
+  const [paymentModalBill, setPaymentModalBill] = useState(null);
+  const [editModalBill, setEditModalBill] = useState(null);
   const [error, setError] = useState(null);
   const [printingBillId, setPrintingBillId] = useState(null);
   
@@ -297,27 +301,45 @@ export default function BillingListPage() {
                   </td>
                   <td>
                     <span className={`status-badge ${
-                      bill.status === "paid" ? "status-active" : "status-danger"
+                      bill.status === "paid" ? "status-active" : bill.status === "partially_paid" ? "bg-amber-100 text-amber-800 border border-amber-200" : bill.status === "unpaid" ? "bg-rose-100 text-rose-800 border border-rose-200" : "status-danger"
                     }`}>
-                      {bill.status}
+                      {bill.status === "partially_paid" ? "Partial" : bill.status === "unpaid" ? "Unpaid" : bill.status}
                     </span>
                   </td>
                   <td className="text-right">
                     <span className="text-sm font-black text-navy-900">{formatCurrency(bill.total)}</span>
                   </td>
                   <td className="text-center">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                      {bill.status !== "paid" && (
+                        <button
+                          onClick={() => setPaymentModalBill(bill)}
+                          className="group inline-flex items-center gap-1.5 rounded-xl border border-emerald-300/70 bg-emerald-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 whitespace-nowrap transition-all hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-md"
+                          title="Collect / Add Payment"
+                        >
+                          <CreditCard size={13} />
+                          + Payment
+                        </button>
+                      )}
                       <button
                         onClick={() => navigate(`/pos/bills/${bill.id}`)}
-                        className="group inline-flex items-center gap-1.5 rounded-2xl border border-navy-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-widest text-navy-600 transition-all hover:bg-navy-900 hover:text-white hover:border-navy-900"
+                        className="group inline-flex items-center gap-1.5 rounded-xl border border-navy-200 bg-white px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-navy-600 whitespace-nowrap transition-all hover:bg-navy-900 hover:text-white hover:border-navy-900"
                         title="View Details"
                       >
                         <Eye size={13} />
                         View
                       </button>
                       <button
+                        onClick={() => navigate(`/pos?editBillId=${bill.id}`, { state: { editBill: bill } })}
+                        className="group inline-flex items-center gap-1.5 rounded-xl border border-blue-300/60 bg-blue-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-blue-700 whitespace-nowrap transition-all hover:bg-blue-600 hover:text-white hover:border-blue-600 hover:shadow-md"
+                        title="Edit Invoice in POS"
+                      >
+                        <Edit size={13} />
+                        Edit
+                      </button>
+                      <button
                         onClick={() => handleDownload(bill)}
-                        className="group inline-flex items-center gap-1.5 rounded-2xl border border-gold-300/50 bg-gold-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gold-700 transition-all hover:bg-gold-400 hover:text-navy-900 hover:shadow-gold"
+                        className="group inline-flex items-center gap-1.5 rounded-xl border border-gold-300/50 bg-gold-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-gold-700 whitespace-nowrap transition-all hover:bg-gold-400 hover:text-navy-900 hover:shadow-gold"
                         title="Print Invoice"
                       >
                         <Download size={13} />
@@ -326,7 +348,7 @@ export default function BillingListPage() {
                       <button
                         onClick={() => handleThermalPrint(bill.id)}
                         disabled={printingBillId === bill.id}
-                        className="group inline-flex items-center gap-1.5 rounded-2xl border border-purple-300/50 bg-purple-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-purple-700 transition-all hover:bg-purple-500 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="group inline-flex items-center gap-1.5 rounded-xl border border-purple-300/50 bg-purple-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-purple-700 whitespace-nowrap transition-all hover:bg-purple-500 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Print to Thermal Printer"
                       >
                         {printingBillId === bill.id ? (
@@ -348,6 +370,19 @@ export default function BillingListPage() {
       {/* Invoice Modal */}
       {selectedBill && (
         <InvoiceModal bill={selectedBill} onClose={() => setSelectedBill(null)} />
+      )}
+
+      {/* Add Payment Modal */}
+      {paymentModalBill && (
+        <AddPaymentModal
+          bill={paymentModalBill}
+          onClose={() => setPaymentModalBill(null)}
+          onSuccess={(updatedBill) => {
+            setBills((prev) =>
+              prev.map((b) => (b.id === updatedBill.id ? updatedBill : b))
+            );
+          }}
+        />
       )}
 
     </div>

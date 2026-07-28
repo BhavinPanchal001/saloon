@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchSettings, saveSettings } from '../../services/mockApi';
-import { fetchPrinterStatusAPI, togglePrinterAPI, testPrintAPI, switchPrinterConnectionAPI, savePrinterSettingsAPI } from '../../services/api';
+import { fetchSettings, saveSettings, fetchPrinterStatusAPI, togglePrinterAPI, testPrintAPI, switchPrinterConnectionAPI, savePrinterSettingsAPI } from '../../services/api';
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound, Printer, Usb, Wifi, Save, HelpCircle, Info, Package } from "lucide-react";
@@ -122,7 +121,14 @@ export function SettingsPage() {
       }
     };
     loadSettings();
+    fetchPrinterStatus();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "printer") {
+      fetchPrinterStatus();
+    }
+  }, [activeTab]);
 
   const fetchPrinterStatus = async () => {
     setPrinterLoading(true);
@@ -741,7 +747,7 @@ export function SettingsPage() {
 
             {/* Printer Tab */}
             {activeTab === "printer" && (
-              <form onSubmit={handleSavePrinterForm} className="space-y-6">
+              <form onSubmit={handleSavePrinterSettings} className="space-y-6">
                 <div>
                   <h3 className="text-xl font-semibold text-navy-900">Thermal Printer Settings</h3>
                   <p className="mt-1 text-sm text-slate-500">
@@ -777,7 +783,7 @@ export function SettingsPage() {
                           <input
                             type="checkbox"
                             checked={printerForm.enabled}
-                            onChange={handlePrinterToggle}
+                            onChange={handleTogglePrinter}
                             disabled={printerToggling}
                             className="peer sr-only"
                           />
@@ -793,7 +799,7 @@ export function SettingsPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           type="button"
-                          onClick={() => handleConnectionTypeSwitch('usb')}
+                          onClick={() => handleConnectionTypeChange('usb')}
                           className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-all ${
                             printerForm.connectionType === 'usb'
                               ? 'border-navy-500 bg-navy-50 shadow-sm'
@@ -808,7 +814,7 @@ export function SettingsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleConnectionTypeSwitch('network')}
+                          onClick={() => handleConnectionTypeChange('network')}
                           className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-all ${
                             printerForm.connectionType === 'network'
                               ? 'border-navy-500 bg-navy-50 shadow-sm'

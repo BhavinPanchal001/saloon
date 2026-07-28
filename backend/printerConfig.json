@@ -1,0 +1,9 @@
+{
+  "enabled": false,
+  "connectionType": "network",
+  "vid": "",
+  "pid": "",
+  "ip": "",
+  "port": 9100,
+  "paperWidth": 48
+}

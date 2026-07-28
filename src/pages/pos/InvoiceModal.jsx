@@ -80,7 +80,7 @@ export function InvoiceModal({ bill, onClose }) {
             <div>
               <h2 className="invoice-title">INVOICE</h2>
               <div className="invoice-status-badge" data-status={bill.status}>
-                {bill.status === "paid" ? "✓ Paid" : "↩ Refunded"}
+                {bill.status === "paid" ? "✓ Paid" : bill.status === "partially_paid" ? "⚠ Partial" : bill.status === "unpaid" ? "✗ Unpaid" : "↩ Refunded"}
               </div>
             </div>
             <div className="invoice-meta-details">

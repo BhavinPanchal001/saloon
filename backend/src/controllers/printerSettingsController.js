@@ -47,7 +47,7 @@ const toggle = async (req, res) => {
  */
 const switchConnectionType = async (req, res) => {
   try {
-    const { type } = req.body;
+    const type = req.body.type || req.body.connectionType;
     if (!type || (type !== 'usb' && type !== 'network')) {
       return res.status(400).json({ message: '"type" must be "usb" or "network".' });
     }

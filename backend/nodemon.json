@@ -1,0 +1,9 @@
+{
+  "watch": ["src"],
+  "ignore": [
+    "printerConfig.json",
+    "src/config/printerConfig.json",
+    "*.log"
+  ],
+  "ext": "js,json"
+}

@@ -14,6 +14,9 @@ const {
   Payment,
   PaymentDetail,
   Bank,
+  Customer,
+  CustomerLedger,
+  sequelize,
 } = require('../models');
 const { printReceipt } = require('../utils/thermalPrinter');
 
@@ -278,7 +281,7 @@ const getCatalog = async (req, res) => {
     const productCards = products.map((product) => {
       const basePrice = Number(product.unit_price);
       const outletPrice = productPriceMap[product.id];
-      const stock = outletIdNum ? (inventoryMap[product.id] || 0) : Number(product.central_stock);
+      const stock = outletIdNum ? (inventoryMap[product.id] !== undefined ? inventoryMap[product.id] : 0) : Number(product.central_stock);
 
       return {
         id: product.id,
@@ -345,7 +348,8 @@ const checkout = async (req, res) => {
       await transaction.rollback();
       return res.status(400).json({ message: 'outletId is required.' });
     }
-    if (!paymentMethod || !['Cash', 'Card', 'UPI', 'Split'].includes(paymentMethod)) {
+    const validPaymentMethods = ['Cash', 'Card', 'UPI', 'Split', 'Store Credit', 'Unpaid'];
+    if (paymentMethod && !validPaymentMethods.includes(paymentMethod)) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Valid paymentMethod is required.' });
     }
@@ -467,14 +471,58 @@ const checkout = async (req, res) => {
     // Generate bill number
     const billNumber = await generateBillNumber(outletId, outlet.code);
 
+    // Resolve customer if provided
+    let targetCustomer = null;
+    if (customer && (customer.id || customer.phone || customer.name)) {
+      if (customer.id) {
+        targetCustomer = await Customer.findByPk(customer.id, { transaction });
+      } else if (customer.phone) {
+        targetCustomer = await Customer.findOne({ where: { phone: customer.phone }, transaction });
+      } else if (customer.name && customer.name.trim() !== '' && customer.name !== 'Walk-in Guest') {
+        targetCustomer = await Customer.findOne({ where: { name: customer.name }, transaction });
+      }
+    }
+
+    // Fallback to default Walk-in Guest customer if no customer was entered/found
+    if (!targetCustomer) {
+      targetCustomer = await Customer.findOne({ where: { phone: '0000000000' }, transaction });
+    }
+
+    // Build payment detail rows: prefer split paymentDetails from frontend
+    const validModes = ['cash', 'card', 'upi', 'bank_transfer', 'cheque', 'store_credit'];
+    const modeMap = { Cash: 'cash', Card: 'card', UPI: 'upi', 'Store Credit': 'store_credit' };
+
+    let detailRows = [];
+    if (Array.isArray(paymentDetails) && paymentDetails.length > 0) {
+      for (const d of paymentDetails) {
+        const mode = d.paymentMode;
+        if (!validModes.includes(mode)) continue;
+        const amount = Math.max(0, Number(d.amount) || 0);
+        if (amount > 0) detailRows.push({ payment_mode: mode, amount, bank_account_id: d.bankAccountId || null });
+      }
+    } else if (paymentDetails === undefined && paymentMethod && paymentMethod !== 'Unpaid') {
+      // Legacy fallback when paymentDetails parameter is missing
+      const singleMode = modeMap[paymentMethod] || 'cash';
+      const defaultAmt = Math.max(0, Number(total) || 0);
+      if (defaultAmt > 0) {
+        detailRows = [{ payment_mode: singleMode, amount: defaultAmt, bank_account_id: null }];
+      }
+    }
+
+    const totalPaid = detailRows.reduce((s, d) => s + d.amount, 0);
+    const billTotalNum = Number(total || 0);
+    const billStatus = totalPaid >= billTotalNum ? 'paid' : (totalPaid > 0 ? 'partially_paid' : 'unpaid');
+    const effectivePaymentMethod = paymentMethod || (totalPaid === 0 ? 'Unpaid' : 'Cash');
+
     // Create bill
     const bill = await Bill.create(
       {
         bill_number: billNumber,
         outlet_id: outletId,
-        customer_name: customer?.name || null,
-        customer_phone: customer?.phone || null,
-        payment_method: paymentMethod,
+        customer_id: targetCustomer?.id || null,
+        customer_name: customer?.name || targetCustomer?.name || null,
+        customer_phone: customer?.phone || targetCustomer?.phone || null,
+        payment_method: effectivePaymentMethod,
         bank_id: bankId || null,
         subtotal: subtotal || 0,
         discount_type: discountType || null,
@@ -482,7 +530,7 @@ const checkout = async (req, res) => {
         discount_amount: discountAmount || 0,
         tax: tax || 0,
         total: total || 0,
-        status: 'paid',
+        status: billStatus,
         coupon_id: couponId || null,
         coupon_code: couponCode || null,
       },
@@ -605,26 +653,51 @@ const checkout = async (req, res) => {
       }
     }
 
-    // Create Payment record linked to this bill
-    const validModes = ['cash', 'card', 'upi', 'bank_transfer', 'cheque'];
-    const modeMap = { Cash: 'cash', Card: 'card', UPI: 'upi' };
+    // Update customer spend, visits, and credit/due ledger
+    if (targetCustomer) {
+      const currentVisits = Number(targetCustomer.total_visits || 0) + 1;
+      const currentSpend = Number(targetCustomer.total_spend || 0) + Number(total || 0);
+      let newCreditBalance = Number(targetCustomer.credit_balance || 0);
 
-    // Build payment detail rows: prefer split paymentDetails from frontend, else use single paymentMethod
-    let detailRows = [];
-    if (Array.isArray(paymentDetails) && paymentDetails.length > 0) {
-      for (const d of paymentDetails) {
-        const mode = d.paymentMode;
-        if (!validModes.includes(mode)) continue;
-        const amount = Math.max(0, Number(d.amount) || 0);
-        if (amount > 0) detailRows.push({ payment_mode: mode, amount, bank_account_id: d.bankAccountId || null });
+      // Handle Store Credit payments
+      const storeCreditPaid = detailRows
+        .filter((d) => d.payment_mode === 'store_credit')
+        .reduce((sum, d) => sum + d.amount, 0);
+
+      if (storeCreditPaid > 0) {
+        newCreditBalance -= storeCreditPaid;
+        await CustomerLedger.create({
+          customer_id: targetCustomer.id,
+          bill_id: bill.id,
+          type: 'bill_payment',
+          amount: storeCreditPaid,
+          balance_after: newCreditBalance,
+          payment_method: 'Store Credit',
+          notes: `Bill #${billNumber} payment via Store Credit`,
+        }, { transaction });
       }
-    }
-    if (detailRows.length === 0) {
-      const singleMode = modeMap[paymentMethod] || 'cash';
-      detailRows = [{ payment_mode: singleMode, amount: Number(total) || 0, bank_account_id: null }];
-    }
 
-    const totalPaid = detailRows.reduce((s, d) => s + d.amount, 0);
+      // Handle remaining unpaid bill amount as Customer Due
+      const unpaidAmount = Math.max(0, Number(total || 0) - totalPaid);
+      if (unpaidAmount > 0) {
+        newCreditBalance -= unpaidAmount;
+        await CustomerLedger.create({
+          customer_id: targetCustomer.id,
+          bill_id: bill.id,
+          type: 'due_charge',
+          amount: unpaidAmount,
+          balance_after: newCreditBalance,
+          payment_method: null,
+          notes: `Unpaid bill #${billNumber} marked as Customer Due`,
+        }, { transaction });
+      }
+
+      await targetCustomer.update({
+        total_visits: currentVisits,
+        total_spend: currentSpend,
+        credit_balance: newCreditBalance,
+      }, { transaction });
+    }
 
     // Use the first non-cash detail's bank as the primary bank for the Payment record
     const primaryBankId = detailRows.find((d) => d.payment_mode !== 'cash' && d.bank_account_id)?.bank_account_id
@@ -637,7 +710,7 @@ const checkout = async (req, res) => {
         expense_id: null,
         pos_id: null,
         total_amount: totalPaid,
-        status: 'completed',
+        status: totalPaid > 0 ? 'completed' : 'pending',
         transaction_reference: (transactionReference || '').trim() || null,
         notes: (paymentNotes || '').trim() || null,
         payment_date: new Date().toISOString().split('T')[0],
@@ -646,10 +719,12 @@ const checkout = async (req, res) => {
       { transaction }
     );
 
-    await PaymentDetail.bulkCreate(
-      detailRows.map((row) => ({ ...row, payment_id: createdPayment.id })),
-      { transaction }
-    );
+    if (detailRows.length > 0) {
+      await PaymentDetail.bulkCreate(
+        detailRows.map((row) => ({ ...row, payment_id: createdPayment.id })),
+        { transaction }
+      );
+    }
 
     await transaction.commit();
 
@@ -738,7 +813,7 @@ const getBills = async (req, res) => {
       where.outlet_id = outletId;
     }
 
-    if (paymentMethod && ['Cash', 'Card', 'UPI', 'Split'].includes(paymentMethod)) {
+    if (paymentMethod && ['Cash', 'Card', 'UPI', 'Split', 'Store Credit', 'Unpaid'].includes(paymentMethod)) {
       where.payment_method = paymentMethod;
     }
 
@@ -886,9 +961,564 @@ const getBillById = async (req, res) => {
   }
 };
 
+// POST /api/pos/bills/:id/payments
+const addBillPayment = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { paymentDetails, paymentMethod, bankAccountId, transactionReference, paymentNotes } = req.body;
+
+    const bill = await Bill.findByPk(id, {
+      include: [
+        { model: BillLineItem, as: 'lineItems' },
+        { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
+      ],
+      transaction,
+    });
+
+    if (!bill) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Bill not found.' });
+    }
+
+    const validModes = ['cash', 'card', 'upi', 'bank_transfer', 'cheque', 'store_credit'];
+    const modeMap = { Cash: 'cash', Card: 'card', UPI: 'upi', 'Store Credit': 'store_credit' };
+    let detailRows = [];
+
+    if (Array.isArray(paymentDetails) && paymentDetails.length > 0) {
+      for (const d of paymentDetails) {
+        const mode = d.paymentMode;
+        if (!validModes.includes(mode)) continue;
+        const amt = Math.max(0, Number(d.amount) || 0);
+        if (amt > 0) detailRows.push({ payment_mode: mode, amount: amt, bank_account_id: d.bankAccountId || null });
+      }
+    } else if (req.body.amount && Number(req.body.amount) > 0) {
+      const mode = modeMap[paymentMethod] || 'cash';
+      const amt = Math.max(0, Number(req.body.amount) || 0);
+      detailRows.push({ payment_mode: mode, amount: amt, bank_account_id: bankAccountId || null });
+    }
+
+    const addedPaid = detailRows.reduce((s, d) => s + d.amount, 0);
+    if (addedPaid <= 0) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Valid payment amount greater than 0 is required.' });
+    }
+
+    // Calculate existing paid amount across all previous payments
+    let existingPaid = 0;
+    (bill.payments || []).forEach((p) => {
+      (p.details || []).forEach((d) => {
+        existingPaid += Number(d.amount || 0);
+      });
+    });
+
+    const newTotalPaid = existingPaid + addedPaid;
+    const billTotal = Number(bill.total || 0);
+    const newStatus = newTotalPaid >= billTotal ? 'paid' : (newTotalPaid > 0 ? 'partially_paid' : 'unpaid');
+
+    const primaryBankId = detailRows.find((d) => d.payment_mode !== 'cash' && d.bank_account_id)?.bank_account_id
+      || bankAccountId || null;
+
+    // Create payment record
+    const paymentRecord = await Payment.create(
+      {
+        bill_id: bill.id,
+        purchase_order_id: null,
+        expense_id: null,
+        pos_id: null,
+        total_amount: addedPaid,
+        status: 'completed',
+        transaction_reference: (transactionReference || '').trim() || null,
+        notes: (paymentNotes || '').trim() || null,
+        payment_date: new Date().toISOString().split('T')[0],
+        bank_account_id: primaryBankId,
+      },
+      { transaction }
+    );
+
+    await PaymentDetail.bulkCreate(
+      detailRows.map((row) => ({ ...row, payment_id: paymentRecord.id })),
+      { transaction }
+    );
+
+    const modeLabels = { cash: 'Cash', card: 'Card', upi: 'UPI', store_credit: 'Store Credit' };
+    const addedMethodLabel = detailRows.length > 1 ? 'Split' : (modeLabels[detailRows[0]?.payment_mode] || 'Cash');
+    const updatedPaymentMethod = bill.payment_method === 'Unpaid' ? addedMethodLabel : bill.payment_method;
+
+    await bill.update({
+      status: newStatus,
+      payment_method: updatedPaymentMethod,
+    }, { transaction });
+
+    // Handle Customer Ledger if customer is attached
+    if (bill.customer_id) {
+      const Customer = require('../models/Customer');
+      const CustomerLedger = require('../models/CustomerLedger');
+      const targetCustomer = await Customer.findByPk(bill.customer_id, { transaction });
+      if (targetCustomer) {
+        let newCreditBalance = Number(targetCustomer.credit_balance || 0);
+
+        // Deduct Store Credit if store_credit mode was used
+        const storeCreditPaid = detailRows
+          .filter((d) => d.payment_mode === 'store_credit')
+          .reduce((sum, d) => sum + d.amount, 0);
+
+        if (storeCreditPaid > 0) {
+          newCreditBalance -= storeCreditPaid;
+        }
+
+        // Add payment entry into CustomerLedger (reduces due)
+        newCreditBalance += addedPaid;
+
+        await CustomerLedger.create({
+          customer_id: targetCustomer.id,
+          bill_id: bill.id,
+          type: 'bill_payment',
+          amount: addedPaid,
+          balance_after: newCreditBalance,
+          payment_method: addedMethodLabel,
+          notes: `Payment of RM ${addedPaid.toFixed(2)} collected for bill #${bill.bill_number}`,
+        }, { transaction });
+
+        await targetCustomer.update({
+          credit_balance: newCreditBalance,
+        }, { transaction });
+      }
+    }
+
+    await transaction.commit();
+
+    // Fetch updated complete bill
+    const completeBill = await Bill.findByPk(bill.id, {
+      include: [
+        { model: BillLineItem, as: 'lineItems' },
+        { model: Outlet, attributes: ['id', 'name'] },
+        { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
+      ],
+    });
+
+    const formattedBill = {
+      id: completeBill.id,
+      billNumber: completeBill.bill_number,
+      createdAt: completeBill.createdAt,
+      customer: {
+        name: completeBill.customer_name,
+        phone: completeBill.customer_phone,
+      },
+      paymentMethod: completeBill.payment_method,
+      outletId: completeBill.outlet_id,
+      outletName: completeBill.Outlet?.name || 'Unknown',
+      status: completeBill.status,
+      subtotal: Number(completeBill.subtotal),
+      discountType: completeBill.discount_type,
+      discountValue: Number(completeBill.discount_value),
+      discountAmount: Number(completeBill.discount_amount),
+      couponId: completeBill.coupon_id,
+      couponCode: completeBill.coupon_code,
+      tax: Number(completeBill.tax),
+      total: Number(completeBill.total),
+      lineItems: completeBill.lineItems.map((li) => ({
+        id: li.id,
+        itemId: li.item_id,
+        itemType: li.item_type,
+        itemName: li.item_name,
+        qty: li.qty,
+        price: Number(li.price),
+        staffAssigned: li.staff_assigned,
+        productConsumption: li.product_consumption,
+        includedServices: li.included_services,
+      })),
+      payments: (completeBill.payments || []).map((p) => ({
+        id: p.id,
+        totalAmount: Number(p.total_amount),
+        status: p.status,
+        transactionReference: p.transaction_reference || '',
+        notes: p.notes || '',
+        paymentDate: p.payment_date,
+        details: (p.details || []).map((d) => ({
+          id: d.id,
+          paymentMode: d.payment_mode,
+          amount: Number(d.amount),
+          bankAccountId: d.bank_account_id || null,
+        })),
+      })),
+    };
+
+    return res.status(200).json({
+      message: 'Payment added successfully.',
+      bill: formattedBill,
+    });
+  } catch (err) {
+    await transaction.rollback();
+    console.error('Error adding payment to bill:', err);
+    return res.status(500).json({ message: 'Server error adding payment to bill.' });
+  }
+};
+
+// PUT /api/pos/bills/:id
+const updateBill = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const {
+      customer,
+      lineItems,
+      discountType,
+      discountValue,
+      discountAmount,
+      tax,
+      subtotal,
+      total,
+      couponId,
+      couponCode,
+      paymentDetails,
+      paymentMethod,
+      transactionReference,
+      paymentNotes,
+    } = req.body;
+
+    const bill = await Bill.findByPk(id, {
+      include: [
+        { model: BillLineItem, as: 'lineItems' },
+        { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
+      ],
+      transaction,
+    });
+
+    if (!bill) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Bill not found.' });
+    }
+
+    const outletId = bill.outlet_id;
+
+    // 1. Update customer info if provided
+    if (customer) {
+      if (customer.name !== undefined) bill.customer_name = customer.name.trim() || 'Walk-in Guest';
+      if (customer.phone !== undefined) bill.customer_phone = customer.phone.trim() || '';
+    }
+
+    // 2. Process Line Items update if provided
+    if (Array.isArray(lineItems) && lineItems.length > 0) {
+      // Step A: Restore inventory for existing line items
+      for (const oldItem of bill.lineItems) {
+        if (oldItem.item_type === 'product') {
+          const product = await Product.findByPk(oldItem.item_id, {
+            include: [{ model: UnitMaster, as: 'unitMaster' }],
+            transaction,
+          });
+          const unit = oldItem.product_consumption?.unit || 'primary';
+          const restoration = product && product.unitMaster
+            ? convertToBase(Number(oldItem.qty), Number(product.unitMaster.conversion_ratio), unit)
+            : Number(oldItem.qty);
+
+          const invRecord = await OutletInventory.findOne({
+            where: { outlet_id: outletId, product_id: oldItem.item_id },
+            transaction,
+          });
+          if (invRecord) {
+            const currentStock = parseFloat(invRecord.current_stock);
+            await invRecord.update({ current_stock: currentStock + restoration }, { transaction });
+          }
+        } else if (oldItem.item_type === 'service' && oldItem.product_consumption?.length > 0) {
+          for (const consumption of oldItem.product_consumption) {
+            const product = await Product.findByPk(consumption.productId, {
+              include: [{ model: UnitMaster, as: 'unitMaster' }],
+              transaction,
+            });
+            if (!product) continue;
+            const consumptionUnit = consumption.unit || 'primary';
+            const baseRestoration = convertToBase(
+              Number(consumption.qty),
+              product.unitMaster?.conversion_ratio,
+              consumptionUnit
+            );
+            const invRecord = await OutletInventory.findOne({
+              where: { outlet_id: outletId, product_id: consumption.productId },
+              transaction,
+            });
+            if (invRecord) {
+              const currentStock = parseFloat(invRecord.current_stock);
+              await invRecord.update({ current_stock: currentStock + baseRestoration }, { transaction });
+            }
+          }
+        } else if (oldItem.item_type === 'package' && oldItem.included_services?.length > 0) {
+          for (const svcItem of oldItem.included_services) {
+            if (!svcItem.productConsumption?.length) continue;
+            for (const consumption of svcItem.productConsumption) {
+              const product = await Product.findByPk(consumption.productId, {
+                include: [{ model: UnitMaster, as: 'unitMaster' }],
+                transaction,
+              });
+              if (!product) continue;
+              const consumptionUnit = consumption.unit || 'primary';
+              const baseRestoration = convertToBase(
+                Number(consumption.qty),
+                product.unitMaster?.conversion_ratio,
+                consumptionUnit
+              );
+              const invRecord = await OutletInventory.findOne({
+                where: { outlet_id: outletId, product_id: consumption.productId },
+                transaction,
+              });
+              if (invRecord) {
+                const currentStock = parseFloat(invRecord.current_stock);
+                await invRecord.update({ current_stock: currentStock + baseRestoration }, { transaction });
+              }
+            }
+          }
+        }
+      }
+
+      // Step B: Delete old line items
+      await BillLineItem.destroy({ where: { bill_id: bill.id }, transaction });
+
+      // Step C: Create new line items
+      const lineItemRecords = lineItems.map((item) => ({
+        bill_id: bill.id,
+        item_id: item.itemId || item.id,
+        item_type: item.itemType || 'service',
+        item_name: item.itemName,
+        qty: Number(item.qty) || 1,
+        price: Number(item.price) || 0,
+        staff_assigned: item.staffAssigned || null,
+        product_consumption: item.itemType === 'product' ? { unit: item.unit, abbr: item.unitAbbr } : (item.productConsumption || null),
+        included_services: item.includedServices || null,
+      }));
+      await BillLineItem.bulkCreate(lineItemRecords, { transaction });
+
+      // Step D: Deduct inventory for new line items
+      for (const item of lineItems) {
+        if (item.itemType === 'service' && item.productConsumption?.length > 0) {
+          for (const consumption of item.productConsumption) {
+            const product = await Product.findByPk(consumption.productId, {
+              include: [{ model: UnitMaster, as: 'unitMaster' }],
+              transaction,
+            });
+            if (!product) continue;
+            const consumptionUnit = consumption.unit || 'primary';
+            const baseDeduction = convertToBase(
+              Number(consumption.qty),
+              product.unitMaster?.conversion_ratio,
+              consumptionUnit
+            );
+            const invRecord = await OutletInventory.findOne({
+              where: { outlet_id: outletId, product_id: consumption.productId },
+              transaction,
+            });
+            if (invRecord) {
+              const currentStock = parseFloat(invRecord.current_stock);
+              await invRecord.update({ current_stock: currentStock - baseDeduction }, { transaction });
+            }
+          }
+        } else if (item.itemType === 'product') {
+          const product = await Product.findByPk(item.itemId || item.id, {
+            include: [{ model: UnitMaster, as: 'unitMaster' }],
+            transaction,
+          });
+          const unit = item.unit || 'primary';
+          const deduction = product && product.unitMaster
+            ? convertToBase(Number(item.qty), Number(product.unitMaster.conversion_ratio), unit)
+            : Number(item.qty);
+
+          const invRecord = await OutletInventory.findOne({
+            where: { outlet_id: outletId, product_id: item.itemId || item.id },
+            transaction,
+          });
+          if (invRecord) {
+            const currentStock = parseFloat(invRecord.current_stock);
+            await invRecord.update({ current_stock: currentStock - deduction }, { transaction });
+          }
+        } else if (item.itemType === 'package' && item.includedServices?.length > 0) {
+          for (const svcItem of item.includedServices) {
+            if (!svcItem.productConsumption?.length) continue;
+            for (const consumption of svcItem.productConsumption) {
+              const product = await Product.findByPk(consumption.productId, {
+                include: [{ model: UnitMaster, as: 'unitMaster' }],
+                transaction,
+              });
+              if (!product) continue;
+              const consumptionUnit = consumption.unit || 'primary';
+              const baseDeduction = convertToBase(
+                Number(consumption.qty),
+                product.unitMaster?.conversion_ratio,
+                consumptionUnit
+              );
+              const invRecord = await OutletInventory.findOne({
+                where: { outlet_id: outletId, product_id: consumption.productId },
+                transaction,
+              });
+              if (invRecord) {
+                const currentStock = parseFloat(invRecord.current_stock);
+                await invRecord.update({ current_stock: currentStock - baseDeduction }, { transaction });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Update totals & discounts
+    const calculatedSubtotal = subtotal !== undefined
+      ? Number(subtotal)
+      : (Array.isArray(lineItems) ? lineItems.reduce((s, item) => s + (Number(item.qty) * Number(item.price)), 0) : Number(bill.subtotal));
+
+    const calcDiscountType = discountType !== undefined ? discountType : bill.discount_type;
+    const calcDiscountValue = discountValue !== undefined ? Number(discountValue) : Number(bill.discount_value);
+
+    let calcDiscountAmount = 0;
+    if (discountAmount !== undefined) {
+      calcDiscountAmount = Number(discountAmount);
+    } else if (calcDiscountType === 'fixed') {
+      calcDiscountAmount = Math.min(calculatedSubtotal, calcDiscountValue);
+    } else if (calcDiscountType === 'percent' || calcDiscountType === 'percentage') {
+      calcDiscountAmount = (calculatedSubtotal * calcDiscountValue) / 100;
+    }
+
+    const calculatedTax = tax !== undefined ? Number(tax) : Number(bill.tax);
+    const calculatedTotal = total !== undefined
+      ? Number(total)
+      : Math.max(0, calculatedSubtotal - calcDiscountAmount + calculatedTax);
+
+    // 4. Replace payments if paymentDetails provided in the request
+    const validModes = ['cash', 'card', 'upi', 'bank_transfer', 'cheque', 'store_credit'];
+    let totalPaid = 0;
+
+    if (Array.isArray(paymentDetails)) {
+      const newPaymentDetailRows = paymentDetails
+        .filter((d) => validModes.includes(d.paymentMode) && Number(d.amount) > 0)
+        .map((d) => ({ payment_mode: d.paymentMode, amount: Number(d.amount), bank_account_id: d.bankAccountId || null }));
+
+      // Delete existing payments and their details
+      const existingPaymentIds = (bill.payments || []).map((p) => p.id);
+      if (existingPaymentIds.length > 0) {
+        await PaymentDetail.destroy({ where: { payment_id: existingPaymentIds }, transaction });
+        await Payment.destroy({ where: { id: existingPaymentIds }, transaction });
+      }
+
+      // Create new payment record if any valid details exist
+      if (newPaymentDetailRows.length > 0) {
+        totalPaid = newPaymentDetailRows.reduce((s, d) => s + d.amount, 0);
+        const newPayment = await Payment.create({
+          bill_id: bill.id,
+          payment_method: paymentMethod || 'Cash',
+          total_amount: totalPaid,
+          status: 'completed',
+          transaction_reference: transactionReference || null,
+          notes: paymentNotes || null,
+          payment_date: new Date(),
+        }, { transaction });
+        await PaymentDetail.bulkCreate(
+          newPaymentDetailRows.map((d) => ({ ...d, payment_id: newPayment.id })),
+          { transaction }
+        );
+      }
+    } else {
+      // paymentDetails not sent — keep old payments, sum them for status
+      (bill.payments || []).forEach((p) => {
+        (p.details || []).forEach((d) => {
+          totalPaid += Number(d.amount || 0);
+        });
+      });
+    }
+
+    // 5. Determine new bill status based on total paid vs updated total
+    let newStatus = 'unpaid';
+    if (totalPaid >= calculatedTotal && calculatedTotal > 0) {
+      newStatus = 'paid';
+    } else if (totalPaid > 0) {
+      newStatus = 'partially_paid';
+    } else if (totalPaid === 0 && calculatedTotal === 0) {
+      newStatus = 'paid';
+    }
+
+    await bill.update({
+      subtotal: calculatedSubtotal,
+      discount_type: calcDiscountType || null,
+      discount_value: calcDiscountValue || 0,
+      discount_amount: calcDiscountAmount || 0,
+      tax: calculatedTax,
+      total: calculatedTotal,
+      payment_method: paymentMethod !== undefined ? paymentMethod : bill.payment_method,
+      status: newStatus,
+      coupon_id: couponId !== undefined ? couponId : bill.coupon_id,
+      coupon_code: couponCode !== undefined ? couponCode : bill.coupon_code,
+    }, { transaction });
+
+    await transaction.commit();
+
+    // Fetch updated complete bill
+    const completeBill = await Bill.findByPk(bill.id, {
+      include: [
+        { model: BillLineItem, as: 'lineItems' },
+        { model: Outlet, attributes: ['id', 'name'] },
+        { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
+      ],
+    });
+
+    const response = {
+      id: completeBill.id,
+      billNumber: completeBill.bill_number,
+      createdAt: completeBill.createdAt,
+      customer: {
+        name: completeBill.customer_name,
+        phone: completeBill.customer_phone,
+      },
+      paymentMethod: completeBill.payment_method,
+      outletId: completeBill.outlet_id,
+      outletName: completeBill.Outlet?.name || 'Unknown',
+      status: completeBill.status,
+      subtotal: Number(completeBill.subtotal),
+      discountType: completeBill.discount_type,
+      discountValue: Number(completeBill.discount_value),
+      discountAmount: Number(completeBill.discount_amount),
+      couponId: completeBill.coupon_id,
+      couponCode: completeBill.coupon_code,
+      tax: Number(completeBill.tax),
+      total: Number(completeBill.total),
+      lineItems: completeBill.lineItems.map((li) => ({
+        id: li.id,
+        itemId: li.item_id,
+        itemType: li.item_type,
+        itemName: li.item_name,
+        qty: li.qty,
+        price: Number(li.price),
+        staffAssigned: li.staff_assigned,
+        productConsumption: li.product_consumption,
+        includedServices: li.included_services,
+      })),
+      payments: (completeBill.payments || []).map((p) => ({
+        id: p.id,
+        totalAmount: Number(p.total_amount),
+        status: p.status,
+        transactionReference: p.transaction_reference || '',
+        notes: p.notes || '',
+        paymentDate: p.payment_date,
+        details: (p.details || []).map((d) => ({
+          id: d.id,
+          paymentMode: d.payment_mode,
+          amount: Number(d.amount),
+          bankAccountId: d.bank_account_id || null,
+        })),
+      })),
+    };
+
+    return res.status(200).json({
+      message: 'Invoice updated successfully.',
+      bill: response,
+    });
+  } catch (err) {
+    await transaction.rollback();
+    console.error('Error updating invoice:', err);
+    return res.status(500).json({ message: 'Server error updating invoice.' });
+  }
+};
+
 module.exports = {
   getCatalog,
   checkout,
   getBills,
   getBillById,
+  addBillPayment,
+  updateBill,
 };

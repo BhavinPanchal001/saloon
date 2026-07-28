@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const escpos = require('escpos');
 escpos.USB = require('escpos-usb');
 
@@ -11,7 +12,7 @@ try {
   // escpos-network not installed — network printing not available
 }
 
-const CONFIG_FILE = path.join(__dirname, '../config/printerConfig.json');
+const CONFIG_FILE = path.join(os.homedir(), '.glowy-saloon', 'printerConfig.json');
 
 // Default config structure
 const defaultConfig = {
@@ -175,9 +176,9 @@ const savePrinterConfig = (newConfig = {}) => {
       fs.mkdirSync(dir, { recursive: true });
     }
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentConfig, null, 2), 'utf8');
-    console.log('[ThermalPrinter] Saved new printer settings to printerConfig.json:', currentConfig);
+    console.log('[ThermalPrinter] Saved printer settings to:', CONFIG_FILE);
   } catch (err) {
-    console.error('[ThermalPrinter] Failed to save config file:', err);
+    console.error('[ThermalPrinter] Failed to save printer config file:', err);
   }
 
   return getPrinterStatus();

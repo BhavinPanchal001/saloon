@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState, useRef } from "react";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchStaff, fetchSettings } from "../../services/mockApi";
-import { fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI, validateCouponAPI } from "../../services/api";
+import { fetchStaff, fetchSettings, fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI, validateCouponAPI, fetchCustomersAPI, fetchBillByIdFromAPI, updateBillAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase } from "../../utils/unitConversion";
 import { InvoiceModal } from "./InvoiceModal";
-import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle, CreditCard, Keyboard, HelpCircle, X } from "lucide-react";
+import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle, CreditCard, Keyboard, HelpCircle, X, User, Edit, ChevronDown, ChevronUp } from "lucide-react";
 import BankSelector from "../../modules/bank/components/BankSelector";
 
-const paymentMethods = ["Cash", "Card", "UPI", "Split"];
+const paymentMethods = ["Cash", "Card", "UPI", "Store Credit", "Split"];
 
 const createLineId = () => `line_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -21,6 +21,29 @@ export function POSPage() {
   const [filteredCatalog, setFilteredCatalog] = useState([]);
   const [staffMembers, setStaffMembers] = useState([]);
   const [customer, setCustomer] = useState({ name: "", phone: "" });
+  const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedCrmCustomer, setSelectedCrmCustomer] = useState(null);
+
+  const resetCustomerFields = () => {
+    setSelectedCrmCustomer(null);
+    setCustomer({ name: "", phone: "" });
+  };
+
+  const handleCustomerSearch = async (query) => {
+    if (!query || query.trim().length < 2) {
+      setCustomerSuggestions([]);
+      setShowCustomerDropdown(false);
+      return;
+    }
+    try {
+      const res = await fetchCustomersAPI({ search: query });
+      setCustomerSuggestions(res.customers || []);
+      setShowCustomerDropdown(true);
+    } catch (err) {
+      console.error("Failed to fetch customer suggestions:", err);
+    }
+  };
   const [cart, setCart] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [selectedBankId, setSelectedBankId] = useState("");
@@ -39,12 +62,152 @@ export function POSPage() {
   const [couponLoading, setCouponLoading] = useState(false);
   const [stockErrors, setStockErrors] = useState([]);
   const [allowOutOfStockCheckout, setAllowOutOfStockCheckout] = useState(false);
-  const [paymentDetails, setPaymentDetails] = useState([{ paymentMode: "cash", amount: "", bankAccountId: "" }]);
+  const [paymentDetails, setPaymentDetails] = useState([]);
   const [transactionReference, setTransactionReference] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [showShortcutGuide, setShowShortcutGuide] = useState(false);
+  const [showBillBreakdown, setShowBillBreakdown] = useState(false);
   const searchInputRef = useRef(null);
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const [editingBillId, setEditingBillId] = useState(null);
+  const [editingBillNumber, setEditingBillNumber] = useState("");
+
+  // Load bill for editing if editBillId query param or state exists
+  useEffect(() => {
+    const editBillId = searchParams.get("editBillId");
+    const stateBill = location.state?.editBill;
+
+    if (!editBillId && !stateBill) return;
+
+    const loadBillToEdit = async () => {
+      try {
+        let billData = stateBill;
+        if (!billData && editBillId) {
+          billData = await fetchBillByIdFromAPI(editBillId);
+        }
+        if (!billData) return;
+
+        setEditingBillId(billData.id);
+        setEditingBillNumber(billData.billNumber || "");
+        if (billData.outletId) {
+          setSelectedOutlet(billData.outletId);
+        }
+
+        // Predefine customer
+        setCustomer({
+          name: billData.customer?.name || "",
+          phone: billData.customer?.phone || "",
+        });
+
+        // Predefine discounts
+        setDiscountType(billData.discountType || "percent");
+        setDiscountValue(billData.discountValue !== undefined && billData.discountValue !== null ? String(billData.discountValue) : "");
+        if (billData.couponCode) {
+          setAppliedCoupon({ code: billData.couponCode, coupon_id: billData.couponId });
+        }
+
+        // Predefine payments
+        if (billData.paymentMethod) {
+          setPaymentMethod(billData.paymentMethod);
+        }
+
+        const rawPayments = billData.payments || [];
+        const loadedPaymentDetails = rawPayments.flatMap((p) =>
+          (p.details || []).map((d) => ({
+            paymentMode: d.paymentMode || d.payment_mode || "cash",
+            amount: d.amount !== undefined && d.amount !== null ? String(d.amount) : "",
+            bankAccountId: d.bankAccountId || d.bank_account_id || "",
+          }))
+        );
+
+        if (loadedPaymentDetails.length > 0) {
+          setPaymentDetails(loadedPaymentDetails);
+        } else if (billData.paymentMethod && billData.paymentMethod !== "Unpaid") {
+          const modeMap = { Cash: "cash", Card: "card", UPI: "upi", "Store Credit": "store_credit", Split: "cash" };
+          const mode = modeMap[billData.paymentMethod] || "cash";
+          setPaymentDetails([{ paymentMode: mode, amount: String(billData.total || 0), bankAccountId: "" }]);
+        } else {
+          setPaymentDetails([]);
+        }
+
+        const firstPayment = rawPayments[0];
+        if (firstPayment?.transactionReference) {
+          setTransactionReference(firstPayment.transactionReference);
+        } else {
+          setTransactionReference("");
+        }
+        if (firstPayment?.notes) {
+          setPaymentNotes(firstPayment.notes);
+        } else {
+          setPaymentNotes("");
+        }
+
+        // Map line items to cart lines
+        const loadedCart = (billData.lineItems || []).map((li) => {
+          return {
+            lineId: createLineId(),
+            id: li.itemId || li.id,
+            name: li.itemName,
+            price: Number(li.price) || 0,
+            type: li.itemType || "service",
+            quantity: Number(li.qty) || 1,
+            staffId: li.staffAssigned || "",
+            unit: li.productConsumption?.unit || "primary",
+            productLinkages: (li.productConsumption && Array.isArray(li.productConsumption))
+              ? li.productConsumption.map((c) => ({
+                  inventoryId: c.productId,
+                  currentQty: c.qty,
+                  currentUnit: c.unit || "primary",
+                }))
+              : [],
+            serviceItems: (li.includedServices && Array.isArray(li.includedServices))
+              ? li.includedServices.map((svc) => ({
+                  serviceId: svc.serviceId,
+                  serviceName: svc.serviceName,
+                  sessions: svc.sessions,
+                  enabled: true,
+                  staffId: svc.staffAssigned || "",
+                  productLinkages: (svc.productConsumption || []).map((link) => ({
+                    inventoryId: link.productId,
+                    currentQty: link.qty,
+                    currentUnit: link.unit || "primary",
+                    enabled: true,
+                  })),
+                }))
+              : [],
+          };
+        });
+
+        setCart(loadedCart);
+        toast.info(`Editing Bill #${billData.billNumber}`);
+      } catch (err) {
+        console.error("Failed to load bill for editing:", err);
+        toast.error("Failed to load bill data for editing.");
+      }
+    };
+
+    loadBillToEdit();
+  }, [searchParams, location.state]);
+
+  const cancelEditingMode = () => {
+    setEditingBillId(null);
+    setEditingBillNumber("");
+    setCart([]);
+    resetCustomerFields();
+    setDiscountValue("");
+    setAppliedCoupon(null);
+    setPaymentMethod("");
+    setPaymentDetails([]);
+    setTransactionReference("");
+    setPaymentNotes("");
+    setSearchParams({});
+    toast.info("Exited bill editing mode.");
+  };
 
   useEffect(() => {
     const loadPOSSettings = async () => {
@@ -550,7 +713,7 @@ export function POSPage() {
   const isBankRequired = paymentMethod && paymentMethod !== "Cash";
   const hasStockErrors = stockErrors.length > 0;
 
-  const paymentModeMap = { Cash: "cash", Card: "card", UPI: "upi", Split: "split" };
+  const paymentModeMap = { Cash: "cash", Card: "card", UPI: "upi", "Store Credit": "store_credit", Split: "split" };
 
   const syncPaymentDetailsWithMethod = (method) => {
     if (method === "Split") {
@@ -579,7 +742,20 @@ export function POSPage() {
   };
 
   const removePaymentDetail = (idx) => {
-    setPaymentDetails((prev) => prev.filter((_, i) => i !== idx));
+    setPaymentDetails((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      if (next.length === 0) {
+        setPaymentMethod("");
+        setSelectedBankId("");
+      }
+      return next;
+    });
+  };
+
+  const clearPayment = () => {
+    setPaymentDetails([]);
+    setPaymentMethod("");
+    setSelectedBankId("");
   };
 
   const updatePaymentDetail = (idx, field, value) => {
@@ -591,18 +767,18 @@ export function POSPage() {
   // Derive the primary bank for the Payment record: first non-cash detail's bank, fallback to selectedBankId
   const primaryBankAccountId = paymentDetails.find((d) => d.paymentMode !== "cash" && d.bankAccountId)?.bankAccountId || selectedBankId || null;
 
-  // nonCashNeedsBank: true if any non-cash detail with an amount has no bank selected
+  // nonCashNeedsBank: true if any non-cash detail with an amount > 0 has no bank selected (excluding store credit)
   const nonCashNeedsBank = paymentDetails.some(
-    (d) => d.paymentMode !== "cash" && (Number(d.amount) > 0 || paymentDetails.length === 1) && !d.bankAccountId
+    (d) => d.paymentMode !== "cash" && d.paymentMode !== "store_credit" && Number(d.amount) > 0 && !d.bankAccountId
   );
 
   // Check if total entered in split breakdown matches the bill total
   const totalEnteredInBreakdown = paymentDetails.reduce((s, d) => s + (Number(d.amount) || 0), 0);
   const isSplitCovered = paymentMethod === "Split" || paymentDetails.length > 1
-    ? Math.abs(total - totalEnteredInBreakdown) < 0.01
+    ? (paymentDetails.length === 0 || Math.abs(total - totalEnteredInBreakdown) < 0.01)
     : true;
 
-  const canCheckout = cart.length > 0 && paymentMethod && isSplitCovered && !nonCashNeedsBank && (!hasStockErrors || allowOutOfStockCheckout);
+  const canCheckout = cart.length > 0 && isSplitCovered && !nonCashNeedsBank && (!hasStockErrors || allowOutOfStockCheckout);
 
   const handleCheckout = async () => {
     if (hasStockErrors && !allowOutOfStockCheckout) {
@@ -620,7 +796,7 @@ export function POSPage() {
       try {
         const outletList = outlets.length > 0 ? outlets : await fetchOutletsFromAPI();
         if (outletList && outletList.length > 0) {
-          outletId = outletList[0].id;
+          outletId = outletId || outletList[0].id;
           setSelectedOutlet(outletId);
         }
       } catch (e) {}
@@ -633,7 +809,7 @@ export function POSPage() {
 
     const payload = {
       customer,
-      paymentMethod,
+      paymentMethod: paymentMethod || "Unpaid",
       bankId: primaryBankAccountId,
       bankAccountId: primaryBankAccountId,
       outletId,
@@ -646,7 +822,7 @@ export function POSPage() {
       allowOutOfStockCheckout,
       couponId: appliedCoupon?.coupon_id || undefined,
       couponCode: appliedCoupon?.code || undefined,
-      paymentDetails: resolvedDetails.length > 0 ? resolvedDetails : undefined,
+      paymentDetails: resolvedDetails,
       transactionReference: transactionReference.trim() || undefined,
       paymentNotes: paymentNotes.trim() || undefined,
       lineItems: cart.map((line) => ({
@@ -692,23 +868,34 @@ export function POSPage() {
     };
 
     try {
-      const result = await checkoutBillAPI(payload);
+      let result;
+      if (editingBillId) {
+        const updateRes = await updateBillAPI(editingBillId, payload);
+        result = updateRes.bill || updateRes;
+        toast.success(`Bill #${editingBillNumber || result.billNumber} updated successfully!`);
+        setEditingBillId(null);
+        setEditingBillNumber("");
+        setSearchParams({});
+      } else {
+        result = await checkoutBillAPI(payload);
+        toast.success(`Bill ${result.billNumber} created successfully!`);
+      }
+
       setCurrentBill(result);
       setShowInvoice(true);
       setCart([]);
       setPaymentMethod("");
       setSelectedBankId("");
       setDiscountValue("");
-      setCustomer({ name: "", phone: "" });
+      resetCustomerFields();
       setPaymentDetails([{ paymentMode: "cash", amount: "", bankAccountId: "" }]);
       setTransactionReference("");
       setPaymentNotes("");
-      toast.success(`Bill ${result.billNumber} created successfully!`);
-      // Refresh outlet inventory after successful checkout
+      // Refresh outlet inventory after successful checkout/update
       refreshOutletInventory();
     } catch (err) {
-      console.error("Checkout failed:", err);
-      toast.error(err.message || "Checkout failed. Please try again. Your cart has been preserved.");
+      console.error("Checkout/Update failed:", err);
+      toast.error(err.message || "Operation failed. Please try again. Your cart has been preserved.");
     }
   };
 
@@ -783,6 +970,14 @@ export function POSPage() {
         toast.info("Selected UPI Payment (F9)");
         return;
       }
+      if (e.key === "F11" || (e.altKey && (e.key === "5" || e.key.toLowerCase() === "r"))) {
+        e.preventDefault();
+        setPaymentMethod("Store Credit");
+        syncPaymentDetailsWithMethod("Store Credit");
+        setSelectedBankId("");
+        toast.info("Selected Store Credit Payment (F11)");
+        return;
+      }
       if (e.key === "F10" || (e.altKey && (e.key === "4" || e.key.toLowerCase() === "s"))) {
         e.preventDefault();
         setPaymentMethod("Split");
@@ -799,9 +994,32 @@ export function POSPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="POS"
-        title="Point of Sale"
+        eyebrow={editingBillId ? "POS · Edit Mode" : "POS"}
+        title={editingBillId ? `Editing Bill #${editingBillNumber}` : "Point of Sale"}
       />
+
+      {editingBillId && (
+        <div className="mb-6 flex flex-wrap items-center justify-between rounded-2xl bg-amber-500/10 border border-amber-400/30 p-4 text-amber-900 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white font-bold shadow">
+              <Edit size={20} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Bill Editing Mode</p>
+              <p className="text-sm font-bold text-navy-900">
+                You are updating Invoice <span className="font-mono font-black text-amber-800">#{editingBillNumber}</span>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={cancelEditingMode}
+            className="flex items-center gap-1.5 rounded-xl border border-rose-300 bg-white px-3.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 transition shadow-sm"
+          >
+            <X size={14} /> Cancel Editing
+          </button>
+        </div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         {/* ── Catalog Panel ── */}
@@ -908,12 +1126,16 @@ export function POSPage() {
                   {item.name} {item.measureLabel && <span className="text-navy-400 font-normal ml-1">({item.measureLabel})</span>}
                 </p>
 
-                <p className="mt-1 text-[11px] text-slate-400 font-medium">
-                  {item.type === "service"
-                    ? `${item.duration} min`
-                    : item.type === "package"
-                      ? `${item.serviceCount} items · ${item.duration} min`
-                      : `${item.stock} in stock`}
+                <p className="mt-1 text-[11px] font-medium">
+                  {item.type === "service" ? (
+                    <span className="text-slate-400">{item.duration} min</span>
+                  ) : item.type === "package" ? (
+                    <span className="text-slate-400">{item.serviceCount} items · {item.duration} min</span>
+                  ) : (
+                    <span className={(selectedOutlet && stockByProductId[String(item.id)] !== undefined ? stockByProductId[String(item.id)] : item.stock) <= 0 ? "text-rose-500 font-semibold" : "text-slate-400"}>
+                      {selectedOutlet && stockByProductId[String(item.id)] !== undefined ? stockByProductId[String(item.id)] : item.stock} in stock
+                    </span>
+                  )}
                 </p>
 
                 {item.type === "package" && item.offerLabel && (
@@ -952,31 +1174,111 @@ export function POSPage() {
             )}
           </div>
 
-          {/* Customer fields */}
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className="premium-input !py-2.5 !text-sm"
-              placeholder="Guest Name"
-              value={customer.name}
-              onChange={(event) =>
-                setCustomer((current) => ({ ...current, name: event.target.value }))
-              }
-            />
-            <input
-              className="premium-input !py-2.5 !text-sm"
-              placeholder="Contact Number"
-              value={customer.phone}
-              onChange={(event) =>
-                setCustomer((current) => ({ ...current, phone: event.target.value }))
-              }
-            />
+          {/* Customer fields with CRM Lookup */}
+          <div className="relative space-y-1">
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className="premium-input !py-2.5 !text-sm"
+                placeholder="Guest Name (Search CRM...)"
+                value={customer.name}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  setCustomer((current) => ({ ...current, name: val }));
+                  if (!val) setSelectedCrmCustomer(null);
+                  handleCustomerSearch(val);
+                }}
+                onFocus={() => {
+                  if (customer.name && customerSuggestions.length > 0) setShowCustomerDropdown(true);
+                }}
+              />
+              <input
+                className="premium-input !py-2.5 !text-sm"
+                placeholder="Contact Number"
+                value={customer.phone}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  setCustomer((current) => ({ ...current, phone: val }));
+                  handleCustomerSearch(val);
+                }}
+              />
+            </div>
+
+            {/* Selected CRM Customer Tag */}
+            {selectedCrmCustomer && (
+              <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-100 text-xs text-indigo-700">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="font-semibold flex items-center gap-1.5 truncate">
+                    <User className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    CRM Client: {selectedCrmCustomer.name} ({selectedCrmCustomer.loyalty_points || 0} pts)
+                  </span>
+                  {Number(selectedCrmCustomer.credit_balance || 0) > 0 ? (
+                    <span className="text-[10px] font-bold text-emerald-700">
+                      Available Store Credit: +₹{Number(selectedCrmCustomer.credit_balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  ) : Number(selectedCrmCustomer.credit_balance || 0) < 0 ? (
+                    <span className="text-[10px] font-bold text-rose-700">
+                      Outstanding Due: -₹{Math.abs(Number(selectedCrmCustomer.credit_balance)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 font-medium">Store Credit: ₹0.00</span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={resetCustomerFields}
+                  className="text-indigo-400 hover:text-indigo-600 ml-2 shrink-0"
+                  title="Clear customer selection"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Autocomplete Dropdown */}
+            {showCustomerDropdown && customerSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-48 overflow-y-auto">
+                <div className="p-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Matching CRM Clients ({customerSuggestions.length})
+                </div>
+                {customerSuggestions.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setCustomer({ id: c.id, name: c.name, phone: c.phone });
+                      setSelectedCrmCustomer(c);
+                      setShowCustomerDropdown(false);
+                    }}
+                    className="p-2.5 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-100 last:border-0 flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">{c.name}</p>
+                      <p className="text-[11px] text-slate-500">{c.phone} {c.email ? `· ${c.email}` : ''}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        {c.loyalty_points || 0} pts
+                      </span>
+                      {Number(c.credit_balance || 0) > 0 ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          +₹{Number(c.credit_balance).toLocaleString("en-IN")} Credit
+                        </span>
+                      ) : Number(c.credit_balance || 0) < 0 ? (
+                        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                          -₹{Math.abs(Number(c.credit_balance)).toLocaleString("en-IN")} Due
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Cart items */}
           <div>
             <p className="premium-label !mb-2">Cart Items ({cart.length})</p>
             {cart.length ? (
-              <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
+              <div className={`space-y-3 ${showBillBreakdown ? "max-h-[280px]" : "max-h-[480px]"} overflow-y-auto pr-1 custom-scrollbar transition-all duration-300`}>
                 {cart.map((line) => (
                   <div key={line.lineId} className="rounded-xl border border-navy-200 bg-white p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
@@ -1338,126 +1640,181 @@ export function POSPage() {
 
           {/* Totals + payment */}
           <div className="rounded-2xl border border-navy-100 bg-navy-950/5 p-4">
-            {/* Coupon Code Row */}
-            <div className="mb-3">
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="text"
-                  placeholder="Coupon Code"
-                  value={couponCodeInput}
-                  onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
-                  disabled={Boolean(appliedCoupon)}
-                  className="flex-1 rounded-lg border border-navy-200 bg-white px-2.5 py-1 text-xs font-mono font-bold uppercase text-navy-800 focus:outline-none focus:border-navy-400 disabled:bg-gray-100"
-                />
+            {/* Expandable Discounts & Summary Breakdown Header */}
+            <button
+              type="button"
+              onClick={() => setShowBillBreakdown((prev) => !prev)}
+              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white border border-navy-100 hover:border-navy-300 hover:bg-navy-50/50 transition-all text-left mb-3 shadow-xs"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gold-100 text-gold-700">
+                  <Tag className="h-3.5 w-3.5" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-navy-900 truncate">
+                    Discounts & Summary Breakdown
+                  </span>
+                  <span className="text-[10px] text-slate-500 truncate">
+                    Subtotal: <span className="font-semibold">{formatCurrency(subtotal)}</span> · Tax: <span className="font-semibold">{formatCurrency(tax)}</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 ml-2">
                 {appliedCoupon ? (
-                  <button
-                    type="button"
-                    onClick={handleRemoveCoupon}
-                    className="rounded-lg bg-red-100 text-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-red-200 transition"
-                  >
-                    Remove
-                  </button>
+                  <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700">
+                    Coupon: {appliedCoupon.code} (−{formatCurrency(appliedCoupon.discount_amount)})
+                  </span>
+                ) : discountAmount > 0 ? (
+                  <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700">
+                    Disc (−{formatCurrency(discountAmount)})
+                  </span>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleApplyCoupon}
-                    disabled={couponLoading || !couponCodeInput.trim()}
-                    className="rounded-lg bg-gold-500 text-navy-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-gold-400 transition disabled:opacity-50"
-                  >
-                    {couponLoading ? "..." : "Apply"}
-                  </button>
+                  <span className="text-[10px] font-bold text-navy-400">
+                    Add Discount
+                  </span>
+                )}
+                {showBillBreakdown ? (
+                  <ChevronUp className="h-4 w-4 text-navy-500" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-navy-500" />
                 )}
               </div>
-              {appliedCoupon && (
-                <div className="mt-1 text-[10px] font-bold text-emerald-600 flex items-center justify-between px-0.5">
-                  <span>Code '{appliedCoupon.code}' Applied</span>
-                  <span>- {formatCurrency(appliedCoupon.discount_amount)}</span>
+            </button>
+
+            {/* Collapsible Section */}
+            {showBillBreakdown && (
+              <div className="space-y-3 mb-3 rounded-xl border border-navy-100 bg-white p-3 shadow-xs transition-all">
+                {/* Coupon Code Row */}
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Coupon Code"
+                      value={couponCodeInput}
+                      onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                      disabled={Boolean(appliedCoupon)}
+                      className="flex-1 rounded-lg border border-navy-200 bg-white px-2.5 py-1 text-xs font-mono font-bold uppercase text-navy-800 focus:outline-none focus:border-navy-400 disabled:bg-gray-100"
+                    />
+                    {appliedCoupon ? (
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="rounded-lg bg-red-100 text-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-red-200 transition"
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={couponLoading || !couponCodeInput.trim()}
+                        className="rounded-lg bg-gold-500 text-navy-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-gold-400 transition disabled:opacity-50"
+                      >
+                        {couponLoading ? "..." : "Apply"}
+                      </button>
+                    )}
+                  </div>
+                  {appliedCoupon && (
+                    <div className="mt-1 text-[10px] font-bold text-emerald-600 flex items-center justify-between px-0.5">
+                      <span>Code '{appliedCoupon.code}' Applied</span>
+                      <span>- {formatCurrency(appliedCoupon.discount_amount)}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Manual Discount Row (Disabled if Coupon is Applied) */}
-            <div className={`mb-3 flex items-center gap-2 ${appliedCoupon ? "opacity-40 pointer-events-none" : ""}`}>
-              <Tag className="h-3.5 w-3.5 text-gold-500 shrink-0" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-navy-400">Discount</span>
-              <div className="flex flex-1 items-center gap-1.5 ml-auto">
-                <button
-                  type="button"
-                  onClick={() => { setDiscountType("percent"); setDiscountValue(""); }}
-                  className={`rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition ${
-                    discountType === "percent"
-                      ? "bg-navy-900 text-white"
-                      : "border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
-                  }`}
-                >
-                  %
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setDiscountType("flat"); setDiscountValue(""); }}
-                  className={`rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition ${
-                    discountType === "flat"
-                      ? "bg-navy-900 text-white"
-                      : "border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
-                  }`}
-                >
-                  RM
-                </button>
-                <input
-                  type="number"
-                  min="0"
-                  max={discountType === "percent" ? 100 : undefined}
-                  placeholder={discountType === "percent" ? "0–100" : "Amount"}
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
-                  className="w-20 rounded-lg border border-navy-200 bg-white px-2 py-1 text-xs font-semibold text-navy-700 focus:outline-none focus:border-navy-400"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm font-medium text-navy-800">
-              <div className="flex items-center justify-between opacity-60">
-                <span>Subtotal</span>
-                <span className="font-bold">{formatCurrency(subtotal)}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div className="flex items-center justify-between text-emerald-600">
-                  <span>Discount {discountType === "percent" ? `(${discountValue}%)` : "(Flat)"}</span>
-                  <span className="font-bold">− {formatCurrency(discountAmount)}</span>
+                {/* Manual Discount Row (Disabled if Coupon is Applied) */}
+                <div className={`flex items-center gap-2 ${appliedCoupon ? "opacity-40 pointer-events-none" : ""}`}>
+                  <Tag className="h-3.5 w-3.5 text-gold-500 shrink-0" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-navy-400">Discount</span>
+                  <div className="flex flex-1 items-center gap-1.5 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => { setDiscountType("percent"); setDiscountValue(""); }}
+                      className={`rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition ${
+                        discountType === "percent"
+                          ? "bg-navy-900 text-white"
+                          : "border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                      }`}
+                    >
+                      %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDiscountType("flat"); setDiscountValue(""); }}
+                      className={`rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition ${
+                        discountType === "flat"
+                          ? "bg-navy-900 text-white"
+                          : "border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                      }`}
+                    >
+                      RM
+                    </button>
+                    <input
+                      type="number"
+                      min="0"
+                      max={discountType === "percent" ? 100 : undefined}
+                      placeholder={discountType === "percent" ? "0–100" : "Amount"}
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                      className="w-20 rounded-lg border border-navy-200 bg-white px-2 py-1 text-xs font-semibold text-navy-700 focus:outline-none focus:border-navy-400"
+                    />
+                  </div>
                 </div>
-              )}
-              <div className="flex items-center justify-between opacity-60">
-                <span>Tax (8%)</span>
-                <span className="font-bold">{formatCurrency(tax)}</span>
+
+                {/* Breakdown summary lines */}
+                <div className="space-y-1.5 pt-2 border-t border-navy-100 text-xs font-medium text-navy-800">
+                  <div className="flex items-center justify-between opacity-70">
+                    <span>Subtotal</span>
+                    <span className="font-bold">{formatCurrency(subtotal)}</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="flex items-center justify-between text-emerald-600">
+                      <span>Discount {discountType === "percent" ? `(${discountValue}%)` : "(Flat)"}</span>
+                      <span className="font-bold">− {formatCurrency(discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between opacity-70">
+                    <span>Tax (8%)</span>
+                    <span className="font-bold">{formatCurrency(tax)}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between border-t border-navy-100 pt-3 text-lg font-black text-navy-900">
-                <span>Total Due</span>
-                <span>{formatCurrency(total)}</span>
-              </div>
+            )}
+
+            {/* Total Due (Always visible) */}
+            <div className="flex items-center justify-between py-2 px-1 text-lg font-black text-navy-900 border-t border-navy-100">
+              <span>Total Due</span>
+              <span className="text-xl text-navy-950 font-black">{formatCurrency(total)}</span>
             </div>
 
-            <div className="mt-3 grid grid-cols-4 gap-1.5">
+            <div className="mt-3 grid grid-cols-5 gap-1 shadow-sm">
               {paymentMethods.map((method) => {
-                const hotkeys = { Cash: "F4", Card: "F8", UPI: "F9", Split: "F10" };
+                const hotkeys = { Cash: "F4", Card: "F8", UPI: "F9", "Store Credit": "F11", Split: "F10" };
+                const isSelected = paymentMethod === method;
                 return (
                   <button
                     key={method}
                     type="button"
                     className={
-                      paymentMethod === method
-                        ? "rounded-xl bg-navy-900 py-2.5 text-[10px] font-black uppercase tracking-widest text-white ring-2 ring-navy-300"
-                        : "rounded-xl border border-navy-100 bg-white py-2.5 text-[10px] font-black uppercase tracking-widest text-navy-600 transition hover:bg-navy-50"
+                      isSelected
+                        ? "rounded-xl bg-navy-900 py-2.5 text-[9px] font-black uppercase tracking-wider text-white ring-2 ring-navy-300"
+                        : "rounded-xl border border-navy-100 bg-white py-2.5 text-[9px] font-black uppercase tracking-wider text-navy-600 transition hover:bg-navy-50"
                     }
                     onClick={() => {
-                      setPaymentMethod(method);
-                      syncPaymentDetailsWithMethod(method);
-                      if (method === "Cash") {
-                        setSelectedBankId("");
+                      if (isSelected) {
+                        clearPayment();
+                      } else {
+                        setPaymentMethod(method);
+                        syncPaymentDetailsWithMethod(method);
+                        if (method === "Cash" || method === "Store Credit") {
+                          setSelectedBankId("");
+                        }
                       }
                     }}
                   >
                     <div>{method}</div>
-                    <span className={`text-[8px] font-mono font-bold ${paymentMethod === method ? "text-navy-300" : "text-navy-400"}`}>
+                    <span className={`text-[8px] font-mono font-bold ${isSelected ? "text-navy-300" : "text-navy-400"}`}>
                       [{hotkeys[method]}]
                     </span>
                   </button>
@@ -1465,20 +1822,29 @@ export function POSPage() {
               })}
             </div>
 
-            {/* Split Payment Details */}
-            {paymentMethod && (
+            {/* Payment Details / Breakdown */}
+            {paymentMethod || paymentDetails.length > 0 ? (
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black uppercase tracking-widest text-navy-400 flex items-center gap-1">
                     <CreditCard className="h-3 w-3" /> Payment Breakdown
                   </span>
-                  <button
-                    type="button"
-                    onClick={addPaymentDetail}
-                    className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700"
-                  >
-                    + Add Method
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={clearPayment}
+                      className="text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:text-rose-700 transition"
+                    >
+                      Remove / Clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addPaymentDetail}
+                      className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700"
+                    >
+                      + Add Method
+                    </button>
+                  </div>
                 </div>
                 {paymentDetails.map((detail, idx) => (
                   <div key={idx} className="space-y-1.5 rounded-xl border border-navy-100 bg-white p-2">
@@ -1494,6 +1860,7 @@ export function POSPage() {
                         <option value="cash">Cash</option>
                         <option value="card">Card</option>
                         <option value="upi">UPI</option>
+                        <option value="store_credit">Store Credit</option>
                         <option value="bank_transfer">Bank Transfer</option>
                         <option value="cheque">Cheque</option>
                       </select>
@@ -1508,15 +1875,14 @@ export function POSPage() {
                         }}
                         className="w-28 rounded-lg border border-navy-200 bg-white px-2 py-1.5 text-xs font-semibold text-navy-700 text-right focus:outline-none focus:border-navy-400"
                       />
-                      {paymentDetails.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removePaymentDetail(idx)}
-                          className="text-rose-400 hover:text-rose-600 flex-shrink-0"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => removePaymentDetail(idx)}
+                        className="text-rose-400 hover:text-rose-600 flex-shrink-0 p-1 hover:bg-rose-50 rounded-lg transition"
+                        title="Remove payment detail"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                     {detail.paymentMode !== "cash" && (
                       <BankSelector
@@ -1530,6 +1896,22 @@ export function POSPage() {
                     )}
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="mt-3 flex items-center justify-between rounded-xl border border-amber-200/70 bg-amber-50/50 p-2.5 text-xs text-amber-800">
+                <span className="font-semibold">No payment detail added (Unpaid / Pay Later bill)</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod("Cash");
+                    syncPaymentDetailsWithMethod("Cash");
+                  }}
+                  className="text-[10px] font-black uppercase tracking-wider text-navy-900 underline hover:text-navy-700"
+                >
+                  + Add Payment
+                </button>
+              </div>
+            )}
                 {/* Running total vs bill total */}
                 {(() => {
                   const entered = paymentDetails.reduce((s, d) => s + (Number(d.amount) || 0), 0);
@@ -1544,7 +1926,6 @@ export function POSPage() {
                   );
                 })()}
               </div>
-            )}
 
             {/* Transaction Ref + Notes */}
             {paymentMethod && (
@@ -1575,14 +1956,6 @@ export function POSPage() {
               </div>
             )}
 
-            {cart.length > 0 && !paymentMethod && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
-                <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <span>Select a payment method to continue</span>
-              </div>
-            )}
 
             {cart.length > 0 && paymentMethod && !isSplitCovered && (
               <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
@@ -1654,13 +2027,11 @@ export function POSPage() {
               onClick={handleCheckout}
               disabled={!canCheckout}
             >
-              <span>Complete Billing</span>
+              <span>{editingBillId ? `Update Invoice #${editingBillNumber}` : "Complete Billing"}</span>
               <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-mono font-bold text-white">Ctrl+↵ / F12</kbd>
             </button>
           </div>
-
         </div>
-      </div>
 
       {showInvoice && (
         <InvoiceModal
@@ -1779,6 +2150,10 @@ export function POSPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showInvoice && currentBill && (
+        <InvoiceModal bill={currentBill} onClose={() => setShowInvoice(false)} />
       )}
     </div>
   );

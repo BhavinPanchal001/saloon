@@ -16,6 +16,10 @@ const Bill = sequelize.define('Bill', {
     type: DataTypes.INTEGER.UNSIGNED,
     allowNull: false,
   },
+  customer_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+  },
   customer_name: {
     type: DataTypes.STRING(100),
     allowNull: true,
@@ -25,8 +29,9 @@ const Bill = sequelize.define('Bill', {
     allowNull: true,
   },
   payment_method: {
-    type: DataTypes.ENUM('Cash', 'Card', 'UPI', 'Split'),
-    allowNull: false,
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    defaultValue: 'Unpaid',
   },
   bank_id: {
     type: DataTypes.INTEGER.UNSIGNED,
@@ -62,7 +67,7 @@ const Bill = sequelize.define('Bill', {
     defaultValue: 0,
   },
   status: {
-    type: DataTypes.ENUM('paid', 'refunded'),
+    type: DataTypes.STRING(50),
     defaultValue: 'paid',
   },
   coupon_id: {

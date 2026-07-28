@@ -48,12 +48,66 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
 
+    const queryInterface = sequelize.getQueryInterface();
+
+    // Ensure new tables exist before alter sync
+    const tablesBeforeSync = await queryInterface.showAllTables();
+    if (!tablesBeforeSync.includes('customers')) {
+      console.log('[Migration] Creating customers table...');
+      const Customer = require('./models/Customer');
+      await Customer.sync({ force: true });
+    }
+    if (!tablesBeforeSync.includes('appointments')) {
+      console.log('[Migration] Creating appointments table...');
+      const Appointment = require('./models/Appointment');
+      await Appointment.sync({ force: true });
+    }
+
+    // Clean up duplicate indexes on banks table caused by repeated alter syncs
+    try {
+      const [indexes] = await sequelize.query("SHOW INDEX FROM banks WHERE Column_name = 'account_number'");
+      if (indexes && indexes.length > 2) {
+        console.log(`[Migration] Cleaning up duplicate indexes on banks.account_number...`);
+        const uniqueKeyNames = [...new Set(indexes.map(i => i.Key_name))].filter(k => k !== 'PRIMARY' && k !== 'account_number_2');
+        for (const keyName of uniqueKeyNames) {
+          try {
+            await sequelize.query(`ALTER TABLE banks DROP INDEX \`${keyName}\``);
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
     // Ensure models & tables exist
-    await sequelize.sync({ alter: true });
-    console.log('Database models synchronized successfully.');
+    try {
+      await sequelize.sync({ alter: true });
+      console.log('Database models synchronized successfully.');
+    } catch (syncErr) {
+      console.warn('[Warning] sequelize.sync alter failed (e.g. index limit reached), falling back to standard sync:', syncErr.message);
+      await sequelize.sync();
+      console.log('Database models synchronized via standard sync.');
+    }
+
+    // Seed Default Walk-in Guest customer
+    try {
+      const { Customer } = require('./models');
+      const [defaultGuest, created] = await Customer.findOrCreate({
+        where: { phone: '0000000000' },
+        defaults: {
+          name: 'Walk-in Guest',
+          phone: '0000000000',
+          email: 'walkin@glowy.local',
+          gender: 'female',
+          credit_balance: 0.00,
+        },
+      });
+      if (created) {
+        console.log('[Seed] Created default Walk-in Guest customer (ID: ' + defaultGuest.id + ').');
+      }
+    } catch (guestErr) {
+      console.error('[Seed Error] Failed to seed Walk-in Guest customer:', guestErr.message);
+    }
 
     // Run migration check for services table
-    const queryInterface = sequelize.getQueryInterface();
     const tableInfo = await queryInterface.describeTable('services');
     if (!tableInfo.assigned_outlet_ids) {
       console.log('[Migration] Adding column assigned_outlet_ids to services...');
@@ -86,6 +140,13 @@ const startServer = async () => {
       const { Coupon } = require('./models');
       await Coupon.sync({ force: true });
       console.log('[Migration] Table coupons created successfully.');
+    }
+
+    if (!tables.includes('customer_ledgers')) {
+      console.log('[Migration] Creating customer_ledgers table...');
+      const CustomerLedger = require('./models/CustomerLedger');
+      await CustomerLedger.sync({ force: true });
+      console.log('[Migration] Table customer_ledgers created successfully.');
     }
 
     const server = app.listen(PORT, () => {

@@ -625,6 +625,25 @@ export const fetchBillByIdFromAPI = async (id) => {
   return handleResponse(res);
 };
 
+export const addBillPaymentAPI = async (billId, payload) => {
+  const res = await fetch(`${API_BASE}/pos/bills/${billId}/payments`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const updateBillAPI = async (billId, payload) => {
+  const res = await fetch(`${API_BASE}/pos/bills/${billId}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+
 // Trigger thermal print for a specific bill
 export const printReceiptAPI = async (billId) => {
   const res = await fetch(`${API_BASE}/pos/print-receipt/${billId}`, {
@@ -1560,4 +1579,216 @@ export const validateCouponAPI = async (code, subtotal) => {
   });
   return handleResponse(res);
 };
+
+// ─── Customers API ────────────────────────────────────────────────────────────
+
+export const fetchCustomersAPI = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/customers?${query}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchCustomerByIdAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/customers/${id}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const createCustomerAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/customers`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const updateCustomerAPI = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/customers/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteCustomerAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/customers/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchCustomerLedgerAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/customers/${id}/ledger`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const settleCustomerBalanceAPI = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/customers/${id}/settle`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const fetchCustomerCreditReportAPI = async () => {
+  const res = await fetch(`${API_BASE}/reports/customer-credit`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── Appointments API ─────────────────────────────────────────────────────────
+
+export const fetchAppointmentsAPI = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/appointments?${query}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const createAppointmentAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/appointments`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const updateAppointmentStatusAPI = async (id, status) => {
+  const res = await fetch(`${API_BASE}/appointments/${id}/status`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ status }),
+  });
+  return handleResponse(res);
+};
+
+export const deleteAppointmentAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/appointments/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── Reports API ──────────────────────────────────────────────────────────────
+
+export const fetchShiftEndReportAPI = async (outletId, date) => {
+  const res = await fetch(`${API_BASE}/reports/shift-end?outletId=${outletId}&date=${date || ''}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchProfitLossReportAPI = async (outletId, startDate, endDate) => {
+  const res = await fetch(`${API_BASE}/reports/profit-loss?outletId=${outletId || ''}&startDate=${startDate || ''}&endDate=${endDate || ''}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── Settings API ─────────────────────────────────────────────────────────────
+
+const DEFAULT_SETTINGS = {
+  profile: { fullName: 'Admin User', email: 'admin@glowy.com', phone: '', timezone: 'IST', language: 'English' },
+  notifications: { emailAlerts: true, pushNotifications: true, marketingEmails: false, securityAlerts: true },
+  appearance: { theme: 'light', compactMode: false, highContrast: false },
+  security: { twoFactorEnabled: false, sessionTimeout: 30 },
+  inventory: { allowOutOfStockCheckout: false },
+};
+
+export const fetchSettings = async () => {
+  try {
+    const saved = localStorage.getItem('glowy_settings');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+        inventory: {
+          ...DEFAULT_SETTINGS.inventory,
+          ...(parsed.inventory || {}),
+        },
+      };
+    }
+  } catch (err) {
+    console.error("Error reading settings from localStorage:", err);
+  }
+  return DEFAULT_SETTINGS;
+};
+
+export const saveSettings = async (settingsPayload) => {
+  try {
+    const current = await fetchSettings();
+    const updated = {
+      ...current,
+      ...settingsPayload,
+      inventory: {
+        ...(current.inventory || {}),
+        ...(settingsPayload.inventory || {}),
+      },
+    };
+    localStorage.setItem('glowy_settings', JSON.stringify(updated));
+    return { success: true, settings: updated };
+  } catch (err) {
+    console.error("Error saving settings to localStorage:", err);
+    return { success: false, error: err.message };
+  }
+};
+
+// ─── Payroll & Commission API Wrappers ────────────────────────────────────────
+
+export const fetchCommissionBadgeConfig = async () => {
+  return [
+    { minSales: 0, maxSales: 10000, name: "Bronze", icon: "🥉", color: "#CD7F32", percent: 1 },
+    { minSales: 10001, maxSales: 30000, name: "Silver", icon: "🥈", color: "#C0C0C0", percent: 2 },
+    { minSales: 30001, maxSales: 50000, name: "Gold", icon: "🥇", color: "#FFD700", percent: 3 },
+    { minSales: 50001, maxSales: Infinity, name: "Platinum", icon: "💎", color: "#E5E4E2", percent: 5 },
+  ];
+};
+
+export const fetchPayrollWithCommission = async (monthKey) => {
+  const staff = await fetchStaff();
+  return (staff || []).map((s) => {
+    const baseSalary = s.baseSalary || 25000;
+    const totalSales = 15000; // default baseline sales
+    const commissionAmount = Math.round(totalSales * 0.02);
+    const grossSalary = baseSalary + commissionAmount;
+    const pfDeduction = Math.round(baseSalary * 0.12);
+    const netSalary = grossSalary - pfDeduction;
+
+    return {
+      employeeId: s.id,
+      name: s.name,
+      role: s.role || 'Staff',
+      outletName: s.assignedOutletName || 'Main Branch',
+      baseSalary,
+      totalSales,
+      commissionPercent: 2,
+      commissionAmount,
+      grossSalary,
+      pfDeduction,
+      netSalary,
+      monthKey: monthKey || new Date().toISOString().slice(0, 7),
+    };
+  });
+};
+
+export const calculateAllSalaries = async (monthKey) => {
+  return fetchPayrollWithCommission(monthKey);
+};
+
+
+
 

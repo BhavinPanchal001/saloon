@@ -16,6 +16,12 @@ router.get('/bills', authenticateToken, requirePermission('pos:view'), posContro
 // GET /api/pos/bills/:id
 router.get('/bills/:id', authenticateToken, requirePermission('pos:view'), posController.getBillById);
 
+// PUT /api/pos/bills/:id
+router.put('/bills/:id', authenticateToken, requirePermission('pos:create'), posController.updateBill);
+
+// POST /api/pos/bills/:id/payments
+router.post('/bills/:id/payments', authenticateToken, requirePermission('pos:create'), posController.addBillPayment);
+
 // POST /api/pos/print-receipt/:billId
 router.post('/print-receipt/:billId', authenticateToken, requirePermission('pos:view'), printController.printBillReceipt);
 

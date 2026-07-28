@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, User, MapPin, Package, Scissors, CreditCard, Info, FlaskConical, Banknote } from "lucide-react";
+import { ArrowLeft, Calendar, User, MapPin, Package, Scissors, CreditCard, Info, FlaskConical, Banknote, Printer, Edit } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { formatCurrency } from "../../utils/format";
 import { getUnitAbbr } from "../../utils/unitConversion";
 import { fetchBillByIdFromAPI, fetchProductsFromAPI } from "../../services/api";
+import { ThermalReceiptModal } from "../../components/pos/ThermalReceiptModal";
+import { AddPaymentModal } from "../../components/pos/AddPaymentModal";
+import { EditInvoiceModal } from "./EditInvoiceModal";
 
 const formatDate = (iso) => {
   if (!iso) return "—";
@@ -27,6 +30,8 @@ export default function BillDetailPage() {
   const [productMasters, setProductMasters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showAddPayment, setShowAddPayment] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -81,9 +86,27 @@ export default function BillDetailPage() {
         title={`#${bill.billNumber}`}
         description={`${formatDate(bill.createdAt)} at ${formatTime(bill.createdAt)} · ${bill.outletName}`}
       >
-        <span className={`status-badge text-sm px-4 py-1.5 ${bill.status === "paid" ? "status-active" : "status-danger"}`}>
-          {bill.status}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className={`status-badge text-sm px-4 py-1.5 ${
+            bill.status === "paid" ? "status-active" : bill.status === "partially_paid" ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-rose-100 text-rose-800 border border-rose-200"
+          }`}>
+            {bill.status === "partially_paid" ? "Partial" : bill.status === "unpaid" ? "Unpaid" : bill.status}
+          </span>
+          <button
+            onClick={() => navigate(`/pos?editBillId=${bill.id}`, { state: { editBill: bill } })}
+            className="btn-premium-outline !py-2 !px-4 text-xs flex items-center gap-2"
+          >
+            <Edit size={14} /> Edit Invoice in POS
+          </button>
+          {bill.status !== "paid" && (
+            <button
+              onClick={() => setShowAddPayment(true)}
+              className="btn-premium-primary !py-2 !px-4 text-xs flex items-center gap-2"
+            >
+              <CreditCard size={14} /> + Collect Payment
+            </button>
+          )}
+        </div>
       </PageHeader>
 
       {/* Info Grid */}
@@ -368,6 +391,14 @@ export default function BillDetailPage() {
             )}
           </div>
         </div>
+      )}
+
+      {showAddPayment && (
+        <AddPaymentModal
+          bill={bill}
+          onClose={() => setShowAddPayment(false)}
+          onSuccess={(updated) => setBill(updated)}
+        />
       )}
     </div>
   );

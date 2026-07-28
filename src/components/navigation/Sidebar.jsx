@@ -75,6 +75,15 @@ const adminNav = [
     ],
   },
   {
+    section: "Salon Operations",
+    icon: CalendarCheck,
+    links: [
+      { label: "Appointments", to: "/appointments", icon: CalendarCheck },
+      { label: "Customer CRM", to: "/customers", icon: Users },
+      { label: "Reports & Analytics", to: "/reports", icon: BarChart2 },
+    ],
+  },
+  {
     section: "POS & Billing",
     icon: CreditCard,
     links: [

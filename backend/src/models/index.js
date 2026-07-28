@@ -27,6 +27,9 @@ const BillLineItem = require('./BillLineItem');
 const InventoryAuditLog = require('./InventoryAuditLog');
 const Notification = require('./Notification');
 const Coupon = require('./Coupon');
+const Customer = require('./Customer');
+const CustomerLedger = require('./CustomerLedger');
+const Appointment = require('./Appointment');
 
 // Define associations
 OutletInventory.belongsTo(Product, { foreignKey: 'product_id' });
@@ -74,6 +77,22 @@ Outlet.hasMany(Bill, { foreignKey: 'outlet_id' });
 
 Bill.belongsTo(Coupon, { foreignKey: 'coupon_id', as: 'coupon' });
 Coupon.hasMany(Bill, { foreignKey: 'coupon_id' });
+
+Bill.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+Customer.hasMany(Bill, { foreignKey: 'customer_id' });
+
+CustomerLedger.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+Customer.hasMany(CustomerLedger, { foreignKey: 'customer_id', as: 'ledgers' });
+CustomerLedger.belongsTo(Bill, { foreignKey: 'bill_id', as: 'bill' });
+Bill.hasMany(CustomerLedger, { foreignKey: 'bill_id', as: 'customerLedgers' });
+
+Appointment.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+Customer.hasMany(Appointment, { foreignKey: 'customer_id' });
+
+Appointment.belongsTo(Outlet, { foreignKey: 'outlet_id', as: 'outlet' });
+Outlet.hasMany(Appointment, { foreignKey: 'outlet_id' });
+
+Appointment.belongsTo(Bill, { foreignKey: 'bill_id', as: 'bill' });
 
 // Expense associations
 Expense.belongsTo(Outlet, { foreignKey: 'outlet_id' });
@@ -151,6 +170,13 @@ ContractSalaryMapping.belongsTo(SalaryComponentMaster, { foreignKey: 'salary_com
 Attendance.belongsTo(Staff, { foreignKey: 'staff_id', as: 'employee' });
 Staff.hasMany(Attendance, { foreignKey: 'staff_id', as: 'attendances', onDelete: 'CASCADE' });
 
+// Appointment associations that depend on Staff and Service (imported above)
+Appointment.belongsTo(Staff, { foreignKey: 'staff_id', as: 'staff' });
+Staff.hasMany(Appointment, { foreignKey: 'staff_id' });
+
+Appointment.belongsTo(Service, { foreignKey: 'service_id', as: 'service' });
+Service.hasMany(Appointment, { foreignKey: 'service_id' });
+
 const Admin = require('./Admin');
 
 Admin.belongsTo(Outlet, { foreignKey: 'outlet_id', as: 'outlet' });
@@ -202,4 +228,7 @@ module.exports = {
   Contract,
   ContractSalaryMapping,
   Coupon,
+  Customer,
+  CustomerLedger,
+  Appointment,
 };
