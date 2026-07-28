@@ -141,12 +141,23 @@ const startServer = async () => {
       await Coupon.sync({ force: true });
       console.log('[Migration] Table coupons created successfully.');
     }
-
-    if (!tables.includes('customer_ledgers')) {
+ if (!tables.includes('customer_ledgers')) {
       console.log('[Migration] Creating customer_ledgers table...');
       const CustomerLedger = require('./models/CustomerLedger');
       await CustomerLedger.sync({ force: true });
       console.log('[Migration] Table customer_ledgers created successfully.');
+    }
+    // Run migration check for admins table
+    const adminsTableInfo = await queryInterface.describeTable('admins');
+    if (!adminsTableInfo.outlet_id) {
+      console.log('[Migration] Adding column outlet_id to admins...');
+      const { DataTypes } = require('sequelize');
+      await queryInterface.addColumn('admins', 'outlet_id', {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: true,
+        defaultValue: null,
+      });
+      console.log('[Migration] Column outlet_id added successfully to admins.');
     }
 
     const server = app.listen(PORT, () => {

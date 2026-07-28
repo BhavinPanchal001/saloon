@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchEmployeeCommission } from "../../services/mockApi";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { 
@@ -17,12 +16,15 @@ import {
   Clock
 } from "lucide-react";
 
+import { fetchPayrollById } from "../../services/api";
+
 export function SalaryViewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToastStore();
   const [isLoading, setIsLoading] = useState(true);
-  const [salaryData, setSalaryData] = useState(null);
+  const [payrollRecord, setPayrollRecord] = useState(null);
+  const [selectedDetailIndex, setSelectedDetailIndex] = useState(0);
 
   useEffect(() => {
     loadSalaryData();
@@ -31,72 +33,88 @@ export function SalaryViewPage() {
   const loadSalaryData = async () => {
     setIsLoading(true);
     try {
-      // This would fetch specific salary record in real app
-      // For now, using mock structure
-      const mockData = {
-        employee: {
-          id: id,
-          code: "NST0058",
-          name: "Aayushi Patel",
-          role: "Senior Stylist",
-          department: "Hair",
-          joinDate: "2023-03-15",
-        },
-        period: {
-          month: "April",
-          year: "2026",
-          workDays: 25,
-          holidays: 1,
-        },
-        attendance: {
-          present: 24,
-          absent: 1,
-          leaves: 0,
-          cl: 0,
-          sl: 0,
-          ol: 0,
-        },
-        earnings: {
-          basicSalary: 35000,
-          houseRentAllowance: 7000,
-          dearnessAllowance: 3500,
-          conveyanceAllowance: 1600,
-          medicalAllowance: 1250,
-          specialAllowance: 5000,
-          overtime: 0,
-          commission: 1200,
-          grossSalary: 53550,
-        },
-        deductions: {
-          providentFund: 4200,
-          professionalTax: 200,
-          incomeTax: 0,
-          esi: 0,
-          advance: 0,
-          otherDeductions: 0,
-          totalDeductions: 4400,
-        },
-        commissionInfo: {
-          badge: "Bronze",
-          badgeIcon: "🥉",
-          badgeColor: "#CD7F32",
-          saleCount: 45,
-          totalSales: 40000,
-          commissionPercent: 1,
-          commissionAmount: 400,
-        },
-        summary: {
-          netSalary: 49150,
-          inWords: "Forty Nine Thousand One Hundred Fifty Only",
-        },
-      };
-      setSalaryData(mockData);
+      const data = await fetchPayrollById(id);
+      setPayrollRecord(data);
+      setSelectedDetailIndex(0);
     } catch (err) {
+      console.error(err);
       toast.error("Failed to load salary details");
     } finally {
       setIsLoading(false);
     }
   };
+
+  const salaryData = useMemo(() => {
+    if (!payrollRecord || !payrollRecord.details || payrollRecord.details.length === 0) {
+      return null;
+    }
+    
+    const detail = payrollRecord.details[selectedDetailIndex];
+    if (!detail) return null;
+
+    const [year, monthNum] = payrollRecord.month_key.split("-");
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthName = monthNames[parseInt(monthNum) - 1];
+
+    const baseSalary = Number(detail.base_salary || 0);
+    const allowances = 3500; 
+    const commission = Number(detail.commission_amount || 0);
+    const overtime = Number(detail.overtime_hours || 0) * (baseSalary / 240) * 1.5; 
+    const grossSalary = baseSalary + allowances + commission + overtime;
+
+    const pfDeduction = Number(detail.deduction || 0);
+    const professionalTax = Number(detail.tax || 0);
+    const totalDeductions = pfDeduction + professionalTax;
+    const netSalary = Number(detail.payable || 0);
+
+    return {
+      employee: {
+        id: detail.staff_id,
+        code: detail.employee ? `NST${String(detail.staff_id).padStart(4, '0')}` : 'NST0000',
+        name: detail.employee ? `${detail.employee.first_name} ${detail.employee.last_name}` : 'Unknown',
+        role: "Stylist", 
+        department: "Operations",
+        joinDate: "2024-01-01",
+      },
+      period: {
+        month: monthName,
+        year: year,
+        workDays: 26,
+        holidays: 4,
+      },
+      attendance: {
+        present: detail.present_days || 26,
+        absent: detail.absent_days || 0,
+        leaves: detail.leave_days || 0,
+        cl: 0,
+        sl: 0,
+        ol: 0,
+      },
+      earnings: {
+        basicSalary: baseSalary,
+        houseRentAllowance: 2000,
+        conveyanceAllowance: 1000,
+        medicalAllowance: 500,
+        specialAllowance: 0,
+        overtime: overtime,
+        commission: commission,
+        grossSalary: grossSalary,
+      },
+      deductions: {
+        providentFund: pfDeduction,
+        professionalTax: professionalTax,
+        incomeTax: 0,
+        esi: 0,
+        advance: 0,
+        otherDeductions: 0,
+        totalDeductions: totalDeductions,
+      },
+      summary: {
+        netSalary: netSalary,
+        inWords: "Paid via Direct Deposit",
+      },
+    };
+  }, [payrollRecord, selectedDetailIndex]);
 
   const handlePrint = () => {
     window.print();
@@ -178,20 +196,31 @@ export function SalaryViewPage() {
               <Download className="w-4 h-4" />
               Export PDF
             </button>
-            <button
-              onClick={() => navigate(`/salary/edit/${id}`)}
-              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              <Edit2 className="w-4 h-4" />
-              Edit
-            </button>
           </div>
         </div>
       </div>
 
       {/* Payslip Content */}
       <div className="p-6 max-w-5xl mx-auto">
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        {/* Employee Selector */}
+        {payrollRecord && payrollRecord.details && payrollRecord.details.length > 1 && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-b-0 p-4 flex items-center gap-4 rounded-t-lg">
+            <span className="text-sm font-semibold text-blue-900">Select Employee:</span>
+            <select
+              value={selectedDetailIndex}
+              onChange={(e) => setSelectedDetailIndex(Number(e.target.value))}
+              className="bg-white border border-blue-200 text-blue-900 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {payrollRecord.details.map((detail, idx) => (
+                <option key={detail.id} value={idx}>
+                  {detail.employee ? `${detail.employee.first_name} ${detail.employee.last_name}` : `Staff #${detail.staff_id}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className={`bg-white rounded-lg shadow-sm border overflow-hidden ${payrollRecord && payrollRecord.details && payrollRecord.details.length > 1 ? 'rounded-t-none' : ''}`}>
           {/* Company Header */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
             <div className="flex items-center justify-between">
