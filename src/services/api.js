@@ -1585,11 +1585,6 @@ export const validateCouponAPI = async (code, subtotal) => {
 export const fetchCustomersAPI = async (params = {}) => {
   const query = new URLSearchParams(params).toString();
   const res = await fetch(`${API_BASE}/customers?${query}`, {
-// ─── Processed Payroll ────────────────────────────────────────────────────────
-
-export const fetchPayrollSummaries = async (params = {}) => {
-  const query = new URLSearchParams(params).toString();
-  const res = await fetch(`${API_BASE}/payroll${query ? `?${query}` : ""}`, {
     headers: authHeaders(),
   });
   return handleResponse(res);
@@ -1597,8 +1592,6 @@ export const fetchPayrollSummaries = async (params = {}) => {
 
 export const fetchCustomerByIdAPI = async (id) => {
   const res = await fetch(`${API_BASE}/customers/${id}`, {
-export const fetchPayrollById = async (id) => {
-  const res = await fetch(`${API_BASE}/payroll/${id}`, {
     headers: authHeaders(),
   });
   return handleResponse(res);
@@ -1606,8 +1599,6 @@ export const fetchPayrollById = async (id) => {
 
 export const createCustomerAPI = async (payload) => {
   const res = await fetch(`${API_BASE}/customers`, {
-export const savePayrollRun = async (payload) => {
-  const res = await fetch(`${API_BASE}/payroll`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify(payload),
@@ -1618,6 +1609,46 @@ export const savePayrollRun = async (payload) => {
 export const updateCustomerAPI = async (id, payload) => {
   const res = await fetch(`${API_BASE}/customers/${id}`, {
     method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteCustomerAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/customers/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+// ─── Processed Payroll ────────────────────────────────────────────────────────
+
+export const fetchPayrollSummaries = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/payroll${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchPayrollById = async (id) => {
+  const res = await fetch(`${API_BASE}/payroll/${id}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const savePayrollRun = async (payload) => {
+  const res = await fetch(`${API_BASE}/payroll`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
 export const payPayrollRun = async (id, payload) => {
   const res = await fetch(`${API_BASE}/payroll/${id}/pay`, {
     method: "POST",
@@ -1627,8 +1658,6 @@ export const payPayrollRun = async (id, payload) => {
   return handleResponse(res);
 };
 
-export const deleteCustomerAPI = async (id) => {
-  const res = await fetch(`${API_BASE}/customers/${id}`, {
 export const deletePayrollRun = async (id) => {
   const res = await fetch(`${API_BASE}/payroll/${id}`, {
     method: "DELETE",
