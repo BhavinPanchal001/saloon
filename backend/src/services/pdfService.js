@@ -219,6 +219,61 @@ function generateInvoicePDFBuffer(bill) {
   commands.push('0.45 0.5 0.6 rg');
   commands.push(`BT /F1 9 Tf 380 ${currentTotalsY} Td (Payment Method: ${paymentMethod}) Tj ET`);
 
+  // --- UPI QR CODE SECTION (Left Aligned opposite Totals) ---
+  const upiId = bill.upiId || bill.upi_id || process.env.DEFAULT_UPI_ID || 'glowy@okicici';
+  if (upiId) {
+
+    try {
+      const QRCode = require('qrcode');
+      const payeeName = encodeURIComponent(COMPANY_INFO.name);
+      const billNum = encodeURIComponent(bill.billNumber || bill.bill_number || '');
+      const amtStr = (Number(bill.total) || 0).toFixed(2);
+      const upiUrl = `upi://pay?pa=${upiId}&pn=${payeeName}&am=${amtStr}&tr=${billNum}&cu=INR`;
+      const qrMatrix = QRCode.create(upiUrl);
+
+      if (qrMatrix && qrMatrix.modules) {
+        const size = qrMatrix.modules.size;
+        const qrWidth = 80;
+        const cellSize = qrWidth / size;
+        const qrStartX = 65; // Centered inside 130pt card
+        const qrStartY = totalsY - 85;
+
+        // Container Background: Soft Slate/White Card
+        commands.push('0.97 0.98 0.99 rg');
+        commands.push(`40 ${qrStartY - 25} 130 130 re f`);
+
+        // Accent Gold Top Bar
+        commands.push('0.85 0.65 0.13 rg');
+        commands.push(`40 ${qrStartY + 103} 130 2 re f`);
+
+        // Header Title (Centered)
+        commands.push('0.12 0.23 0.54 rg');
+        commands.push(`BT /F2 8 Tf 50 ${qrStartY + 90} Td (SCAN & PAY VIA UPI) Tj ET`);
+
+        // Render Vector QR Code Modules
+        commands.push('0 0 0 rg');
+        for (let r = 0; r < size; r++) {
+          for (let c = 0; c < size; c++) {
+            if (qrMatrix.modules.get(r, c)) {
+              const x = qrStartX + (c * cellSize);
+              const y = (qrStartY + 80) - ((r + 1) * cellSize);
+              commands.push(`${x.toFixed(2)} ${y.toFixed(2)} ${cellSize.toFixed(2)} ${cellSize.toFixed(2)} re f`);
+            }
+          }
+        }
+
+        // UPI ID Text Label (Clean 15pt spacing below QR Code bottom)
+        commands.push('0.35 0.4 0.5 rg');
+        commands.push(`BT /F2 7.5 Tf 46 ${qrStartY - 15} Td (UPI ID: ${sanitizeText(upiId, 22)}) Tj ET`);
+
+
+      }
+    } catch (qrErr) {
+      console.warn('[PDF] QR Code generation notice:', qrErr.message);
+    }
+  }
+
+
   // --- FOOTER SECTION ---
   const footerY = 80;
   commands.push('0.85 0.65 0.13 RG 1 w');

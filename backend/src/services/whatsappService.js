@@ -32,65 +32,10 @@ const formatPhoneNumber = (phone, defaultCountryCode = '91') => {
 /**
  * Format currency amount for display
  */
-const formatAmount = (num) => {
+const formatAmount = (num, currency = 'RM') => {
   const n = Number(num) || 0;
-  return `₹${n.toFixed(2)}`;
-};
-
-/**
- * Upload PDF buffer to Meta WhatsApp Business Media endpoint and return media_id
- */
-const uploadPdfMediaToMeta = async ({ pdfBuffer, filename, phoneNumberId, accessToken }) => {
-  const boundary = '--------------------------' + Date.now().toString(16);
-
-  const headerPart = Buffer.from(
-    `--${boundary}\r\n` +
-    `Content-Disposition: form-data; name="messaging_product"\r\n\r\n` +
-    `whatsapp\r\n` +
-    `--${boundary}\r\n` +
-    `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
-    `Content-Type: application/pdf\r\n\r\n`
-  );
-
-  const footerPart = Buffer.from(`\r\n--${boundary}--\r\n`);
-  const bodyBuffer = Buffer.concat([headerPart, pdfBuffer, footerPart]);
-
-  const graphUrl = `https://graph.facebook.com/v20.0/${phoneNumberId}/media`;
-  const parsedUrl = new URL(graphUrl);
-
-  const options = {
-    hostname: parsedUrl.hostname,
-    path: parsedUrl.pathname,
-    method: 'POST',
-    headers: {
-      'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Length': bodyBuffer.length,
-    },
-  };
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      let responseBody = '';
-      res.on('data', (chunk) => { responseBody += chunk; });
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(responseBody);
-          if (res.statusCode >= 200 && res.statusCode < 300 && parsed.id) {
-            resolve(parsed.id);
-          } else {
-            reject(new Error(`Meta Media Upload HTTP ${res.statusCode}: ${parsed?.error?.message || responseBody}`));
-          }
-        } catch (e) {
-          reject(new Error(`Invalid JSON response from Meta Media API: ${responseBody}`));
-        }
-      });
-    });
-
-    req.on('error', (err) => reject(err));
-    req.write(bodyBuffer);
-    req.end();
-  });
+  const cur = (currency && String(currency).trim()) ? String(currency).trim() : 'RM';
+  return `${cur} ${n.toFixed(2)}`;
 };
 
 /**
@@ -105,6 +50,9 @@ const buildBillReceiptText = (bill) => {
     timeStyle: 'short',
   }) : new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
+  const curSymbol = bill.currency || 'RM';
+  const fmt = (num) => formatAmount(num, curSymbol);
+
   const lineItems = bill.lineItems || bill.line_items || [];
 
   let itemsText = '';
@@ -114,7 +62,7 @@ const buildBillReceiptText = (bill) => {
       const qty = item.qty || 1;
       const price = Number(item.price) || 0;
       const totalItemPrice = price * qty;
-      return `${index + 1}. *${name}* x${qty} - ${formatAmount(totalItemPrice)}`;
+      return `${index + 1}. *${name}* x${qty} - ${fmt(totalItemPrice)}`;
     }).join('\n');
   } else {
     itemsText = '_No items listed_';
@@ -137,9 +85,9 @@ Hello *${customerName}*, thank you for choosing ${outletName}! Here is your bill
 ${itemsText}
 
 ──────────────────
-*Subtotal:* ${formatAmount(subtotal)}
-${discountAmount > 0 ? `*Discount:* -${formatAmount(discountAmount)}\n` : ''}*Tax:* ${formatAmount(tax)}
-💳 *GRAND TOTAL:* *${formatAmount(grandTotal)}*
+*Subtotal:* ${fmt(subtotal)}
+${discountAmount > 0 ? `*Discount:* -${fmt(discountAmount)}\n` : ''}*Tax:* ${fmt(tax)}
+💳 *GRAND TOTAL:* *${fmt(grandTotal)}*
 💳 *Payment Mode:* ${paymentMethod}
 
 ✨ Thank you for visiting us! We hope to see you again soon.
@@ -147,6 +95,7 @@ For any queries, please contact ${outletName}.`;
 
   return message;
 };
+
 
 /**
  * Send WhatsApp message using Meta WhatsApp Business Cloud API via native HTTPS

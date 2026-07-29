@@ -3,6 +3,17 @@
 const { Bank, BankTransaction, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
+// Self-healing migration for banks table
+(async () => {
+  try {
+    const [columns] = await sequelize.query("SHOW COLUMNS FROM banks");
+    const colNames = columns.map(c => c.Field);
+    if (!colNames.includes('upi_id')) {
+      await sequelize.query("ALTER TABLE banks ADD COLUMN `upi_id` VARCHAR(100) NULL");
+    }
+  } catch (_) {}
+})();
+
 const formatBank = (bank) => ({
   id: bank.id,
   bankName: bank.bankName,
@@ -11,12 +22,14 @@ const formatBank = (bank) => ({
   ifscCode: bank.ifscCode,
   branchName: bank.branchName,
   branchAddress: bank.branchAddress || null,
+  upiId: bank.upiId || bank.upi_id || null,
   balance: Number(bank.balance),
   isDefault: bank.isDefault,
   isActive: bank.isActive,
   createdAt: bank.createdAt,
   updatedAt: bank.updatedAt,
 });
+
 
 const formatTransaction = (txn) => ({
   id: txn.id,
@@ -77,7 +90,7 @@ exports.getBankById = async (req, res) => {
 
 // POST /banks
 exports.createBank = async (req, res) => {
-  const { bankName, accountNumber, accountHolderName, ifscCode, branchName, branchAddress, isDefault, isActive } = req.body;
+  const { bankName, accountNumber, accountHolderName, ifscCode, branchName, branchAddress, upiId, isDefault, isActive } = req.body;
 
   if (!bankName || !accountNumber || !accountHolderName || !ifscCode || !branchName) {
     return res.status(400).json({ message: 'bankName, accountNumber, accountHolderName, ifscCode, and branchName are required.' });
@@ -96,10 +109,12 @@ exports.createBank = async (req, res) => {
       ifscCode: ifscCode.toUpperCase(),
       branchName,
       branchAddress: branchAddress || null,
+      upiId: upiId || null,
       balance: 0,
       isDefault: isDefault ? true : false,
       isActive: isActive !== undefined ? isActive : true,
     }, { transaction: t });
+
 
     await t.commit();
     return res.status(201).json(formatBank(bank));
@@ -115,7 +130,7 @@ exports.createBank = async (req, res) => {
 
 // PUT /banks/:id
 exports.updateBank = async (req, res) => {
-  const { bankName, accountNumber, accountHolderName, ifscCode, branchName, branchAddress, isDefault, isActive } = req.body;
+  const { bankName, accountNumber, accountHolderName, ifscCode, branchName, branchAddress, upiId, isDefault, isActive } = req.body;
 
   const t = await sequelize.transaction();
   try {
@@ -136,9 +151,11 @@ exports.updateBank = async (req, res) => {
       ifscCode: ifscCode ? ifscCode.toUpperCase() : bank.ifscCode,
       branchName: branchName ?? bank.branchName,
       branchAddress: branchAddress !== undefined ? (branchAddress || null) : bank.branchAddress,
+      upiId: upiId !== undefined ? (upiId || null) : bank.upiId,
       isDefault: isDefault !== undefined ? isDefault : bank.isDefault,
       isActive: isActive !== undefined ? isActive : bank.isActive,
     }, { transaction: t });
+
 
     await t.commit();
     return res.json(formatBank(bank));

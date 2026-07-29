@@ -339,6 +339,12 @@ const BankCard: React.FC<BankCardProps> = ({ bank, onEdit, onDelete, onSetDefaul
           <span className="bank-detail-label">Branch</span>
           <span className="bank-detail-value">{bank.branchName}</span>
         </div>
+        {bank.upiId && (
+          <div className="bank-detail-row">
+            <span className="bank-detail-label">UPI ID</span>
+            <span className="bank-detail-value font-semibold text-emerald-700 font-mono">{bank.upiId}</span>
+          </div>
+        )}
         {bank.branchAddress && (
           <div className="bank-detail-row">
             <span className="bank-detail-label">Address</span>
@@ -346,6 +352,7 @@ const BankCard: React.FC<BankCardProps> = ({ bank, onEdit, onDelete, onSetDefaul
           </div>
         )}
       </div>
+
 
       {/* Transaction Actions */}
       {bank.isActive && (

@@ -29,9 +29,11 @@ const BankFormPage: React.FC = () => {
     ifscCode: '',
     branchName: '',
     branchAddress: '',
+    upiId: '',
     isDefault: false,
     isActive: true,
   });
+
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,9 +56,11 @@ const BankFormPage: React.FC = () => {
           ifscCode: bank.ifscCode,
           branchName: bank.branchName,
           branchAddress: bank.branchAddress || '',
+          upiId: bank.upiId || '',
           isDefault: bank.isDefault,
           isActive: bank.isActive,
         });
+
       } else {
         navigate('/bank');
       }
@@ -255,8 +259,26 @@ const BankFormPage: React.FC = () => {
                 <p className="text-xs text-slate-500">11 characters (4 letters + 0 + 6 alphanumeric)</p>
               )}
             </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">
+                UPI ID / VPA <span className="text-xs text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <div className="relative">
+                <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
+                <input
+                  type="text"
+                  placeholder="e.g., glowy@okicici or 9876543210@paytm"
+                  className="premium-input pl-12"
+                  value={formData.upiId || ''}
+                  onChange={(e) => handleInputChange('upiId', e.target.value.trim())}
+                />
+              </div>
+              <p className="text-xs text-slate-500">Used to generate UPI QR Code on PDF Invoice Receipts</p>
+            </div>
           </div>
         </div>
+
 
         {/* Branch Information Section */}
         <div className="bank-form-section">

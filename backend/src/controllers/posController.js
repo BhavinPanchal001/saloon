@@ -507,16 +507,40 @@ const checkout = async (req, res) => {
     // Generate bill number
     const billNumber = await generateBillNumber(outletId, outlet.code);
 
-    // Resolve customer if provided
+    // Resolve customer if provided, or auto-create new Customer record
     let targetCustomer = null;
-    if (customer && (customer.id || customer.phone || customer.name)) {
-      if (customer.id) {
-        targetCustomer = await Customer.findByPk(customer.id, { transaction });
-      } else if (customer.phone) {
-        targetCustomer = await Customer.findOne({ where: { phone: customer.phone }, transaction });
-      } else if (customer.name && customer.name.trim() !== '' && customer.name !== 'Walk-in Guest') {
-        targetCustomer = await Customer.findOne({ where: { name: customer.name }, transaction });
-      }
+    const inputName = customer?.name ? String(customer.name).trim() : '';
+    const inputPhone = customer?.phone ? String(customer.phone).trim() : '';
+    const isDefaultGuestName = inputName.toLowerCase() === 'walk-in guest' || inputName.toLowerCase() === 'walk-in';
+    const isDefaultGuestPhone = inputPhone === '0000000000';
+
+    if (customer?.id) {
+      targetCustomer = await Customer.findByPk(customer.id, { transaction });
+    }
+
+    if (!targetCustomer && inputPhone && !isDefaultGuestPhone) {
+      targetCustomer = await Customer.findOne({ where: { phone: inputPhone }, transaction });
+    }
+
+    if (!targetCustomer && inputName && !isDefaultGuestName) {
+      targetCustomer = await Customer.findOne({ where: { name: inputName }, transaction });
+    }
+
+    // Auto-create new Customer in database if staff entered new customer details in POS
+    if (!targetCustomer && (inputName || inputPhone) && !isDefaultGuestName && !isDefaultGuestPhone) {
+      targetCustomer = await Customer.create(
+        {
+          name: inputName || inputPhone,
+          phone: inputPhone || 'N/A',
+          email: customer.email || null,
+          gender: customer.gender || 'Female',
+          credit_balance: 0.00,
+          total_spend: 0.00,
+          total_visits: 0,
+        },
+        { transaction }
+      );
+      console.log(`[POS] Auto-created new Customer record: ${targetCustomer.name} (ID: ${targetCustomer.id})`);
     }
 
     // Fallback to default Walk-in Guest customer if no customer was entered/found
@@ -1577,6 +1601,23 @@ const sendWhatsAppBill = async (req, res) => {
       return res.status(404).json({ message: 'Bill not found.' });
     }
 
+    // Fetch default/active bank upiId for QR Code generation
+    let upiId = process.env.DEFAULT_UPI_ID || 'glowy@okicici';
+    try {
+      const activeBank = await Bank.findOne({
+        where: {
+          isActive: true,
+          upi_id: { [Op.ne]: null },
+        },
+        order: [['is_default', 'DESC']],
+      });
+      if (activeBank) {
+        const foundUpi = activeBank.upiId || activeBank.upi_id || activeBank.get('upi_id') || activeBank.get('upiId');
+        if (foundUpi) upiId = foundUpi;
+      }
+    } catch (_) {}
+
+
     const billData = {
       id: bill.id,
       billNumber: bill.bill_number,
@@ -1589,6 +1630,8 @@ const sendWhatsAppBill = async (req, res) => {
       outletId: bill.outlet_id,
       outletName: bill.Outlet?.name || 'Glowy Saloon',
       status: bill.status,
+      upiId: upiId,
+
       subtotal: Number(bill.subtotal),
       discountType: bill.discount_type,
       discountValue: Number(bill.discount_value),

@@ -9,9 +9,11 @@ const Bank = sequelize.define('Bank', {
   ifscCode: { type: DataTypes.STRING(20), allowNull: false },
   branchName: { type: DataTypes.STRING(200), allowNull: false },
   branchAddress: { type: DataTypes.TEXT, allowNull: true },
+  upiId: { type: DataTypes.STRING(100), allowNull: true },
   balance: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 0 },
   isDefault: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+
 }, {
   tableName: 'banks',
   underscored: true,

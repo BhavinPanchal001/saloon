@@ -6,6 +6,7 @@ export interface Bank {
   ifscCode: string;
   branchName: string;
   branchAddress?: string;
+  upiId?: string;
   balance: number;
   isDefault: boolean;
   isActive: boolean;
@@ -20,9 +21,11 @@ export interface BankFormData {
   ifscCode: string;
   branchName: string;
   branchAddress?: string;
+  upiId?: string;
   isDefault: boolean;
   isActive: boolean;
 }
+
 
 export type TransactionType = 'deposit' | 'withdrawal' | 'transfer_in' | 'transfer_out';
 
