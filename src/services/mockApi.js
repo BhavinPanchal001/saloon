@@ -1296,6 +1296,7 @@ export const checkoutBill = async (payload) => {
     tax: payload.tax,
     total: payload.total,
     lineItems: payload.lineItems,
+    createdBy: payload.createdBy,
   };
   bills = [newBill, ...bills];
 

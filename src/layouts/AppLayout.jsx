@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { Navbar } from "../components/navigation/Navbar";
 import { Sidebar } from "../components/navigation/Sidebar";
 import { ToastContainer } from "../components/ui/ToastContainer";
+import { useAuthStore } from "../stores/authStore";
 
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -16,6 +17,9 @@ export function AppLayout() {
   }, [sidebarCollapsed]);
 
   const navigate = useNavigate();
+
+  const user = useAuthStore((state) => state.user);
+  const isPosUser = user?.role === "cashier" || user?.role === "pos";
 
   // Global Keyboard shortcuts: Ctrl+B (sidebar), Alt+P (POS), Alt+B (Bills), Alt+I (Inventory), Alt+E (Expenses)
   useEffect(() => {
@@ -37,10 +41,10 @@ export function AppLayout() {
         } else if (key === "b") {
           e.preventDefault();
           navigate("/pos/bills");
-        } else if (key === "i") {
+        } else if (key === "i" && !isPosUser) {
           e.preventDefault();
           navigate("/inventory");
-        } else if (key === "e") {
+        } else if (key === "e" && !isPosUser) {
           e.preventDefault();
           navigate("/expenses");
         }
@@ -49,7 +53,7 @@ export function AppLayout() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [navigate]);
+  }, [navigate, isPosUser]);
 
   return (
     <div className="min-h-screen lg:flex">

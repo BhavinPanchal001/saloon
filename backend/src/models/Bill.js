@@ -78,6 +78,18 @@ const Bill = sequelize.define('Bill', {
     type: DataTypes.STRING(50),
     allowNull: true,
   },
+  pos_terminal_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+  },
+  pos_shift_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+  },
+  created_by: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+  },
 }, {
   tableName: 'bills',
   underscored: true,

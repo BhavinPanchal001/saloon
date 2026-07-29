@@ -184,9 +184,36 @@ ProcessedPayrollDetail.belongsTo(Staff, { foreignKey: 'staff_id', as: 'employee'
 Staff.hasMany(ProcessedPayrollDetail, { foreignKey: 'staff_id', as: 'payrollDetails', onDelete: 'CASCADE' });
 
 const Admin = require('./Admin');
+const PosTerminal = require('./PosTerminal');
+const PosShift = require('./PosShift');
+const PosShiftMovement = require('./PosShiftMovement');
 
 Admin.belongsTo(Outlet, { foreignKey: 'outlet_id', as: 'outlet' });
 Outlet.hasMany(Admin, { foreignKey: 'outlet_id', as: 'admins' });
+
+// POS Terminal & Shift associations
+PosTerminal.belongsTo(Outlet, { foreignKey: 'outlet_id', as: 'outlet' });
+Outlet.hasMany(PosTerminal, { foreignKey: 'outlet_id', as: 'terminals' });
+
+PosShift.belongsTo(PosTerminal, { foreignKey: 'pos_terminal_id', as: 'terminal' });
+PosTerminal.hasMany(PosShift, { foreignKey: 'pos_terminal_id', as: 'shifts' });
+
+PosShift.belongsTo(Outlet, { foreignKey: 'outlet_id', as: 'outlet' });
+Outlet.hasMany(PosShift, { foreignKey: 'outlet_id' });
+
+PosShift.belongsTo(Admin, { foreignKey: 'user_id', as: 'user' });
+Admin.hasMany(PosShift, { foreignKey: 'user_id' });
+
+PosShiftMovement.belongsTo(PosShift, { foreignKey: 'pos_shift_id', as: 'shift' });
+PosShift.hasMany(PosShiftMovement, { foreignKey: 'pos_shift_id', as: 'movements', onDelete: 'CASCADE' });
+
+PosShiftMovement.belongsTo(Admin, { foreignKey: 'user_id', as: 'user' });
+
+Bill.belongsTo(PosTerminal, { foreignKey: 'pos_terminal_id', as: 'terminal' });
+Bill.belongsTo(PosShift, { foreignKey: 'pos_shift_id', as: 'shift' });
+PosShift.hasMany(Bill, { foreignKey: 'pos_shift_id', as: 'bills' });
+Bill.belongsTo(Admin, { foreignKey: 'created_by', as: 'creator' });
+Admin.hasMany(Bill, { foreignKey: 'created_by', as: 'createdBills' });
 
 module.exports = {
   sequelize,
@@ -239,4 +266,7 @@ module.exports = {
   Appointment,
   ProcessedPayroll,
   ProcessedPayrollDetail,
+  PosTerminal,
+  PosShift,
+  PosShiftMovement,
 };

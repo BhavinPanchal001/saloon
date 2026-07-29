@@ -223,10 +223,17 @@ export function InventoryPage() {
 
   const openEditProduct = (item) => {
     setEditingProduct(item);
+    const unitMaster = item.unitMaster;
+    const isSecondary = item.consumptionUnit === 'secondary';
+    const rawOpeningStock = item.openingStock ?? item.opening_stock ?? item.centralStock ?? 0;
+    const displayStock = unitMaster && isSecondary
+      ? Number(rawOpeningStock) * unitMaster.conversionRatio
+      : rawOpeningStock;
+
     setEditProductForm({
       itemName: item.itemName,
       unitPrice: String(item.unitPrice),
-      openingStock: String(item.centralStock ?? ""),
+      openingStock: String(displayStock !== undefined && displayStock !== null ? displayStock : ""),
       unitMasterId: item.unitMaster?.id ?? item.unit_master_id ?? "",
       purchaseUnit: item.purchaseUnit || "primary",
       consumptionUnit: item.consumptionUnit || "primary",
@@ -241,9 +248,16 @@ export function InventoryPage() {
     event.preventDefault();
     resetMessages();
     try {
+      const openingStockNum = editProductForm.openingStock !== "" ? Number(editProductForm.openingStock) : 0;
+      const unitMaster = selectedEditProductUnitMaster;
+      const baseOpeningStock = unitMaster && editProductForm.productMeasureUnit === 'secondary'
+        ? openingStockNum / unitMaster.conversionRatio
+        : openingStockNum;
+
       await updateProductAPI(editingProduct.id, {
         item_name: editProductForm.itemName,
         unit_price: editProductForm.unitPrice,
+        opening_stock: baseOpeningStock,
         unit_master_id: editProductForm.unitMasterId || null,
         purchase_unit: editProductForm.purchaseUnit,
         consumption_unit: editProductForm.consumptionUnit,
@@ -946,15 +960,29 @@ export function InventoryPage() {
                   onChange={(e) => setEditProductForm((c) => ({ ...c, itemName: e.target.value }))}
                 />
               </div>
-              <div>
-                <label className="premium-label">Unit Price (RM)</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="premium-input"
-                  value={editProductForm.unitPrice}
-                  onChange={(e) => setEditProductForm((c) => ({ ...c, unitPrice: e.target.value }))}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="premium-label">Unit Price (RM)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="premium-input"
+                    value={editProductForm.unitPrice}
+                    onChange={(e) => setEditProductForm((c) => ({ ...c, unitPrice: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="premium-label">Opening Stock</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    className="premium-input"
+                    placeholder="Initial qty"
+                    value={editProductForm.openingStock}
+                    onChange={(e) => setEditProductForm((c) => ({ ...c, openingStock: e.target.value }))}
+                  />
+                </div>
               </div>
               <div>
                 <label className="premium-label">Unit Master</label>

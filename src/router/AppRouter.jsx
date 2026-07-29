@@ -50,6 +50,8 @@ import { CouponManagementPage } from "../pages/coupons/CouponManagementPage";
 import { CustomerListPage } from "../pages/customers/CustomerListPage";
 import { AppointmentCalendarPage } from "../pages/appointments/AppointmentCalendarPage";
 import { ReportsPage } from "../pages/reports/ReportsPage";
+import { POSTerminalsPage } from "../pages/pos_management/POSTerminalsPage";
+import { POSShiftHistoryPage } from "../pages/pos_management/POSShiftHistoryPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { useAuthStore } from "../stores/authStore";
 import { getDefaultRouteForRole } from "../utils/format";
@@ -308,20 +310,33 @@ export const router = createBrowserRouter([
             ],
           },
           {
-            path: "/pos",
-            element: <POSPage />,
-          },
-          {
-            path: "/pos/bills",
-            element: <BillingListPage />,
-          },
-          {
-            path: "/coupons",
-            element: <CouponManagementPage />,
-          },
-          {
-            path: "/pos/bills/:id",
-            element: <BillDetailPage />,
+            element: <ProtectedRoute allowedRoles={["admin", "super_admin", "manager", "cashier", "pos"]} />,
+            children: [
+              {
+                path: "/pos",
+                element: <POSPage />,
+              },
+              {
+                path: "/pos/bills",
+                element: <BillingListPage />,
+              },
+              {
+                path: "/coupons",
+                element: <CouponManagementPage />,
+              },
+              {
+                path: "/pos/bills/:id",
+                element: <BillDetailPage />,
+              },
+              {
+                path: "/pos-management/terminals",
+                element: <POSTerminalsPage />,
+              },
+              {
+                path: "/pos-management/shift-history",
+                element: <POSShiftHistoryPage />,
+              },
+            ],
           },
           {
             path: "/notifications",

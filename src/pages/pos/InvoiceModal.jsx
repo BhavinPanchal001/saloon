@@ -1,9 +1,10 @@
-import { X, Printer, Sparkles } from "lucide-react";
+import { X, Printer, Sparkles, MessageCircle } from "lucide-react";
 import { formatCurrency } from "../../utils/format";
 import { COMPANY_INFO } from "../../utils/companyInfo";
 import { useEffect, useState } from "react";
-import { fetchProductsFromAPI } from "../../services/api";
+import { fetchProductsFromAPI, sendWhatsAppBillAPI } from "../../services/api";
 import { getUnitAbbr } from "../../utils/unitConversion";
+import { useToastStore } from "../../stores/toastStore";
 
 const formatDate = (iso) => {
   if (!iso) return "—";
@@ -28,6 +29,8 @@ const typeLabel = (t) =>
 
 export function InvoiceModal({ bill, onClose }) {
   const [productMasters, setProductMasters] = useState([]);
+  const [sendingWa, setSendingWa] = useState(false);
+  const toast = useToastStore();
 
   useEffect(() => {
     if (!bill) return;
@@ -42,6 +45,19 @@ export function InvoiceModal({ bill, onClose }) {
 
   const handlePrint = () => window.print();
 
+  const handleSendWhatsApp = async () => {
+    if (!bill?.id) return;
+    setSendingWa(true);
+    try {
+      const res = await sendWhatsAppBillAPI(bill.id);
+      toast.success(res.message || "WhatsApp receipt sent successfully!");
+    } catch (err) {
+      toast.error(err.message || "Failed to send WhatsApp message");
+    } finally {
+      setSendingWa(false);
+    }
+  };
+
   return createPortal(
     <div className="invoice-overlay" onClick={onClose}>
       <div className="invoice-modal-wrapper" onClick={(e) => e.stopPropagation()}>
@@ -50,10 +66,18 @@ export function InvoiceModal({ bill, onClose }) {
           <button onClick={handlePrint} className="btn-premium-primary text-xs !py-2.5 !px-5">
             <Printer size={15} /> Print / Save PDF
           </button>
+          <button 
+            onClick={handleSendWhatsApp} 
+            disabled={sendingWa}
+            className="btn-premium-secondary text-xs !py-2.5 !px-5 flex items-center gap-1.5 !bg-emerald-600 hover:!bg-emerald-700 !text-white transition-colors"
+          >
+            <MessageCircle size={15} /> {sendingWa ? "Sending..." : "Send WhatsApp"}
+          </button>
           <button onClick={onClose} className="btn-premium-outline text-xs !py-2.5 !px-5">
             <X size={15} /> Close
           </button>
         </div>
+
 
         {/* Printable Invoice */}
         <div id="invoice-print-area" className="invoice-paper">

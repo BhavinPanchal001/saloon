@@ -7,7 +7,14 @@ import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase } from "../../utils/unitConversion";
 import { InvoiceModal } from "./InvoiceModal";
-import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle, CreditCard, Keyboard, HelpCircle, X, User, Edit, ChevronDown, ChevronUp } from "lucide-react";
+import { TerminalSelectModal } from "./components/TerminalSelectModal";
+import { OpenShiftModal } from "./components/OpenShiftModal";
+import { CashMovementModal } from "./components/CashMovementModal";
+import { XReportModal } from "./components/XReportModal";
+import { CloseShiftModal } from "./components/CloseShiftModal";
+import { ZReportPrintModal } from "./components/ZReportPrintModal";
+import { fetchTerminalsAPI, createTerminalAPI, fetchActiveShiftAPI, openShiftAPI, addCashMovementAPI } from "../../services/posShiftApi";
+import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle, CreditCard, Keyboard, HelpCircle, X, User, Edit, ChevronDown, ChevronUp, Monitor, PlayCircle, StopCircle, CheckCircle2, FileText } from "lucide-react";
 import BankSelector from "../../modules/bank/components/BankSelector";
 
 const paymentMethods = ["Cash", "Card", "UPI", "Store Credit", "Split"];
@@ -76,6 +83,144 @@ export function POSPage() {
 
   const [editingBillId, setEditingBillId] = useState(null);
   const [editingBillNumber, setEditingBillNumber] = useState("");
+
+  // POS Terminal & Shift state
+  const [posTerminals, setPosTerminals] = useState([]);
+  const [selectedTerminal, setSelectedTerminal] = useState(null);
+  const [activeShift, setActiveShift] = useState(null);
+  const [shiftLoading, setShiftLoading] = useState(false);
+
+  // Shift Modals state
+  const [showTerminalModal, setShowTerminalModal] = useState(false);
+  const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
+  const [showCashMovementModal, setShowCashMovementModal] = useState(false);
+  const [showXReportModal, setShowXReportModal] = useState(false);
+  const [showCloseShiftModal, setShowCloseShiftModal] = useState(false);
+  const [showZReportModal, setShowZReportModal] = useState(false);
+  const [zReportData, setZReportData] = useState(null);
+
+  // Load terminals and check active shift
+  useEffect(() => {
+    const targetOutletId = selectedOutlet || user?.outlet_id;
+    if (!targetOutletId) return;
+
+    const loadShiftData = async () => {
+      setShiftLoading(true);
+      try {
+        const res = await fetchTerminalsAPI(targetOutletId);
+        if (res.success) {
+          const list = res.terminals || [];
+          setPosTerminals(list);
+
+          let currentTerm = null;
+          const savedTermId = localStorage.getItem("glowy-selected-terminal-id");
+          if (savedTermId) {
+            currentTerm = list.find((t) => t.id === parseInt(savedTermId, 10)) || null;
+          }
+
+          if (!currentTerm && list.length > 0) {
+            currentTerm = list[0];
+          }
+
+          setSelectedTerminal(currentTerm);
+
+          if (currentTerm) {
+            const shiftRes = await fetchActiveShiftAPI(currentTerm.id);
+            if (shiftRes.success && shiftRes.shift) {
+              setActiveShift(shiftRes.shift);
+            } else {
+              setActiveShift(null);
+            }
+          } else {
+            setActiveShift(null);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading terminal/shift data:", err);
+      } finally {
+        setShiftLoading(false);
+      }
+    };
+
+    loadShiftData();
+  }, [selectedOutlet, user?.outlet_id]);
+
+  const handleSelectTerminal = async (term) => {
+    setSelectedTerminal(term);
+    localStorage.setItem("glowy-selected-terminal-id", term.id.toString());
+    setShowTerminalModal(false);
+
+    try {
+      const shiftRes = await fetchActiveShiftAPI(term.id);
+      if (shiftRes.success && shiftRes.shift) {
+        setActiveShift(shiftRes.shift);
+        toast.info(`Switched to terminal "${term.name}" with active shift.`);
+      } else {
+        setActiveShift(null);
+        setShowOpenShiftModal(true);
+      }
+    } catch (err) {
+      console.error("Error checking terminal shift:", err);
+    }
+  };
+
+  const handleCreateTerminal = async (payload) => {
+    try {
+      const targetOutletId = selectedOutlet || user?.outlet_id;
+      const res = await createTerminalAPI({ ...payload, outlet_id: targetOutletId });
+      if (res.success) {
+        toast.success(`Terminal "${res.terminal.name}" created successfully.`);
+        const termRes = await fetchTerminalsAPI(targetOutletId);
+        if (termRes.success) setPosTerminals(termRes.terminals);
+        handleSelectTerminal(res.terminal);
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to create terminal");
+    }
+  };
+
+  const handleOpenShift = async (payload) => {
+    setShiftLoading(true);
+    try {
+      const targetOutletId = selectedOutlet || user?.outlet_id;
+      const res = await openShiftAPI({ ...payload, outlet_id: targetOutletId });
+      if (res.success) {
+        setActiveShift(res.shift);
+        setShowOpenShiftModal(false);
+        toast.success(`Shift opened on terminal "${selectedTerminal?.name}" with float ${formatCurrency(payload.opening_cash)}`);
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to open shift");
+    } finally {
+      setShiftLoading(false);
+    }
+  };
+
+  const handleAddCashMovement = async (payload) => {
+    if (!activeShift) return;
+    setShiftLoading(true);
+    try {
+      const res = await addCashMovementAPI(activeShift.id, payload);
+      if (res.success) {
+        toast.success(`Cash ${payload.type === 'CASH_IN' ? 'In' : 'Out'} recorded successfully.`);
+        setShowCashMovementModal(false);
+        const shiftRes = await fetchActiveShiftAPI(selectedTerminal.id);
+        if (shiftRes.success) setActiveShift(shiftRes.shift);
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to record cash movement");
+    } finally {
+      setShiftLoading(false);
+    }
+  };
+
+  const handleShiftClosed = (reportData) => {
+    setActiveShift(null);
+    setShowCloseShiftModal(false);
+    setZReportData(reportData);
+    setShowZReportModal(true);
+    toast.success("Shift closed successfully. Z-Report generated.");
+  };
 
   // Load bill for editing if editBillId query param or state exists
   useEffect(() => {
@@ -807,6 +952,16 @@ export function POSPage() {
       return;
     }
 
+    if (!activeShift || activeShift.status !== "OPEN") {
+      toast.error("Checkout blocked: An active POS Shift is required. Please select a terminal and open a shift.");
+      if (!selectedTerminal) {
+        setShowTerminalModal(true);
+      } else {
+        setShowOpenShiftModal(true);
+      }
+      return;
+    }
+
     const payload = {
       customer,
       paymentMethod: paymentMethod || "Unpaid",
@@ -822,6 +977,9 @@ export function POSPage() {
       allowOutOfStockCheckout,
       couponId: appliedCoupon?.coupon_id || undefined,
       couponCode: appliedCoupon?.code || undefined,
+      posTerminalId: selectedTerminal?.id || undefined,
+      posShiftId: activeShift?.id || undefined,
+      createdBy: user?.id || undefined,
       paymentDetails: resolvedDetails,
       transactionReference: transactionReference.trim() || undefined,
       paymentNotes: paymentNotes.trim() || undefined,
@@ -997,6 +1155,82 @@ export function POSPage() {
         eyebrow={editingBillId ? "POS · Edit Mode" : "POS"}
         title={editingBillId ? `Editing Bill #${editingBillNumber}` : "Point of Sale"}
       />
+
+      {/* POS Terminal & Shift Header Widget */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-navy-100 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 font-bold">
+            <Monitor className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-sm text-navy-900">
+                {selectedTerminal ? selectedTerminal.name : "No Terminal Selected"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowTerminalModal(true)}
+                className="text-xs text-indigo-600 font-bold hover:underline"
+              >
+                {selectedTerminal ? "Switch Terminal" : "Select Terminal"}
+              </button>
+            </div>
+            <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+              {activeShift ? (
+                <span className="text-emerald-700 font-bold inline-flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Shift Active (Opened {new Date(activeShift.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                </span>
+              ) : (
+                <span className="text-amber-700 font-bold inline-flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" /> No Open Shift (Billing Blocked)
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {activeShift ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowCashMovementModal(true)}
+                className="px-3.5 py-2 rounded-xl border border-navy-200 bg-navy-50/70 hover:bg-navy-100 text-navy-800 text-xs font-bold transition inline-flex items-center gap-1.5 shadow-xs"
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600" /> Cash In/Out
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowXReportModal(true)}
+                className="px-3.5 py-2 rounded-xl border border-navy-200 bg-navy-50/70 hover:bg-navy-100 text-navy-800 text-xs font-bold transition inline-flex items-center gap-1.5 shadow-xs"
+              >
+                <FileText className="w-3.5 h-3.5 text-indigo-600" /> X-Report
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCloseShiftModal(true)}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <StopCircle className="w-3.5 h-3.5" /> End Shift
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (!selectedTerminal) {
+                  setShowTerminalModal(true);
+                } else {
+                  setShowOpenShiftModal(true);
+                }
+              }}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition inline-flex items-center gap-1.5 shadow-sm"
+            >
+              <PlayCircle className="w-4 h-4" /> Open Register Shift
+            </button>
+          )}
+        </div>
+      </div>
 
       {editingBillId && (
         <div className="mb-6 flex flex-wrap items-center justify-between rounded-2xl bg-amber-500/10 border border-amber-400/30 p-4 text-amber-900 shadow-sm animate-fade-in">
@@ -2155,6 +2389,53 @@ export function POSPage() {
       {showInvoice && currentBill && (
         <InvoiceModal bill={currentBill} onClose={() => setShowInvoice(false)} />
       )}
+
+      {/* POS Shift Modals */}
+      <TerminalSelectModal
+        isOpen={showTerminalModal}
+        onClose={() => setShowTerminalModal(false)}
+        terminals={posTerminals}
+        selectedTerminal={selectedTerminal}
+        onSelectTerminal={handleSelectTerminal}
+        onCreateTerminal={handleCreateTerminal}
+        loading={shiftLoading}
+      />
+
+      <OpenShiftModal
+        isOpen={showOpenShiftModal}
+        onClose={() => setShowOpenShiftModal(false)}
+        terminal={selectedTerminal}
+        outletName={outlets?.find((o) => o.id === (selectedOutlet || user?.outlet_id))?.name || user?.outlet_name}
+        user={user}
+        onOpenShift={handleOpenShift}
+        loading={shiftLoading}
+      />
+
+      <CashMovementModal
+        isOpen={showCashMovementModal}
+        onClose={() => setShowCashMovementModal(false)}
+        onSubmit={handleAddCashMovement}
+        loading={shiftLoading}
+      />
+
+      <XReportModal
+        isOpen={showXReportModal}
+        onClose={() => setShowXReportModal(false)}
+        shiftId={activeShift?.id}
+      />
+
+      <CloseShiftModal
+        isOpen={showCloseShiftModal}
+        onClose={() => setShowCloseShiftModal(false)}
+        shiftId={activeShift?.id}
+        onShiftClosed={handleShiftClosed}
+      />
+
+      <ZReportPrintModal
+        isOpen={showZReportModal}
+        onClose={() => setShowZReportModal(false)}
+        report={zReportData}
+      />
     </div>
   );
 }

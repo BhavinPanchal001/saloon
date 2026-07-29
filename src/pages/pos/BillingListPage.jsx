@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchBillsFromAPI, printReceiptAPI, fetchOutletsFromAPI } from "../../services/api";
+import { fetchBillsFromAPI, printReceiptAPI, sendWhatsAppBillAPI, fetchOutletsFromAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { InvoiceModal } from "./InvoiceModal";
 import { EditInvoiceModal } from "./EditInvoiceModal";
 import { AddPaymentModal } from "../../components/pos/AddPaymentModal";
-import { Search, Download, Filter, FileText, Eye, Calendar, CreditCard, Printer, Edit } from "lucide-react";
+import { Search, Download, Filter, FileText, Eye, Calendar, CreditCard, Printer, Edit, MessageCircle } from "lucide-react";
 
 const paymentFilters = ["All", "Cash", "Card", "UPI", "Split", "Store Credit", "Unpaid"];
 
@@ -42,6 +42,7 @@ export default function BillingListPage() {
   const [editModalBill, setEditModalBill] = useState(null);
   const [error, setError] = useState(null);
   const [printingBillId, setPrintingBillId] = useState(null);
+  const [sendingWaId, setSendingWaId] = useState(null);
   
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const [outlets, setOutlets] = useState([]);
@@ -65,6 +66,19 @@ export default function BillingListPage() {
     }
   };
 
+  const handleWhatsAppSend = async (billId) => {
+    setSendingWaId(billId);
+    try {
+      const res = await sendWhatsAppBillAPI(billId);
+      toast.success(res.message || "WhatsApp receipt sent successfully!");
+    } catch (err) {
+      toast.error(err.message || "Failed to send WhatsApp message");
+    } finally {
+      setSendingWaId(null);
+    }
+  };
+
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -82,7 +96,10 @@ export default function BillingListPage() {
     if (user) load();
   }, [user, isAdmin, selectedOutlet]);
 
+  const isCashier = user?.role === "cashier" || user?.role === "pos";
+
   const filtered = bills.filter((b) => {
+    const matchesCashier = !isCashier || !b.createdBy || b.createdBy === user?.id;
     const matchesSearch =
       !search ||
       b.billNumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -92,7 +109,7 @@ export default function BillingListPage() {
     const billDate = new Date(b.createdAt);
     const matchesDateFrom = !dateFrom || billDate >= new Date(dateFrom);
     const matchesDateTo = !dateTo || billDate <= new Date(dateTo + "T23:59:59");
-    return matchesSearch && matchesPayment && matchesDateFrom && matchesDateTo;
+    return matchesCashier && matchesSearch && matchesPayment && matchesDateFrom && matchesDateTo;
   });
 
   const handleDownload = (bill) => {
@@ -358,7 +375,21 @@ export default function BillingListPage() {
                         )}
                         Reprint
                       </button>
+                      <button
+                        onClick={() => handleWhatsAppSend(bill.id)}
+                        disabled={sendingWaId === bill.id}
+                        className="group inline-flex items-center gap-1.5 rounded-xl border border-emerald-300/50 bg-emerald-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 whitespace-nowrap transition-all hover:bg-emerald-600 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Send WhatsApp Receipt"
+                      >
+                        {sendingWaId === bill.id ? (
+                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-700" />
+                        ) : (
+                          <MessageCircle size={13} />
+                        )}
+                        WhatsApp
+                      </button>
                     </div>
+
                   </td>
                 </tr>
               ))}

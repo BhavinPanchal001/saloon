@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, User, MapPin, Package, Scissors, CreditCard, Info, FlaskConical, Banknote, Printer, Edit } from "lucide-react";
+import { ArrowLeft, Calendar, User, MapPin, Package, Scissors, CreditCard, Info, FlaskConical, Banknote, Printer, Edit, MessageCircle } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { formatCurrency } from "../../utils/format";
 import { getUnitAbbr } from "../../utils/unitConversion";
-import { fetchBillByIdFromAPI, fetchProductsFromAPI } from "../../services/api";
+import { fetchBillByIdFromAPI, fetchProductsFromAPI, sendWhatsAppBillAPI } from "../../services/api";
 import { ThermalReceiptModal } from "../../components/pos/ThermalReceiptModal";
 import { AddPaymentModal } from "../../components/pos/AddPaymentModal";
 import { EditInvoiceModal } from "./EditInvoiceModal";
+import { useToastStore } from "../../stores/toastStore";
 
 const formatDate = (iso) => {
   if (!iso) return "—";
@@ -26,12 +27,27 @@ const formatTime = (iso) => {
 export default function BillDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToastStore();
   const [bill, setBill] = useState(null);
   const [productMasters, setProductMasters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [sendingWa, setSendingWa] = useState(false);
+
+  const handleSendWhatsApp = async () => {
+    if (!bill?.id) return;
+    setSendingWa(true);
+    try {
+      const res = await sendWhatsAppBillAPI(bill.id);
+      toast.success(res.message || "WhatsApp receipt sent successfully!");
+    } catch (err) {
+      toast.error(err.message || "Failed to send WhatsApp message");
+    } finally {
+      setSendingWa(false);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -93,6 +109,13 @@ export default function BillDetailPage() {
             {bill.status === "partially_paid" ? "Partial" : bill.status === "unpaid" ? "Unpaid" : bill.status}
           </span>
           <button
+            onClick={handleSendWhatsApp}
+            disabled={sendingWa}
+            className="btn-premium-secondary !py-2 !px-4 text-xs flex items-center gap-2 !bg-emerald-600 hover:!bg-emerald-700 !text-white transition-colors"
+          >
+            <MessageCircle size={14} /> {sendingWa ? "Sending..." : "Send WhatsApp"}
+          </button>
+          <button
             onClick={() => navigate(`/pos?editBillId=${bill.id}`, { state: { editBill: bill } })}
             className="btn-premium-outline !py-2 !px-4 text-xs flex items-center gap-2"
           >
@@ -108,6 +131,7 @@ export default function BillDetailPage() {
           )}
         </div>
       </PageHeader>
+
 
       {/* Info Grid */}
       <div className="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2">

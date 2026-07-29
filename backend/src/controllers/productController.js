@@ -114,7 +114,11 @@ const update = async (req, res) => {
       updates.unit_price = parsedPrice;
     }
     if (updates.opening_stock !== undefined) {
-      updates.opening_stock = Number(updates.opening_stock) || 0;
+      const newOpeningStock = Number(updates.opening_stock) || 0;
+      const oldOpeningStock = parseFloat(product.opening_stock) || 0;
+      const diff = newOpeningStock - oldOpeningStock;
+      updates.opening_stock = newOpeningStock;
+      updates.central_stock = Math.max(0, (parseFloat(product.central_stock) || 0) + diff);
     }
     if (updates.unit_master_id !== undefined && updates.unit_master_id !== null) {
       if (typeof updates.unit_master_id === 'string' && !/^\d+$/.test(updates.unit_master_id)) {

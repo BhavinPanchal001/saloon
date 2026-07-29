@@ -149,12 +149,14 @@ export function Navbar({ onOpenSidebar }) {
             </div>
 
             {/* Settings Link */}
-            <Link
-              to="/settings"
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              <Settings size={18} />
-            </Link>
+            {!(user?.role === "cashier" || user?.role === "pos") && (
+              <Link
+                to="/settings"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                <Settings size={18} />
+              </Link>
+            )}
 
             {/* Logout Button */}
             <button type="button" className="btn-secondary gap-2" onClick={handleLogout}>

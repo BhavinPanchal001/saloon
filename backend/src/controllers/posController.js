@@ -18,7 +18,41 @@ const {
   CustomerLedger,
   sequelize,
 } = require('../models');
+
+// Self-healing DB Migration helper: ensures pos_terminal_id and pos_shift_id columns exist on bills table in MySQL
+(async () => {
+  try {
+    const queryInterface = sequelize.getQueryInterface();
+    const tables = await queryInterface.showAllTables();
+    if (!tables.includes('pos_terminals')) {
+      const PosTerminal = require('../models/PosTerminal');
+      await PosTerminal.sync({ force: true });
+    }
+    if (!tables.includes('pos_shifts')) {
+      const PosShift = require('../models/PosShift');
+      await PosShift.sync({ force: true });
+    }
+    if (!tables.includes('pos_shift_movements')) {
+      const PosShiftMovement = require('../models/PosShiftMovement');
+      await PosShiftMovement.sync({ force: true });
+    }
+    const [columns] = await sequelize.query("SHOW COLUMNS FROM bills");
+    const colNames = columns.map(c => c.Field);
+    if (!colNames.includes('pos_terminal_id')) {
+      await sequelize.query("ALTER TABLE bills ADD COLUMN `pos_terminal_id` INT UNSIGNED NULL");
+    }
+    if (!colNames.includes('pos_shift_id')) {
+      await sequelize.query("ALTER TABLE bills ADD COLUMN `pos_shift_id` INT UNSIGNED NULL");
+    }
+    if (!colNames.includes('created_by')) {
+      await sequelize.query("ALTER TABLE bills ADD COLUMN `created_by` INT UNSIGNED NULL");
+    }
+  } catch (err) {
+    console.error('POS Checkout Auto-migration Notice:', err.message);
+  }
+})();
 const { printReceipt } = require('../utils/thermalPrinter');
+const { sendBillWhatsAppReceipt } = require('../services/whatsappService');
 
 // Ensure Service is available for package consumption validation
 
@@ -111,7 +145,7 @@ const getCatalog = async (req, res) => {
         );
 
         // Filter by outlet assignment
-        const assignedOutletIds = service.assigned_outlet_ids || [];
+        const assignedOutletIds = (service.assigned_outlet_ids || []).map(Number);
         if (outletIdNum && assignedOutletIds.length > 0 && !assignedOutletIds.includes(outletIdNum)) {
           return null;
         }
@@ -206,7 +240,7 @@ const getCatalog = async (req, res) => {
         );
 
         // Filter by outlet assignment
-        const assignedOutletIds = pkg.assigned_outlet_ids || [];
+        const assignedOutletIds = (pkg.assigned_outlet_ids || []).map(Number);
         if (outletIdNum && assignedOutletIds.length > 0 && !assignedOutletIds.includes(outletIdNum)) {
           return null;
         }
@@ -341,6 +375,8 @@ const checkout = async (req, res) => {
       allowOutOfStockCheckout,
       couponId,
       couponCode,
+      posTerminalId,
+      posShiftId,
     } = req.body;
 
     // Validation
@@ -533,6 +569,9 @@ const checkout = async (req, res) => {
         status: billStatus,
         coupon_id: couponId || null,
         coupon_code: couponCode || null,
+        pos_terminal_id: posTerminalId || req.body.pos_terminal_id || null,
+        pos_shift_id: posShiftId || req.body.pos_shift_id || null,
+        created_by: req.user?.id || req.admin?.id || req.body.createdBy || null,
       },
       { transaction }
     );
@@ -787,6 +826,11 @@ const checkout = async (req, res) => {
       console.warn('[Checkout] Thermal print failed (non-blocking):', printErr.message);
     });
 
+    // Fire-and-forget: send Meta WhatsApp bill receipt (errors logged, non-blocking)
+    sendBillWhatsAppReceipt(response).catch((waErr) => {
+      console.warn('[Checkout] WhatsApp receipt failed (non-blocking):', waErr.message);
+    });
+
     return res.status(201).json(response);
   } catch (err) {
     await transaction.rollback();
@@ -799,13 +843,15 @@ const checkout = async (req, res) => {
 const getBills = async (req, res) => {
   try {
     const { outletId, search, paymentMethod } = req.query;
-    const user = req.admin;
+    const user = req.user || req.admin;
+    const isCashier = user?.role === 'cashier' || user?.role === 'pos';
 
     // Build where clause
     const where = {};
 
-    // If not admin, restrict to user's outlet
-    if (user?.role !== 'super_admin' && user?.role !== 'admin') {
+    if (isCashier) {
+      where.created_by = user.id;
+    } else if (user?.role !== 'super_admin' && user?.role !== 'admin') {
       if (user?.outlet_id) {
         where.outlet_id = user.outlet_id;
       }
@@ -841,6 +887,7 @@ const getBills = async (req, res) => {
       id: bill.id,
       billNumber: bill.bill_number,
       createdAt: bill.createdAt,
+      createdBy: bill.created_by,
       customer: {
         name: bill.customer_name,
         phone: bill.customer_phone,
@@ -1514,6 +1561,70 @@ const updateBill = async (req, res) => {
   }
 };
 
+// POST /api/pos/bills/:id/send-whatsapp
+const sendWhatsAppBill = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const bill = await Bill.findByPk(id, {
+      include: [
+        { model: BillLineItem, as: 'lineItems' },
+        { model: Outlet, attributes: ['id', 'name'] },
+        { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
+      ],
+    });
+
+    if (!bill) {
+      return res.status(404).json({ message: 'Bill not found.' });
+    }
+
+    const billData = {
+      id: bill.id,
+      billNumber: bill.bill_number,
+      createdAt: bill.createdAt,
+      customer: {
+        name: bill.customer_name,
+        phone: bill.customer_phone,
+      },
+      paymentMethod: bill.payment_method,
+      outletId: bill.outlet_id,
+      outletName: bill.Outlet?.name || 'Glowy Saloon',
+      status: bill.status,
+      subtotal: Number(bill.subtotal),
+      discountType: bill.discount_type,
+      discountValue: Number(bill.discount_value),
+      discountAmount: Number(bill.discount_amount),
+      tax: Number(bill.tax),
+      total: Number(bill.total),
+      lineItems: bill.lineItems.map((li) => ({
+        id: li.id,
+        itemId: li.item_id,
+        itemType: li.item_type,
+        itemName: li.item_name,
+        qty: li.qty,
+        price: Number(li.price),
+      })),
+    };
+
+    const result = await sendBillWhatsAppReceipt(billData);
+
+    if (result.success) {
+      return res.status(200).json({
+        message: result.simulated ? result.message : 'WhatsApp bill receipt sent successfully.',
+        recipient: result.recipient,
+        result,
+      });
+    } else {
+      return res.status(400).json({
+        message: result.reason || result.error || 'Failed to send WhatsApp message.',
+        result,
+      });
+    }
+  } catch (err) {
+    console.error('Error sending WhatsApp bill:', err);
+    return res.status(500).json({ message: 'Server error sending WhatsApp bill receipt.' });
+  }
+};
+
 module.exports = {
   getCatalog,
   checkout,
@@ -1521,4 +1632,6 @@ module.exports = {
   getBillById,
   addBillPayment,
   updateBill,
+  sendWhatsAppBill,
 };
+

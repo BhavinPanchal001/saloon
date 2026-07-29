@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { X, Calendar, User, MapPin, Package, Scissors, CreditCard, Info } from "lucide-react";
+import { X, Calendar, User, MapPin, Package, Scissors, CreditCard, Info, MessageCircle } from "lucide-react";
 import { formatCurrency } from "../../utils/format";
 import { createPortal } from "react-dom";
 import { getUnitAbbr } from "../../utils/unitConversion";
-import { fetchProductsFromAPI } from "../../services/api";
+import { fetchProductsFromAPI, sendWhatsAppBillAPI } from "../../services/api";
+import { useToastStore } from "../../stores/toastStore";
 
 const formatDate = (iso) => {
   if (!iso) return "—";
@@ -23,6 +24,8 @@ const formatTime = (iso) => {
 
 export function BillDetailModal({ bill, onClose }) {
   const [productMasters, setProductMasters] = useState([]);
+  const [sendingWa, setSendingWa] = useState(false);
+  const toast = useToastStore();
 
   useEffect(() => {
     if (!bill) return;
@@ -34,6 +37,19 @@ export function BillDetailModal({ bill, onClose }) {
   }, [bill]);
 
   if (!bill) return null;
+
+  const handleSendWhatsApp = async () => {
+    if (!bill?.id) return;
+    setSendingWa(true);
+    try {
+      const res = await sendWhatsAppBillAPI(bill.id);
+      toast.success(res.message || "WhatsApp receipt sent successfully!");
+    } catch (err) {
+      toast.error(err.message || "Failed to send WhatsApp message");
+    } finally {
+      setSendingWa(false);
+    }
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-navy-950/40 p-4 backdrop-blur-sm">
@@ -49,13 +65,25 @@ export function BillDetailModal({ bill, onClose }) {
             </div>
             <p className="mt-1 text-sm text-slate-500">View complete transaction and consumption logs.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-navy-100 bg-white text-navy-400 hover:bg-navy-50 hover:text-navy-600 transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSendWhatsApp}
+              disabled={sendingWa}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors"
+              title="Send WhatsApp Receipt"
+            >
+              <MessageCircle size={16} />
+              {sendingWa ? "Sending..." : "Send WhatsApp"}
+            </button>
+            <button
+              onClick={onClose}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-navy-100 bg-white text-navy-400 hover:bg-navy-50 hover:text-navy-600 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
+
 
         <div className="mt-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">
           {/* Info Grid */}

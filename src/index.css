@@ -525,25 +525,48 @@
    ═══════════════════════════════════ */
 
 @media print {
-  /* Hide everything on the page */
-  body > *:not(.invoice-overlay) {
+  /* Hide everything on the page except invoice overlay and z-report modal */
+  body > *:not(.invoice-overlay):not(.printable-z-modal) {
     display: none !important;
   }
 
-  .print-hide {
+  .print-hide,
+  .print\:hidden {
     display: none !important;
   }
 
-  .invoice-overlay {
-    position: static;
-    background: none;
-    backdrop-filter: none;
-    padding: 0;
-    overflow: visible;
+  .invoice-overlay,
+  .printable-z-modal {
+    position: static !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
   }
 
-  .invoice-modal-wrapper {
-    max-width: 100%;
+  .invoice-modal-wrapper,
+  .printable-z-wrapper {
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+  }
+
+  .printable-z-report {
+    position: static !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 8px !important;
+    border: none !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    color: #000000 !important;
   }
 
   #invoice-print-area {
@@ -557,8 +580,8 @@
   }
 
   @page {
-    size: A4;
-    margin: 0;
+    size: auto;
+    margin: 4mm;
   }
 }
 

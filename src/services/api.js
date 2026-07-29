@@ -653,6 +653,16 @@ export const printReceiptAPI = async (billId) => {
   return handleResponse(res);
 };
 
+// Send WhatsApp receipt for a specific bill
+export const sendWhatsAppBillAPI = async (billId) => {
+  const res = await fetch(`${API_BASE}/pos/bills/${billId}/send-whatsapp`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+
 // ─── Printer Settings ─────────────────────────────────────────────────────────
 
 export const fetchPrinterStatusAPI = async () => {

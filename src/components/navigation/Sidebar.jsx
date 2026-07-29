@@ -31,6 +31,8 @@ import {
   BookOpen,
   Building2,
   TrendingUp,
+  Monitor,
+  History,
 } from "lucide-react";
 import { useAuthStore } from "../../stores/authStore";
 
@@ -44,6 +46,8 @@ const posNav = [
       { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
       { label: "Billing History", to: "/pos/bills", icon: Receipt },
       { label: "Coupons", to: "/coupons", icon: Tag },
+      { label: "Terminals", to: "/pos-management/terminals", icon: Monitor },
+      { label: "Shift History", to: "/pos-management/shift-history", icon: History },
     ],
   },
 ];
@@ -90,6 +94,8 @@ const adminNav = [
       { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
       { label: "Billing History", to: "/pos/bills", icon: Receipt },
       { label: "Coupons", to: "/coupons", icon: Tag },
+      { label: "Terminals", to: "/pos-management/terminals", icon: Monitor },
+      { label: "Shift History", to: "/pos-management/shift-history", icon: History },
     ],
   },
   {
@@ -170,6 +176,9 @@ const staffNav = [
     links: [
       { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true, permission: "pos:view" },
       { label: "Billing History", to: "/pos/bills", icon: Receipt, permission: "pos:view" },
+      { label: "Coupons", to: "/coupons", icon: Tag, permission: "pos:view" },
+      { label: "Terminals", to: "/pos-management/terminals", icon: Monitor, permission: "pos:view" },
+      { label: "Shift History", to: "/pos-management/shift-history", icon: History, permission: "pos:view" },
     ],
   },
   {

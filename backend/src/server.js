@@ -63,6 +63,38 @@ const startServer = async () => {
       await Appointment.sync({ force: true });
     }
 
+    if (!tablesBeforeSync.includes('pos_terminals')) {
+      console.log('[Migration] Creating pos_terminals table...');
+      const PosTerminal = require('./models/PosTerminal');
+      await PosTerminal.sync({ force: true });
+    }
+    if (!tablesBeforeSync.includes('pos_shifts')) {
+      console.log('[Migration] Creating pos_shifts table...');
+      const PosShift = require('./models/PosShift');
+      await PosShift.sync({ force: true });
+    }
+    if (!tablesBeforeSync.includes('pos_shift_movements')) {
+      console.log('[Migration] Creating pos_shift_movements table...');
+      const PosShiftMovement = require('./models/PosShiftMovement');
+      await PosShiftMovement.sync({ force: true });
+    }
+
+    // Ensure pos_terminal_id and pos_shift_id columns exist on bills table
+    try {
+      const [columns] = await sequelize.query("SHOW COLUMNS FROM bills");
+      const colNames = columns.map(c => c.Field);
+      if (!colNames.includes('pos_terminal_id')) {
+        console.log('[Migration] Adding pos_terminal_id column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `pos_terminal_id` INT UNSIGNED NULL");
+      }
+      if (!colNames.includes('pos_shift_id')) {
+        console.log('[Migration] Adding pos_shift_id column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `pos_shift_id` INT UNSIGNED NULL");
+      }
+    } catch (colErr) {
+      console.error('[Migration Warning] Checking/adding columns to bills table:', colErr.message);
+    }
+
     // Clean up duplicate indexes on banks table caused by repeated alter syncs
     try {
       const [indexes] = await sequelize.query("SHOW INDEX FROM banks WHERE Column_name = 'account_number'");
