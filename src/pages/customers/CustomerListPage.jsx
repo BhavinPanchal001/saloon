@@ -45,13 +45,21 @@ export function CustomerListPage() {
   };
 
   const handleEdit = (customer) => {
+    let formattedDob = "";
+    if (customer.dob) {
+      const d = new Date(customer.dob);
+      if (!isNaN(d.getTime())) {
+        formattedDob = d.toISOString().split("T")[0];
+      }
+    }
+
     setEditingCustomerId(customer.id);
     setFormData({
       name: customer.name || "",
       phone: customer.phone || "",
       email: customer.email || "",
       gender: customer.gender || "Female",
-      dob: customer.dob || "",
+      dob: formattedDob,
       notes: customer.notes || "",
     });
     setError("");

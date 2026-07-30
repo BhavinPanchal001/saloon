@@ -16,8 +16,10 @@ export function AppointmentCalendarPage() {
   const [error, setError] = useState("");
 
   const [formData, setFormData] = useState({
+    customerId: "",
     customerName: "",
     customerPhone: "",
+    outletId: "",
     serviceId: "",
     staffId: "",
     appointmentDate: new Date().toISOString().split("T")[0],
@@ -52,8 +54,10 @@ export function AppointmentCalendarPage() {
           fetchStaff(),
         ]);
         setOutlets(outletsRes || []);
-        if (outletsRes?.length > 0 && !selectedOutlet) {
-          setSelectedOutlet(outletsRes[0].id);
+        if (outletsRes?.length > 0) {
+          const defaultOutlet = selectedOutlet || user?.outlet_id || outletsRes[0].id;
+          setSelectedOutlet(defaultOutlet);
+          setFormData((prev) => ({ ...prev, outletId: defaultOutlet }));
         }
         setServices(servicesRes || []);
         setStaffList(staffRes || []);
@@ -81,24 +85,36 @@ export function AppointmentCalendarPage() {
     loadAppointments();
   }, [selectedOutlet, selectedDate]);
 
+  const openBookingModal = () => {
+    setError("");
+    setFormData({
+      customerId: "",
+      customerName: "",
+      customerPhone: "",
+      outletId: selectedOutlet || (outlets.length > 0 ? outlets[0].id : ""),
+      serviceId: "",
+      staffId: "",
+      appointmentDate: selectedDate,
+      startTime: "10:00",
+      notes: "",
+    });
+    setShowModal(true);
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
     setError("");
+    const targetOutlet = formData.outletId || selectedOutlet;
+    if (!targetOutlet) {
+      setError("Please select an outlet.");
+      return;
+    }
     try {
       await createAppointmentAPI({
         ...formData,
-        outletId: selectedOutlet,
+        outletId: targetOutlet,
       });
       setShowModal(false);
-      setFormData({
-        customerName: "",
-        customerPhone: "",
-        serviceId: "",
-        staffId: "",
-        appointmentDate: selectedDate,
-        startTime: "10:00",
-        notes: "",
-      });
       loadAppointments();
     } catch (err) {
       setError(err.message || "Failed to create appointment.");
@@ -145,7 +161,7 @@ export function AppointmentCalendarPage() {
           <p className="text-slate-500 text-sm mt-1">Book, track, and manage client salon appointments and stylist availability.</p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={openBookingModal}
           className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl transition-all shadow-md hover:shadow-indigo-200"
         >
           <Plus className="w-5 h-5" /> Book Appointment
@@ -264,6 +280,21 @@ export function AppointmentCalendarPage() {
             {error && <div className="p-3 rounded-xl bg-rose-50 text-rose-600 text-sm font-medium">{error}</div>}
 
             <form onSubmit={handleCreate} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Outlet *</label>
+                <select
+                  required
+                  value={formData.outletId}
+                  onChange={(e) => setFormData({ ...formData, outletId: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white font-medium text-slate-700"
+                >
+                  <option value="">Select Outlet</option>
+                  {outlets.map((o) => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="relative">
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Customer Name *</label>
                 <input
@@ -273,7 +304,7 @@ export function AppointmentCalendarPage() {
                   value={formData.customerName}
                   onChange={(e) => {
                     const val = e.target.value;
-                    setFormData({ ...formData, customerName: val });
+                    setFormData({ ...formData, customerName: val, customerId: "" });
                     handleCustomerSearch(val);
                   }}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm"
@@ -286,7 +317,7 @@ export function AppointmentCalendarPage() {
                       <div
                         key={c.id}
                         onClick={() => {
-                          setFormData({ ...formData, customerName: c.name, customerPhone: c.phone });
+                          setFormData({ ...formData, customerId: c.id, customerName: c.name, customerPhone: c.phone });
                           setShowCustomerDropdown(false);
                         }}
                         className="p-2.5 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-100 last:border-0 flex items-center justify-between text-xs"

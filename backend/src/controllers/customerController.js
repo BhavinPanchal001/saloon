@@ -74,13 +74,19 @@ const createCustomer = async (req, res) => {
       return res.status(400).json({ message: 'Customer with this phone already exists.' });
     }
 
+    const sanitizeDate = (val) => {
+      if (!val || val === '' || val === 'Invalid date') return null;
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : val;
+    };
+
     customer = await Customer.create({
       name,
       phone,
       email: email || null,
       gender: gender || null,
-      dob: dob || null,
-      anniversary: anniversary || null,
+      dob: sanitizeDate(dob),
+      anniversary: sanitizeDate(anniversary),
       notes: notes || null,
     });
 
@@ -108,13 +114,19 @@ const updateCustomer = async (req, res) => {
       }
     }
 
+    const sanitizeDate = (val) => {
+      if (!val || val === '' || val === 'Invalid date') return null;
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : val;
+    };
+
     await customer.update({
       name: name !== undefined ? name : customer.name,
       phone: phone !== undefined ? phone : customer.phone,
       email: email !== undefined ? email : customer.email,
       gender: gender !== undefined ? gender : customer.gender,
-      dob: dob !== undefined ? dob : customer.dob,
-      anniversary: anniversary !== undefined ? anniversary : customer.anniversary,
+      dob: dob !== undefined ? sanitizeDate(dob) : customer.dob,
+      anniversary: anniversary !== undefined ? sanitizeDate(anniversary) : customer.anniversary,
       notes: notes !== undefined ? notes : customer.notes,
       status: status !== undefined ? status : customer.status,
     });

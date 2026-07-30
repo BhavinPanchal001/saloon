@@ -1751,6 +1751,84 @@ export const fetchProfitLossReportAPI = async (outletId, startDate, endDate) => 
   return handleResponse(res);
 };
 
+export const fetchGstReportAPI = async (outletId, startDate, endDate) => {
+  const res = await fetch(`${API_BASE}/reports/gst?outletId=${outletId || ''}&startDate=${startDate || ''}&endDate=${endDate || ''}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchTopSellingReportAPI = async (outletId, startDate, endDate) => {
+  const res = await fetch(`${API_BASE}/reports/top-selling?outletId=${outletId || ''}&startDate=${startDate || ''}&endDate=${endDate || ''}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchStockSummaryReportAPI = async (outletId) => {
+  const res = await fetch(`${API_BASE}/reports/stock-summary?outletId=${outletId || ''}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchLowStockReportAPI = async (outletId) => {
+  const res = await fetch(`${API_BASE}/reports/low-stock?outletId=${outletId || ''}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchPurchaseOrdersReportAPI = async (outletId, startDate, endDate) => {
+  const res = await fetch(`${API_BASE}/reports/purchase-orders?outletId=${outletId || ''}&startDate=${startDate || ''}&endDate=${endDate || ''}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchEmployeeAttendanceReportAPI = async (outletId, startDate, endDate) => {
+  const res = await fetch(`${API_BASE}/reports/employee-attendance?outletId=${outletId || ''}&startDate=${startDate || ''}&endDate=${endDate || ''}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchEmployeePayrollReportAPI = async (monthKey) => {
+  const res = await fetch(`${API_BASE}/reports/employee-payroll?monthKey=${monthKey || ''}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchGstr2ReportAPI = async (outletId, startDate, endDate) => {
+  const res = await fetch(`${API_BASE}/reports/gstr2?outletId=${outletId || ''}&startDate=${startDate || ''}&endDate=${endDate || ''}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+
+export const downloadReportFileAPI = async (type, format, params = {}) => {
+  const query = new URLSearchParams({ type, ...params }).toString();
+  const endpoint = format === 'pdf' ? '/reports/export-pdf' : '/reports/export-csv';
+  const res = await fetch(`${API_BASE}${endpoint}?${query}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to download ${format.toUpperCase()} report`);
+  }
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `glowy_${type}_report_${Date.now()}.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+};
+
+
 // ─── Settings API ─────────────────────────────────────────────────────────────
 
 const DEFAULT_SETTINGS = {

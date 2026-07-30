@@ -69,37 +69,51 @@ const createAppointment = async (req, res) => {
       notes,
     } = req.body;
 
-    if (!outletId || !customerName || !customerPhone || !appointmentDate || !startTime) {
+    const parsedOutletId = outletId ? Number(outletId) : null;
+    const parsedStaffId = staffId && staffId !== '' ? Number(staffId) : null;
+    const parsedServiceId = serviceId && serviceId !== '' ? Number(serviceId) : null;
+    const parsedCustomerId = customerId && customerId !== '' ? Number(customerId) : null;
+
+    if (!parsedOutletId || !customerName || !customerPhone || !appointmentDate || !startTime) {
       return res.status(400).json({
         message: 'outletId, customerName, customerPhone, appointmentDate, and startTime are required.',
       });
     }
 
     // Auto find or link customer if phone exists
-    let finalCustomerId = customerId;
+    let finalCustomerId = parsedCustomerId;
     if (!finalCustomerId && customerPhone) {
-      let customer = await Customer.findOne({ where: { phone: customerPhone } });
+      let customer = await Customer.findOne({ where: { phone: customerPhone.trim() } });
       if (!customer) {
         customer = await Customer.create({
-          name: customerName,
-          phone: customerPhone,
+          name: customerName.trim(),
+          phone: customerPhone.trim(),
         });
       }
       finalCustomerId = customer.id;
     }
 
-    const appointment = await Appointment.create({
-      outlet_id: outletId,
+    const newAppointment = await Appointment.create({
+      outlet_id: parsedOutletId,
       customer_id: finalCustomerId || null,
-      customer_name: customerName,
-      customer_phone: customerPhone,
-      staff_id: staffId || null,
-      service_id: serviceId || null,
+      customer_name: customerName.trim(),
+      customer_phone: customerPhone.trim(),
+      staff_id: parsedStaffId || null,
+      service_id: parsedServiceId || null,
       appointment_date: appointmentDate,
       start_time: startTime,
       end_time: endTime || null,
-      notes: notes || null,
+      notes: notes ? notes.trim() : null,
       status: 'confirmed',
+    });
+
+    const appointment = await Appointment.findByPk(newAppointment.id, {
+      include: [
+        { model: Customer, as: 'customer', attributes: ['id', 'name', 'phone', 'email'] },
+        { model: Outlet, as: 'outlet', attributes: ['id', 'name', 'code'] },
+        { model: Staff, as: 'staff', attributes: ['id', 'first_name', 'last_name'] },
+        { model: Service, as: 'service', attributes: ['id', 'service_name', 'price', 'duration'] },
+      ],
     });
 
     return res.status(201).json(appointment);

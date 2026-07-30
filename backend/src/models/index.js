@@ -1,6 +1,6 @@
 const { sequelize, Sequelize } = require('./db');
 
-// Import models
+// Import all models first
 const BankTransaction = require('./BankTransaction');
 const Product = require('./Product');
 const Outlet = require('./Outlet');
@@ -30,6 +30,26 @@ const Coupon = require('./Coupon');
 const Customer = require('./Customer');
 const CustomerLedger = require('./CustomerLedger');
 const Appointment = require('./Appointment');
+const Role = require('./Role');
+const Shift = require('./Shift');
+const LeaveType = require('./LeaveType');
+const WorkWeek = require('./WorkWeek');
+const ContractType = require('./ContractType');
+const ContractTypeTemplate = require('./ContractTypeTemplate');
+const HolidayTemplate = require('./HolidayTemplate');
+const HolidayOccasion = require('./HolidayOccasion');
+const SalaryComponentMaster = require('./SalaryComponentMaster');
+const ContractGroup = require('./ContractGroup');
+const Staff = require('./Staff');
+const Contract = require('./Contract');
+const ContractSalaryMapping = require('./ContractSalaryMapping');
+const Attendance = require('./Attendance');
+const ProcessedPayroll = require('./ProcessedPayroll');
+const ProcessedPayrollDetail = require('./ProcessedPayrollDetail');
+const Admin = require('./Admin');
+const PosTerminal = require('./PosTerminal');
+const PosShift = require('./PosShift');
+const PosShiftMovement = require('./PosShiftMovement');
 
 // Define associations
 OutletInventory.belongsTo(Product, { foreignKey: 'product_id' });
@@ -92,6 +112,12 @@ Customer.hasMany(Appointment, { foreignKey: 'customer_id' });
 Appointment.belongsTo(Outlet, { foreignKey: 'outlet_id', as: 'outlet' });
 Outlet.hasMany(Appointment, { foreignKey: 'outlet_id' });
 
+Appointment.belongsTo(Staff, { foreignKey: 'staff_id', as: 'staff' });
+Staff.hasMany(Appointment, { foreignKey: 'staff_id' });
+
+Appointment.belongsTo(Service, { foreignKey: 'service_id', as: 'service' });
+Service.hasMany(Appointment, { foreignKey: 'service_id' });
+
 Appointment.belongsTo(Bill, { foreignKey: 'bill_id', as: 'bill' });
 
 // Expense associations
@@ -113,24 +139,6 @@ Notification.belongsTo(Product, { foreignKey: 'product_id' });
 Bank.hasMany(BankTransaction, { foreignKey: 'bank_id', as: 'transactions', onDelete: 'CASCADE' });
 BankTransaction.belongsTo(Bank, { foreignKey: 'bank_id', as: 'bank' });
 BankTransaction.belongsTo(Bank, { foreignKey: 'related_bank_id', as: 'relatedBank' });
-
-// ─── NEW HR, EMPLOYEE & CONTRACT ASSOCIATIONS ────────────────────────────────
-const Role = require('./Role');
-const Shift = require('./Shift');
-const LeaveType = require('./LeaveType');
-const WorkWeek = require('./WorkWeek');
-const ContractType = require('./ContractType');
-const ContractTypeTemplate = require('./ContractTypeTemplate');
-const HolidayTemplate = require('./HolidayTemplate');
-const HolidayOccasion = require('./HolidayOccasion');
-const SalaryComponentMaster = require('./SalaryComponentMaster');
-const ContractGroup = require('./ContractGroup');
-const Staff = require('./Staff');
-const Contract = require('./Contract');
-const ContractSalaryMapping = require('./ContractSalaryMapping');
-const Attendance = require('./Attendance');
-const ProcessedPayroll = require('./ProcessedPayroll');
-const ProcessedPayrollDetail = require('./ProcessedPayrollDetail');
 
 // Staff associations
 Staff.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
@@ -182,11 +190,6 @@ Outlet.hasMany(ProcessedPayroll, { foreignKey: 'outlet_id' });
 
 ProcessedPayrollDetail.belongsTo(Staff, { foreignKey: 'staff_id', as: 'employee' });
 Staff.hasMany(ProcessedPayrollDetail, { foreignKey: 'staff_id', as: 'payrollDetails', onDelete: 'CASCADE' });
-
-const Admin = require('./Admin');
-const PosTerminal = require('./PosTerminal');
-const PosShift = require('./PosShift');
-const PosShiftMovement = require('./PosShiftMovement');
 
 Admin.belongsTo(Outlet, { foreignKey: 'outlet_id', as: 'outlet' });
 Outlet.hasMany(Admin, { foreignKey: 'outlet_id', as: 'admins' });
@@ -245,8 +248,6 @@ module.exports = {
   BudgetHistory,
   InventoryAuditLog,
   Notification,
-  
-  // Export new models
   Role,
   Shift,
   LeaveType,
