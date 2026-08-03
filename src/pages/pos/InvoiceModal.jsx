@@ -198,6 +198,18 @@ export function InvoiceModal({ bill, onClose }) {
                 <span>− {formatCurrency(bill.discountAmount)}</span>
               </div>
             )}
+            {(bill.points_redeemed || bill.pointsRedeemed) > 0 && (
+              <div className="invoice-totals-row text-amber-700 font-semibold">
+                <span>Points Redeemed ({bill.points_redeemed || bill.pointsRedeemed} Pts)</span>
+                <span>− {formatCurrency(bill.points_discount_amount || bill.pointsDiscountAmount)}</span>
+              </div>
+            )}
+            {(bill.points_earned || bill.pointsEarned) > 0 && (
+              <div className="invoice-totals-row text-amber-600 font-medium">
+                <span>Points Earned Today</span>
+                <span>+{bill.points_earned || bill.pointsEarned} Pts</span>
+              </div>
+            )}
             <div className="invoice-totals-row">
               <span>Tax (8%)</span>
               <span>{formatCurrency(bill.tax)}</span>

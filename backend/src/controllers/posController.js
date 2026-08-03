@@ -16,8 +16,10 @@ const {
   Bank,
   Customer,
   CustomerLedger,
+  LoyaltyTier,
   sequelize,
 } = require('../models');
+const rewardService = require('../services/rewardService');
 
 // Self-healing DB Migration helper: ensures pos_terminal_id and pos_shift_id columns exist on bills table in MySQL
 (async () => {
@@ -716,13 +718,28 @@ const checkout = async (req, res) => {
       }
     }
 
-    // Update customer spend, visits, and credit/due ledger
+    // Process loyalty points earning and redemption
+    let loyaltyResult = { pointsEarned: 0, pointsRedeemed: 0, discountAmount: 0 };
     if (targetCustomer) {
-      const currentVisits = Number(targetCustomer.total_visits || 0) + 1;
-      const currentSpend = Number(targetCustomer.total_spend || 0) + Number(total || 0);
+      const pointsToRedeem = parseInt(req.body.pointsToRedeem || req.body.points_redeemed || 0, 10);
+      loyaltyResult = await rewardService.processBillLoyalty({
+        bill,
+        customerId: targetCustomer.id,
+        pointsToRedeem,
+        createdBy: req.user?.id || req.admin?.id || req.body.createdBy,
+        transaction,
+      });
+
+      // Update bill with loyalty details
+      await bill.update({
+        points_earned: loyaltyResult.pointsEarned,
+        points_redeemed: loyaltyResult.pointsRedeemed,
+        points_discount_amount: loyaltyResult.discountAmount,
+      }, { transaction });
+
+      // Handle Store Credit & Unpaid due charges
       let newCreditBalance = Number(targetCustomer.credit_balance || 0);
 
-      // Handle Store Credit payments
       const storeCreditPaid = detailRows
         .filter((d) => d.payment_mode === 'store_credit')
         .reduce((sum, d) => sum + d.amount, 0);
@@ -740,7 +757,6 @@ const checkout = async (req, res) => {
         }, { transaction });
       }
 
-      // Handle remaining unpaid bill amount as Customer Due
       const unpaidAmount = Math.max(0, Number(total || 0) - totalPaid);
       if (unpaidAmount > 0) {
         newCreditBalance -= unpaidAmount;
@@ -755,11 +771,9 @@ const checkout = async (req, res) => {
         }, { transaction });
       }
 
-      await targetCustomer.update({
-        total_visits: currentVisits,
-        total_spend: currentSpend,
-        credit_balance: newCreditBalance,
-      }, { transaction });
+      if (newCreditBalance !== Number(targetCustomer.credit_balance || 0)) {
+        await targetCustomer.update({ credit_balance: newCreditBalance }, { transaction });
+      }
     }
 
     // Use the first non-cash detail's bank as the primary bank for the Payment record
@@ -850,10 +864,16 @@ const checkout = async (req, res) => {
       console.warn('[Checkout] Thermal print failed (non-blocking):', printErr.message);
     });
 
-    // Fire-and-forget: send Meta WhatsApp bill receipt (errors logged, non-blocking)
-    sendBillWhatsAppReceipt(response).catch((waErr) => {
-      console.warn('[Checkout] WhatsApp receipt failed (non-blocking):', waErr.message);
-    });
+    // Fire-and-forget: send Meta WhatsApp bill receipt if enabled in settings / request payload
+    const shouldSendWhatsApp = req.body.sendWhatsApp !== undefined ? Boolean(req.body.sendWhatsApp) : true;
+    if (shouldSendWhatsApp) {
+      sendBillWhatsAppReceipt(response).catch((waErr) => {
+        console.warn('[Checkout] WhatsApp receipt failed (non-blocking):', waErr.message);
+      });
+    } else {
+      console.log('[Checkout] WhatsApp auto-send skipped as per setting / request preference.');
+    }
+
 
     return res.status(201).json(response);
   } catch (err) {

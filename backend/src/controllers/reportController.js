@@ -13,7 +13,9 @@ const {
   Staff,
   Attendance,
   ProcessedPayroll,
+  ProcessedPayrollDetail,
   UnitMaster,
+  Role,
 } = require('../models');
 const { Op, fn, col } = require('sequelize');
 const { generateReportPDFBuffer } = require('../services/pdfService');
@@ -30,10 +32,11 @@ const getShiftEndReport = async (req, res) => {
     const startOfDay = new Date(`${targetDate}T00:00:00.000Z`);
     const endOfDay = new Date(`${targetDate}T23:59:59.999Z`);
 
-    // Fetch all bills for outlet on target date
+    // Fetch all non-cancelled bills for outlet on target date
     const bills = await Bill.findAll({
       where: {
         outlet_id: outletId,
+        status: { [Op.ne]: 'cancelled' },
         createdAt: { [Op.between]: [startOfDay, endOfDay] },
       },
       include: [
@@ -54,26 +57,29 @@ const getShiftEndReport = async (req, res) => {
     const modeKeyMap = { cash: 'Cash', card: 'Card', upi: 'UPI', store_credit: 'Store Credit', bank_transfer: 'Card', cheque: 'Card' };
 
     bills.forEach((bill) => {
-      totalGrossSales += Number(bill.subtotal);
+      totalGrossSales += Number(bill.subtotal || 0);
       totalDiscounts += Number(bill.discount_amount || 0);
       totalTax += Number(bill.tax || 0);
-      totalNetSales += Number(bill.total);
+      totalNetSales += Number(bill.total || 0);
 
       let billPaidTotal = 0;
       (bill.payments || []).forEach((p) => {
         (p.details || []).forEach((d) => {
           const amt = Number(d.amount || 0);
           billPaidTotal += amt;
-          const modeKey = modeKeyMap[d.payment_mode] || 'Cash';
+          const modeKey = modeKeyMap[(d.payment_mode || '').toLowerCase()] || 'Cash';
           if (paymentBreakdown[modeKey] !== undefined) {
             paymentBreakdown[modeKey] += amt;
           }
         });
       });
 
-      if (billPaidTotal === 0 && bill.status === 'paid') {
-        if (bill.payment_method && paymentBreakdown[bill.payment_method] !== undefined) {
-          paymentBreakdown[bill.payment_method] += Number(bill.total);
+      if (billPaidTotal === 0 && (bill.status === 'paid' || bill.status === 'completed')) {
+        const modeKey = modeKeyMap[(bill.payment_method || '').toLowerCase()] || 'Cash';
+        if (paymentBreakdown[modeKey] !== undefined) {
+          paymentBreakdown[modeKey] += Number(bill.total || 0);
+        } else {
+          paymentBreakdown.Cash += Number(bill.total || 0);
         }
       } else if (billPaidTotal < Number(bill.total || 0)) {
         paymentBreakdown.Unpaid += Number(bill.total || 0) - billPaidTotal;
@@ -88,7 +94,7 @@ const getShiftEndReport = async (req, res) => {
       },
     });
 
-    const totalCashExpenses = expenses.reduce((acc, exp) => acc + Number(exp.total_amount), 0);
+    const totalCashExpenses = expenses.reduce((acc, exp) => acc + Number(exp.total_amount || 0), 0);
 
     return res.json({
       date: targetDate,
@@ -113,7 +119,7 @@ const getProfitAndLossReport = async (req, res) => {
   try {
     const { outletId, startDate, endDate } = req.query;
 
-    const whereBill = { status: 'paid' };
+    const whereBill = { status: { [Op.in]: ['paid', 'completed'] } };
     const whereExpense = {};
 
     if (outletId) {
@@ -225,7 +231,7 @@ const getCustomerCreditReport = async (req, res) => {
 
 // Helper for fetching GST report data
 const getGstReportData = async ({ outletId, startDate, endDate }) => {
-  const whereBill = { status: 'paid' };
+  const whereBill = { status: { [Op.in]: ['paid', 'completed'] } };
   if (outletId) {
     whereBill.outlet_id = outletId;
   }
@@ -384,7 +390,7 @@ const exportReportCSV = async (req, res) => {
         csvRows.push([`"${s.name}"`, `"${s.employeeCode}"`, `"${s.role}"`, s.totalRecordedDays, s.present, s.absent, s.halfDay, s.leave].join(','));
       });
     } else if (type === 'payroll' || type === 'employee-payroll') {
-      const data = await getEmployeePayrollReportData({});
+      const data = await getEmployeePayrollReportData({ outletId });
       csvRows.push(['Employee Name', 'Emp Code', 'Role', 'Base Salary', 'Commissions', 'Gross Salary', 'Deductions', 'Net Salary Payout (INR)'].join(','));
       (data.payrollSummary || []).forEach((s) => {
         csvRows.push([`"${s.name}"`, `"${s.employeeCode}"`, `"${s.role}"`, s.baseSalary.toFixed(2), s.commissionAmount.toFixed(2), s.grossSalary.toFixed(2), s.deductions.toFixed(2), s.netSalary.toFixed(2)].join(','));
@@ -401,7 +407,7 @@ const exportReportCSV = async (req, res) => {
       const startOfDay = new Date(`${targetDate}T00:00:00.000Z`);
       const endOfDay = new Date(`${targetDate}T23:59:59.999Z`);
       const bills = await Bill.findAll({
-        where: { outlet_id: outletId, createdAt: { [Op.between]: [startOfDay, endOfDay] } },
+        where: { outlet_id: outletId, status: { [Op.ne]: 'cancelled' }, createdAt: { [Op.between]: [startOfDay, endOfDay] } },
       });
       const expenses = await Expense.findAll({
         where: { outlet_id: outletId, createdAt: { [Op.between]: [startOfDay, endOfDay] } },
@@ -413,7 +419,7 @@ const exportReportCSV = async (req, res) => {
       csvRows.push(['Shift Date', 'Total Bills', 'Net Sales Revenue', 'Cash Expenses', 'Expected Cash in Drawer'].join(','));
       csvRows.push([`"${targetDate}"`, bills.length, netSales.toFixed(2), cashExp.toFixed(2), (netSales - cashExp).toFixed(2)].join(','));
     } else if (type === 'pnl') {
-      const whereBill = { status: 'paid' };
+      const whereBill = { status: { [Op.in]: ['paid', 'completed'] } };
       const whereExpense = {};
       if (outletId) {
         whereBill.outlet_id = outletId;
@@ -498,7 +504,7 @@ const exportReportPDF = async (req, res) => {
     } else if (type === 'attendance' || type === 'employee-attendance') {
       reportData = await getEmployeeAttendanceReportData({ outletId, startDate, endDate });
     } else if (type === 'payroll' || type === 'employee-payroll') {
-      reportData = await getEmployeePayrollReportData({});
+      reportData = await getEmployeePayrollReportData({ outletId });
 
     } else if (type === 'gstr2') {
       reportData = await getGstr2ReportData({ outletId, startDate, endDate });
@@ -507,7 +513,7 @@ const exportReportPDF = async (req, res) => {
       const startOfDay = new Date(`${targetDate}T00:00:00.000Z`);
       const endOfDay = new Date(`${targetDate}T23:59:59.999Z`);
       const bills = await Bill.findAll({
-        where: { outlet_id: outletId, createdAt: { [Op.between]: [startOfDay, endOfDay] } },
+        where: { outlet_id: outletId, status: { [Op.ne]: 'cancelled' }, createdAt: { [Op.between]: [startOfDay, endOfDay] } },
         include: [{ model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] }],
       });
       const expenses = await Expense.findAll({
@@ -535,7 +541,7 @@ const exportReportPDF = async (req, res) => {
         paymentBreakdown,
       };
     } else if (type === 'pnl') {
-      const whereBill = { status: 'paid' };
+      const whereBill = { status: { [Op.in]: ['paid', 'completed'] } };
       const whereExpense = {};
       if (outletId) {
         whereBill.outlet_id = outletId;
@@ -626,7 +632,7 @@ const exportReportPDF = async (req, res) => {
 // Data generator for Top Selling Items Report (Services & Products)
 
 const getTopSellingReportData = async ({ outletId, startDate, endDate }) => {
-  const whereBill = { status: 'paid' };
+  const whereBill = { status: { [Op.in]: ['paid', 'completed'] } };
   if (outletId) whereBill.outlet_id = outletId;
   if (startDate && endDate) {
     whereBill.createdAt = { [Op.between]: [new Date(`${startDate}T00:00:00.000Z`), new Date(`${endDate}T23:59:59.999Z`)] };
@@ -676,7 +682,7 @@ const getStockSummaryReportData = async ({ outletId }) => {
   const products = await Product.findAll({
     include: [
       { model: UnitMaster, as: 'unitMaster' },
-      { model: OutletInventory },
+      { model: OutletInventory, as: 'OutletInventories' },
     ],
   });
 
@@ -686,14 +692,18 @@ const getStockSummaryReportData = async ({ outletId }) => {
 
   const items = products.map((p) => {
     let currentStock = 0;
+    const invList = p.OutletInventories || p.outlet_inventories || [];
     if (outletId) {
-      const inv = (p.OutletInventories || []).find((i) => String(i.outlet_id) === String(outletId));
+      const inv = invList.find((i) => String(i.outlet_id) === String(outletId));
       currentStock = inv ? Number(inv.current_stock || 0) : 0;
     } else {
-      currentStock = (p.OutletInventories || []).reduce((acc, i) => acc + Number(i.current_stock || 0), 0);
+      currentStock = invList.reduce((acc, i) => acc + Number(i.current_stock || 0), 0);
     }
-    const costPrice = Number(p.purchase_price || p.price || 0);
-    const sellingPrice = Number(p.price || 0);
+    if (!outletId && currentStock === 0 && p.central_stock) {
+      currentStock = Number(p.central_stock || 0);
+    }
+    const costPrice = Number(p.unit_price || 0);
+    const sellingPrice = Number(p.unit_price || 0);
     const itemValuation = currentStock * costPrice;
 
     totalStockQty += currentStock;
@@ -701,10 +711,10 @@ const getStockSummaryReportData = async ({ outletId }) => {
 
     return {
       id: p.id,
-      name: p.name,
-      sku: p.sku || p.barcode || '—',
-      category: p.category || 'General',
-      unit: p.unitMaster?.name || p.unit || 'Pcs',
+      name: p.item_name || 'Product',
+      sku: `PROD-${p.id}`,
+      category: 'Product',
+      unit: p.unitMaster?.name || 'Pcs',
       currentStock,
       costPrice,
       sellingPrice,
@@ -723,30 +733,34 @@ const getStockSummaryReportData = async ({ outletId }) => {
 // Data generator for Low Stock Report
 const getLowStockReportData = async ({ outletId }) => {
   const products = await Product.findAll({
-    include: [{ model: OutletInventory }],
+    include: [{ model: OutletInventory, as: 'OutletInventories' }],
   });
 
   const lowStockItems = [];
   products.forEach((p) => {
-    const minStock = Number(p.min_stock_alert || p.reorder_level || 5);
+    const minStock = 5;
     let currentStock = 0;
+    const invList = p.OutletInventories || p.outlet_inventories || [];
 
     if (outletId) {
-      const inv = (p.OutletInventories || []).find((i) => String(i.outlet_id) === String(outletId));
+      const inv = invList.find((i) => String(i.outlet_id) === String(outletId));
       currentStock = inv ? Number(inv.current_stock || 0) : 0;
     } else {
-      currentStock = (p.OutletInventories || []).reduce((acc, i) => acc + Number(i.current_stock || 0), 0);
+      currentStock = invList.reduce((acc, i) => acc + Number(i.current_stock || 0), 0);
+    }
+    if (!outletId && currentStock === 0 && p.central_stock) {
+      currentStock = Number(p.central_stock || 0);
     }
 
     if (currentStock <= minStock) {
       lowStockItems.push({
         id: p.id,
-        name: p.name,
-        category: p.category || 'General',
+        name: p.item_name || 'Product',
+        category: 'Product',
         currentStock,
         minStock,
         shortage: Math.max(0, minStock - currentStock),
-        sellingPrice: Number(p.price || 0),
+        sellingPrice: Number(p.unit_price || 0),
       });
     }
   });
@@ -777,7 +791,7 @@ const getPurchaseOrderReportData = async ({ outletId, startDate, endDate }) => {
   let receivedCount = 0;
 
   const orders = pos.map((po) => {
-    const totalAmt = Number(po.total_amount || 0);
+    const totalAmt = Number(po.total_cost || po.total_amount || 0);
     totalSpend += totalAmt;
     if (po.status === 'received' || po.status === 'completed') {
       receivedCount++;
@@ -788,7 +802,7 @@ const getPurchaseOrderReportData = async ({ outletId, startDate, endDate }) => {
     return {
       id: po.id,
       poNumber: po.po_number || `PO-${po.id}`,
-      vendorName: po.vendor_name || 'Vendor Supplier',
+      vendorName: po.supplier_name || po.vendor_name || 'Vendor Supplier',
       outletName: po.Outlet?.name || 'Main Branch',
       date: po.createdAt ? new Date(po.createdAt).toISOString().split('T')[0] : '',
       status: po.status || 'pending',
@@ -813,8 +827,15 @@ const getEmployeeAttendanceReportData = async ({ outletId, startDate, endDate })
     whereAtt.date = { [Op.between]: [startDate, endDate] };
   }
 
+  const whereStaff = {};
+  if (outletId) {
+    whereStaff.assigned_outlet_id = outletId;
+  }
+
   const staffMembers = await Staff.findAll({
-    attributes: ['id', 'name', 'employee_code', 'role', 'outlet_id'],
+    where: whereStaff,
+    attributes: ['id', 'first_name', 'last_name', 'employee_code', 'role_id', 'assigned_outlet_id'],
+    include: [{ model: Role, as: 'role', attributes: ['id', 'name'] }],
   });
 
   const attendances = await Attendance.findAll({ where: whereAtt });
@@ -831,14 +852,14 @@ const getEmployeeAttendanceReportData = async ({ outletId, startDate, endDate })
       if (st === 'present') present++;
       else if (st === 'absent') absent++;
       else if (st === 'half_day' || st === 'halfday') halfDay++;
-      else if (st === 'leave') leave++;
+      else if (st === 'paid_leave' || st === 'leave') leave++;
     });
 
     return {
       id: s.id,
-      name: s.name,
+      name: `${s.first_name} ${s.last_name}`.trim(),
       employeeCode: s.employee_code || `EMP-${s.id}`,
-      role: s.role || 'Staff',
+      role: s.role?.name || 'Staff',
       totalRecordedDays: staffAtts.length,
       present,
       absent,
@@ -854,23 +875,31 @@ const getEmployeeAttendanceReportData = async ({ outletId, startDate, endDate })
 };
 
 // Data generator for Employee Payroll Report
-const getEmployeePayrollReportData = async ({ monthKey }) => {
-  const staffMembers = await Staff.findAll();
-  const payrolls = await ProcessedPayroll.findAll();
+const getEmployeePayrollReportData = async ({ outletId, monthKey }) => {
+  const whereStaff = {};
+  if (outletId) {
+    whereStaff.assigned_outlet_id = outletId;
+  }
+  const staffMembers = await Staff.findAll({
+    where: whereStaff,
+    attributes: ['id', 'first_name', 'last_name', 'employee_code', 'role_id', 'assigned_outlet_id'],
+    include: [{ model: Role, as: 'role', attributes: ['id', 'name'] }],
+  });
+  const payrollDetails = await ProcessedPayrollDetail.findAll();
 
   const payrollSummary = staffMembers.map((s) => {
-    const p = payrolls.find((item) => String(item.staff_id) === String(s.id));
-    const baseSalary = p ? Number(p.base_salary || 0) : Number(s.base_salary || 25000);
-    const commission = p ? Number(p.commission_amount || 0) : 1200;
-    const gross = baseSalary + commission;
-    const deductions = Math.round(baseSalary * 0.12);
-    const netSalary = gross - deductions;
+    const pd = payrollDetails.find((item) => String(item.staff_id) === String(s.id));
+    const baseSalary = pd ? Number(pd.base_salary || 0) : 0;
+    const commission = pd ? Number(pd.commission_amount || 0) : 0;
+    const gross = pd ? (Number(pd.payable || 0) + Number(pd.deduction || 0)) : (baseSalary + commission);
+    const deductions = pd ? Number(pd.deduction || 0) : 0;
+    const netSalary = pd ? Number(pd.payable || 0) : (gross - deductions);
 
     return {
       id: s.id,
-      name: s.name,
+      name: `${s.first_name} ${s.last_name}`.trim(),
       employeeCode: s.employee_code || `EMP-${s.id}`,
-      role: s.role || 'Staff',
+      role: s.role?.name || 'Staff',
       baseSalary,
       commissionAmount: commission,
       grossSalary: gross,
@@ -888,7 +917,7 @@ const getEmployeePayrollReportData = async ({ monthKey }) => {
 
 // Data generator for GSTR-2 Purchase ITC Report
 const getGstr2ReportData = async ({ outletId, startDate, endDate }) => {
-  const wherePo = { status: { [Op.or]: ['received', 'completed', 'sent'] } };
+  const wherePo = { status: { [Op.in]: ['received', 'approved'] } };
   if (outletId) wherePo.outlet_id = outletId;
   if (startDate && endDate) {
     wherePo.createdAt = { [Op.between]: [new Date(`${startDate}T00:00:00.000Z`), new Date(`${endDate}T23:59:59.999Z`)] };
@@ -905,9 +934,9 @@ const getGstr2ReportData = async ({ outletId, startDate, endDate }) => {
   let totalItcClaimable = 0;
 
   const purchases = pos.map((po) => {
-    const totalAmt = Number(po.total_amount || 0);
+    const totalAmt = Number(po.total_cost || po.total_amount || 0);
     const taxAmt = Number(po.tax_amount || (totalAmt * 0.18) / 1.18);
-    const taxableVal = totalAmt - taxAmt;
+    const taxableVal = Math.max(0, totalAmt - taxAmt);
     const cgst = taxAmt / 2;
     const sgst = taxAmt / 2;
 
@@ -918,8 +947,8 @@ const getGstr2ReportData = async ({ outletId, startDate, endDate }) => {
     return {
       id: po.id,
       poNumber: po.po_number || `PO-${po.id}`,
-      vendorName: po.vendor_name || 'Supplier Vendor',
-      vendorGstin: po.vendor_gstin || '29AAACG9999F1Z1',
+      vendorName: po.supplier_name || po.vendor_name || 'Supplier Vendor',
+      vendorGstin: po.supplier_phone || po.supplier_contact || po.vendor_gstin || '29AAACG9999F1Z1',
       date: po.createdAt ? new Date(po.createdAt).toISOString().split('T')[0] : '',
       taxableValue: taxableVal,
       cgst,

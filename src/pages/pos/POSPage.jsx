@@ -31,10 +31,12 @@ export function POSPage() {
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [selectedCrmCustomer, setSelectedCrmCustomer] = useState(null);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
 
   const resetCustomerFields = () => {
     setSelectedCrmCustomer(null);
     setCustomer({ name: "", phone: "" });
+    setPointsToRedeem(0);
   };
 
   const handleCustomerSearch = async (query) => {
@@ -69,7 +71,9 @@ export function POSPage() {
   const [couponLoading, setCouponLoading] = useState(false);
   const [stockErrors, setStockErrors] = useState([]);
   const [allowOutOfStockCheckout, setAllowOutOfStockCheckout] = useState(false);
+  const [autoSendWhatsAppOnPOS, setAutoSendWhatsAppOnPOS] = useState(true);
   const [paymentDetails, setPaymentDetails] = useState([]);
+
   const [transactionReference, setTransactionReference] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [showShortcutGuide, setShowShortcutGuide] = useState(false);
@@ -361,12 +365,16 @@ export function POSPage() {
         if (data?.inventory?.allowOutOfStockCheckout !== undefined) {
           setAllowOutOfStockCheckout(Boolean(data.inventory.allowOutOfStockCheckout));
         }
+        if (data?.notifications?.autoSendWhatsAppOnPOS !== undefined) {
+          setAutoSendWhatsAppOnPOS(Boolean(data.notifications.autoSendWhatsAppOnPOS));
+        }
       } catch (err) {
         console.error("Failed to load settings in POS:", err);
       }
     };
     loadPOSSettings();
   }, []);
+
 
   const productNameById = useMemo(() => {
     return Object.fromEntries(productMasters.map((p) => [p.id, p.itemName]));
@@ -965,8 +973,10 @@ export function POSPage() {
     const payload = {
       customer,
       paymentMethod: paymentMethod || "Unpaid",
+      sendWhatsApp: autoSendWhatsAppOnPOS,
       bankId: primaryBankAccountId,
       bankAccountId: primaryBankAccountId,
+
       outletId,
       subtotal,
       discountType: discountAmount > 0 ? discountType : null,
@@ -975,6 +985,7 @@ export function POSPage() {
       tax,
       total,
       allowOutOfStockCheckout,
+      pointsToRedeem: Number(pointsToRedeem) || 0,
       couponId: appliedCoupon?.coupon_id || undefined,
       couponCode: appliedCoupon?.code || undefined,
       posTerminalId: selectedTerminal?.id || undefined,
@@ -1439,32 +1450,69 @@ export function POSPage() {
 
             {/* Selected CRM Customer Tag */}
             {selectedCrmCustomer && (
-              <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-100 text-xs text-indigo-700">
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <span className="font-semibold flex items-center gap-1.5 truncate">
-                    <User className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                    CRM Client: {selectedCrmCustomer.name} ({selectedCrmCustomer.loyalty_points || 0} pts)
-                  </span>
-                  {Number(selectedCrmCustomer.credit_balance || 0) > 0 ? (
-                    <span className="text-[10px] font-bold text-emerald-700">
-                      Available Store Credit: +₹{Number(selectedCrmCustomer.credit_balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              <div className="space-y-2 p-2.5 rounded-xl bg-indigo-50/80 border border-indigo-100 text-xs text-indigo-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <span className="font-semibold flex items-center gap-1.5 truncate">
+                      <User className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      CRM Client: {selectedCrmCustomer.name} ({selectedCrmCustomer.loyalty_points || 0} pts)
+                      {selectedCrmCustomer.loyaltyTier && (
+                        <span
+                          className="px-1.5 py-0.2 rounded text-[9px] font-bold text-white"
+                          style={{ backgroundColor: selectedCrmCustomer.loyaltyTier.badge_color || "#b45309" }}
+                        >
+                          {selectedCrmCustomer.loyaltyTier.name}
+                        </span>
+                      )}
                     </span>
-                  ) : Number(selectedCrmCustomer.credit_balance || 0) < 0 ? (
-                    <span className="text-[10px] font-bold text-rose-700">
-                      Outstanding Due: -₹{Math.abs(Number(selectedCrmCustomer.credit_balance)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-500 font-medium">Store Credit: ₹0.00</span>
-                  )}
+                    {Number(selectedCrmCustomer.credit_balance || 0) > 0 ? (
+                      <span className="text-[10px] font-bold text-emerald-700">
+                        Available Store Credit: +₹{Number(selectedCrmCustomer.credit_balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    ) : Number(selectedCrmCustomer.credit_balance || 0) < 0 ? (
+                      <span className="text-[10px] font-bold text-rose-700">
+                        Outstanding Due: -₹{Math.abs(Number(selectedCrmCustomer.credit_balance)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 font-medium">Store Credit: ₹0.00</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetCustomerFields}
+                    className="text-indigo-400 hover:text-indigo-600 ml-2 shrink-0"
+                    title="Clear customer selection"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={resetCustomerFields}
-                  className="text-indigo-400 hover:text-indigo-600 ml-2 shrink-0"
-                  title="Clear customer selection"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+
+                {/* Redeem Points Field */}
+                {(selectedCrmCustomer.loyalty_points || 0) > 0 && (
+                  <div className="flex items-center gap-2 pt-1 border-t border-indigo-100">
+                    <span className="text-[10px] font-bold text-amber-800 shrink-0">Redeem Points:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={selectedCrmCustomer.loyalty_points || 0}
+                      value={pointsToRedeem || ''}
+                      onChange={(e) => {
+                        const val = Math.min(
+                          Math.max(0, parseInt(e.target.value, 10) || 0),
+                          selectedCrmCustomer.loyalty_points || 0
+                        );
+                        setPointsToRedeem(val);
+                      }}
+                      placeholder={`Max ${selectedCrmCustomer.loyalty_points}`}
+                      className="w-24 px-2 py-1 rounded border border-amber-300 bg-white text-xs font-bold text-amber-900 focus:ring-1 focus:ring-amber-500"
+                    />
+                    {pointsToRedeem > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-700">
+                        (-₹{pointsToRedeem} Off)
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

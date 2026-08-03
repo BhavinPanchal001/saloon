@@ -39,6 +39,10 @@ const Customer = sequelize.define('Customer', {
     type: DataTypes.INTEGER,
     defaultValue: 0,
   },
+  loyalty_tier_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+  },
   total_spend: {
     type: DataTypes.DECIMAL(12, 2),
     defaultValue: 0,

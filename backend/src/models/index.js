@@ -50,9 +50,14 @@ const Admin = require('./Admin');
 const PosTerminal = require('./PosTerminal');
 const PosShift = require('./PosShift');
 const PosShiftMovement = require('./PosShiftMovement');
+const LoyaltyTier = require('./LoyaltyTier');
+const LoyaltyLedger = require('./LoyaltyLedger');
+const RewardSetting = require('./RewardSetting');
 
 // Define associations
 OutletInventory.belongsTo(Product, { foreignKey: 'product_id' });
+Product.hasMany(OutletInventory, { foreignKey: 'product_id', as: 'OutletInventories' });
+Product.hasMany(OutletInventory, { foreignKey: 'product_id' });
 OutletInventory.belongsTo(Outlet, { foreignKey: 'outlet_id' });
 
 StockIssue.belongsTo(Product, { foreignKey: 'product_id' });
@@ -218,6 +223,15 @@ PosShift.hasMany(Bill, { foreignKey: 'pos_shift_id', as: 'bills' });
 Bill.belongsTo(Admin, { foreignKey: 'created_by', as: 'creator' });
 Admin.hasMany(Bill, { foreignKey: 'created_by', as: 'createdBills' });
 
+Customer.belongsTo(LoyaltyTier, { foreignKey: 'loyalty_tier_id', as: 'loyaltyTier' });
+LoyaltyTier.hasMany(Customer, { foreignKey: 'loyalty_tier_id' });
+
+Customer.hasMany(LoyaltyLedger, { foreignKey: 'customer_id', as: 'loyaltyLedgers' });
+LoyaltyLedger.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+
+Bill.hasMany(LoyaltyLedger, { foreignKey: 'bill_id', as: 'loyaltyLedgers' });
+LoyaltyLedger.belongsTo(Bill, { foreignKey: 'bill_id', as: 'bill' });
+
 module.exports = {
   sequelize,
   Sequelize,
@@ -270,4 +284,7 @@ module.exports = {
   PosTerminal,
   PosShift,
   PosShiftMovement,
+  LoyaltyTier,
+  LoyaltyLedger,
+  RewardSetting,
 };

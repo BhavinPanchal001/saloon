@@ -1,4 +1,4 @@
-const { Customer, Bill, Appointment, CustomerLedger, sequelize } = require('../models');
+const { Customer, Bill, Appointment, CustomerLedger, LoyaltyTier, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // GET /api/customers
@@ -18,6 +18,7 @@ const getCustomers = async (req, res) => {
 
     const { count, rows } = await Customer.findAndCountAll({
       where,
+      include: [{ model: LoyaltyTier, as: 'loyaltyTier' }],
       limit: parseInt(limit, 10),
       offset,
       order: [['updatedAt', 'DESC']],
@@ -40,6 +41,7 @@ const getCustomerById = async (req, res) => {
   try {
     const customer = await Customer.findByPk(req.params.id, {
       include: [
+        { model: LoyaltyTier, as: 'loyaltyTier' },
         { model: Bill },
         { model: Appointment },
       ],

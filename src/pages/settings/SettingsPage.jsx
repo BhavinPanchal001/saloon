@@ -3,7 +3,9 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchSettings, saveSettings, fetchPrinterStatusAPI, togglePrinterAPI, testPrintAPI, switchPrinterConnectionAPI, savePrinterSettingsAPI } from '../../services/api';
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
-import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound, Printer, Usb, Wifi, Save, HelpCircle, Info, Package } from "lucide-react";
+import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound, Printer, Usb, Wifi, Save, HelpCircle, Info, Package, Award, MessageCircle } from "lucide-react";
+import { RewardSettingsTab } from "./RewardSettingsTab";
+
 
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user);
@@ -12,7 +14,7 @@ export function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState({
     profile: { fullName: '', email: '', phone: '', timezone: '', language: '' },
-    notifications: { emailAlerts: true, pushNotifications: true, marketingEmails: false, securityAlerts: true },
+    notifications: { emailAlerts: true, pushNotifications: true, marketingEmails: false, securityAlerts: true, autoSendWhatsAppOnPOS: true },
     appearance: { theme: 'light', compactMode: false, highContrast: false },
     security: { twoFactorEnabled: false, sessionTimeout: 30 },
     inventory: { allowOutOfStockCheckout: false },
@@ -233,6 +235,7 @@ export function SettingsPage() {
     { id: "appearance", label: "Appearance", icon: Moon },
     { id: "security", label: "Security", icon: Shield },
     { id: "inventory", label: "Inventory & POS", icon: Package },
+    { id: "rewards", label: "Reward System", icon: Award },
     { id: "printer", label: "Printer", icon: Printer },
   ];
 
@@ -348,7 +351,12 @@ export function SettingsPage() {
                 </div>
 
                 <div className="space-y-4">
-                  {[
+                    {
+                      key: "autoSendWhatsAppOnPOS",
+                      label: "Auto-send WhatsApp Receipt on POS Bill",
+                      description: "Automatically send WhatsApp text & PDF invoice to customer upon POS bill creation",
+                      icon: MessageCircle,
+                    },
                     {
                       key: "emailAlerts",
                       label: "Email Alerts",
@@ -374,6 +382,7 @@ export function SettingsPage() {
                       icon: Shield,
                     },
                   ].map((item) => (
+
                     <div
                       key={item.key}
                       className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/50 p-4"
@@ -1026,6 +1035,9 @@ export function SettingsPage() {
                 )}
               </form>
             )}
+
+            {/* Reward System Tab */}
+            {activeTab === "rewards" && <RewardSettingsTab />}
           </div>
         </div>
       </div>

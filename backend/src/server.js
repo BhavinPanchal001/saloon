@@ -79,8 +79,31 @@ const startServer = async () => {
       await PosShiftMovement.sync({ force: true });
     }
 
-    // Ensure pos_terminal_id and pos_shift_id columns exist on bills table
+    if (!tablesBeforeSync.includes('loyalty_tiers')) {
+      console.log('[Migration] Creating loyalty_tiers table...');
+      const LoyaltyTier = require('./models/LoyaltyTier');
+      await LoyaltyTier.sync({ force: true });
+    }
+    if (!tablesBeforeSync.includes('loyalty_ledgers')) {
+      console.log('[Migration] Creating loyalty_ledgers table...');
+      const LoyaltyLedger = require('./models/LoyaltyLedger');
+      await LoyaltyLedger.sync({ force: true });
+    }
+    if (!tablesBeforeSync.includes('reward_settings')) {
+      console.log('[Migration] Creating reward_settings table...');
+      const RewardSetting = require('./models/RewardSetting');
+      await RewardSetting.sync({ force: true });
+    }
+
+    // Ensure columns exist on customers and bills tables
     try {
+      const [custCols] = await sequelize.query("SHOW COLUMNS FROM customers");
+      const custColNames = custCols.map(c => c.Field);
+      if (!custColNames.includes('loyalty_tier_id')) {
+        console.log('[Migration] Adding loyalty_tier_id column to customers table...');
+        await sequelize.query("ALTER TABLE customers ADD COLUMN `loyalty_tier_id` INT UNSIGNED NULL");
+      }
+
       const [columns] = await sequelize.query("SHOW COLUMNS FROM bills");
       const colNames = columns.map(c => c.Field);
       if (!colNames.includes('pos_terminal_id')) {
@@ -91,8 +114,20 @@ const startServer = async () => {
         console.log('[Migration] Adding pos_shift_id column to bills table...');
         await sequelize.query("ALTER TABLE bills ADD COLUMN `pos_shift_id` INT UNSIGNED NULL");
       }
+      if (!colNames.includes('points_earned')) {
+        console.log('[Migration] Adding points_earned column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `points_earned` INT DEFAULT 0");
+      }
+      if (!colNames.includes('points_redeemed')) {
+        console.log('[Migration] Adding points_redeemed column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `points_redeemed` INT DEFAULT 0");
+      }
+      if (!colNames.includes('points_discount_amount')) {
+        console.log('[Migration] Adding points_discount_amount column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `points_discount_amount` DECIMAL(12,2) DEFAULT 0");
+      }
     } catch (colErr) {
-      console.error('[Migration Warning] Checking/adding columns to bills table:', colErr.message);
+      console.error('[Migration Warning] Checking/adding columns:', colErr.message);
     }
 
     // Clean up duplicate indexes on banks table caused by repeated alter syncs

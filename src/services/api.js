@@ -1833,7 +1833,7 @@ export const downloadReportFileAPI = async (type, format, params = {}) => {
 
 const DEFAULT_SETTINGS = {
   profile: { fullName: 'Admin User', email: 'admin@glowy.com', phone: '', timezone: 'IST', language: 'English' },
-  notifications: { emailAlerts: true, pushNotifications: true, marketingEmails: false, securityAlerts: true },
+  notifications: { emailAlerts: true, pushNotifications: true, marketingEmails: false, securityAlerts: true, autoSendWhatsAppOnPOS: true },
   appearance: { theme: 'light', compactMode: false, highContrast: false },
   security: { twoFactorEnabled: false, sessionTimeout: 30 },
   inventory: { allowOutOfStockCheckout: false },
@@ -1847,6 +1847,10 @@ export const fetchSettings = async () => {
       return {
         ...DEFAULT_SETTINGS,
         ...parsed,
+        notifications: {
+          ...DEFAULT_SETTINGS.notifications,
+          ...(parsed.notifications || {}),
+        },
         inventory: {
           ...DEFAULT_SETTINGS.inventory,
           ...(parsed.inventory || {}),
@@ -1859,13 +1863,18 @@ export const fetchSettings = async () => {
   return DEFAULT_SETTINGS;
 };
 
+
 export const saveSettings = async (settingsPayload) => {
   try {
     const current = await fetchSettings();
     const updated = {
       ...current,
       ...settingsPayload,
-      inventory: {
+      notifications: {
+        ...(current.notifications || {}),
+        ...(settingsPayload.notifications || {}),
+      },
+        inventory: {
         ...(current.inventory || {}),
         ...(settingsPayload.inventory || {}),
       },
@@ -1877,6 +1886,7 @@ export const saveSettings = async (settingsPayload) => {
     return { success: false, error: err.message };
   }
 };
+
 
 // ─── Payroll & Commission API Wrappers ────────────────────────────────────────
 
@@ -1919,6 +1929,74 @@ export const fetchPayrollWithCommission = async (monthKey) => {
 export const calculateAllSalaries = async (monthKey) => {
   return fetchPayrollWithCommission(monthKey);
 };
+
+// ─── Customer Reward & Loyalty API ──────────────────────────────────────────────
+
+export const fetchRewardSettingsAPI = async () => {
+  const res = await fetch(`${API_BASE}/rewards/settings`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const updateRewardSettingsAPI = async (settings) => {
+  const res = await fetch(`${API_BASE}/rewards/settings`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ settings }),
+  });
+  return handleResponse(res);
+};
+
+export const fetchRewardTiersAPI = async () => {
+  const res = await fetch(`${API_BASE}/rewards/tiers`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const createRewardTierAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/rewards/tiers`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const updateRewardTierAPI = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/rewards/tiers/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteRewardTierAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/rewards/tiers/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchCustomerPointsHistoryAPI = async (customerId) => {
+  const res = await fetch(`${API_BASE}/rewards/customers/${customerId}/history`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const adjustCustomerPointsAPI = async (customerId, { points, notes }) => {
+  const res = await fetch(`${API_BASE}/rewards/customers/${customerId}/adjust`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ points, notes }),
+  });
+  return handleResponse(res);
+};
+
 
 
 

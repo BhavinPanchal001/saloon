@@ -40,6 +40,7 @@ const customerRoutes = require('./customers');
 const appointmentRoutes = require('./appointmentRoutes');
 const reportRoutes = require('./reports');
 const payrollRoutes = require('./payroll');
+const rewardRoutes = require('./rewardRoutes');
 
 router.get('/', (req, res) => {
   res.json({ message: 'Glowy Saloon API v1' });
@@ -84,5 +85,6 @@ router.use('/holidays', holidayRoutes);
 router.use('/contract-groups', contractGroupRoutes);
 router.use('/salary-masters', salaryMasterRoutes);
 router.use('/payroll', payrollRoutes);
+router.use('/rewards', rewardRoutes);
 
 module.exports = router;

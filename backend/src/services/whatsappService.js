@@ -74,6 +74,19 @@ const buildBillReceiptText = (bill) => {
   const grandTotal = Number(bill.total) || 0;
   const paymentMethod = (bill.paymentMethod || bill.payment_method || 'CASH').toUpperCase();
 
+  const pointsEarned = Number(bill.pointsEarned || bill.points_earned) || 0;
+  const pointsRedeemed = Number(bill.pointsRedeemed || bill.points_redeemed) || 0;
+  const pointsDiscountAmount = Number(bill.pointsDiscountAmount || bill.points_discount_amount) || 0;
+  const totalPoints = bill.loyaltyPoints !== undefined ? bill.loyaltyPoints : bill.customer?.loyaltyPoints;
+
+  let loyaltySection = '';
+  if (pointsEarned > 0 || pointsRedeemed > 0 || totalPoints !== undefined) {
+    loyaltySection = `\n\n🎁 *LOYALTY REWARDS:*\n` +
+      (pointsRedeemed > 0 ? `• Points Redeemed: ${pointsRedeemed} (-${fmt(pointsDiscountAmount)})\n` : '') +
+      (pointsEarned > 0 ? `• Points Earned Today: +${pointsEarned}\n` : '') +
+      (totalPoints !== undefined ? `• Total Loyalty Balance: ${totalPoints} Pts\n` : '');
+  }
+
   const message = `🧾 *INVOICE RECEIPT* - ${outletName}
 
 Hello *${customerName}*, thank you for choosing ${outletName}! Here is your bill details:
@@ -88,7 +101,7 @@ ${itemsText}
 *Subtotal:* ${fmt(subtotal)}
 ${discountAmount > 0 ? `*Discount:* -${fmt(discountAmount)}\n` : ''}*Tax:* ${fmt(tax)}
 💳 *GRAND TOTAL:* *${fmt(grandTotal)}*
-💳 *Payment Mode:* ${paymentMethod}
+💳 *Payment Mode:* ${paymentMethod}${loyaltySection}
 
 ✨ Thank you for visiting us! We hope to see you again soon.
 For any queries, please contact ${outletName}.`;
