@@ -55,6 +55,7 @@ export default function Newsletter() {
               </motion.p>
               <motion.form
                 onSubmit={(e) => e.preventDefault()}
+                data-lenis-prevent
                 className="mt-8 flex flex-col sm:flex-row gap-3 max-w-md mx-auto bg-card rounded-full p-2 shadow-soft"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}

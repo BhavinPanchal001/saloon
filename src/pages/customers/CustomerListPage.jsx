@@ -361,6 +361,8 @@ export function CustomerListPage() {
             </form>
           </div>
         </div>
+      )}
+
       {/* Customer Loyalty Modal */}
       {selectedLoyaltyCustomer && (
         <CustomerLoyaltyModal
@@ -374,3 +376,5 @@ export function CustomerListPage() {
     </div>
   );
 }
+
+

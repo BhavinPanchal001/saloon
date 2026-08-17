@@ -1,7 +1,4 @@
-import { useState, useRef, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { Calendar, Clock, User, Phone, Mail, Sparkles, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -32,58 +29,118 @@ const times = [
   "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM", "08:00 PM"
 ];
 
-const schema = z.object({
-  name: z.string().trim().min(2, "Please share your name").max(80),
-  email: z.string().trim().email("Enter a valid email").max(255),
-  phone: z.string().trim().min(7, "Enter a valid phone").max(20).regex(/^[+\d\s()-]+$/, "Digits only"),
-  service: z.string().min(1, "Choose a service"),
-  date: z.string().min(1, "Pick a date"),
-  time: z.string().min(1, "Pick a time"),
-  notes: z.string().max(500, "Keep notes under 500 characters").optional(),
-});
+interface FormState {
+  name: string;
+  phone: string;
+  email: string;
+  service: string;
+  date: string;
+  time: string;
+  notes: string;
+}
 
-type FormData = z.infer<typeof schema>;
+const initialFormState: FormState = {
+  name: "",
+  phone: "",
+  email: "",
+  service: "",
+  date: "",
+  time: "",
+  notes: "",
+};
 
 export default function Booking() {
-  const today = new Date().toISOString().split("T")[0];
+  const today = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const [formData, setFormData] = useState<FormState>(initialFormState);
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [serviceOpen, setServiceOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
-  
+
   const serviceRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLDivElement>(null);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { service: "", time: "" } });
-
-  const selectedService = watch("service");
-  const selectedTime = watch("time");
-
+  // Close dropdowns on outside click only when a dropdown is open
   useEffect(() => {
+    if (!serviceOpen && !timeOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
-      if (serviceRef.current && !serviceRef.current.contains(event.target as Node)) setServiceOpen(false);
-      if (timeRef.current && !timeRef.current.contains(event.target as Node)) setTimeOpen(false);
+      const target = event.target as Node;
+      if (serviceOpen && serviceRef.current && !serviceRef.current.contains(target)) {
+        setServiceOpen(false);
+      }
+      if (timeOpen && timeRef.current && !timeRef.current.contains(target)) {
+        setTimeOpen(false);
+      }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [serviceOpen, timeOpen]);
 
-  const onSubmit = async (data: FormData) => {
-    await new Promise((r) => setTimeout(r, 700));
-    toast.success("Reservation received", {
-      description: `We'll confirm ${data.service} on ${data.date} at ${data.time} shortly.`,
-    });
-    reset();
+  const handleChange = (field: keyof FormState, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  const validate = (): boolean => {
+    const newErrors: Partial<Record<keyof FormState, string>> = {};
+
+    if (!formData.name.trim() || formData.name.trim().length < 2) {
+      newErrors.name = "Please share your name (at least 2 characters)";
+    }
+    if (!formData.phone.trim() || !/^[+\d\s()-]{7,20}$/.test(formData.phone.trim())) {
+      newErrors.phone = "Enter a valid phone number";
+    }
+    if (!formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      newErrors.email = "Enter a valid email address";
+    }
+    if (!formData.service) {
+      newErrors.service = "Please choose a service or package";
+    }
+    if (!formData.date) {
+      newErrors.date = "Please pick a date";
+    }
+    if (!formData.time) {
+      newErrors.time = "Please pick a preferred time";
+    }
+    if (formData.notes.length > 500) {
+      newErrors.notes = "Keep notes under 500 characters";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setIsSubmitting(true);
+    try {
+      await new Promise((r) => setTimeout(r, 700));
+      toast.success("Reservation received", {
+        description: `We'll confirm ${formData.service} on ${formData.date} at ${formData.time} shortly.`,
+      });
+      setFormData(initialFormState);
+      setErrors({});
+    } catch {
+      toast.error("Failed to submit reservation. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const inputCls =
     "w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors cursor-pointer flex items-center justify-between";
-  const iconCls = "absolute left-0 top-3.5 text-gold";
+  const iconCls = "absolute left-0 top-3.5 text-gold pointer-events-none";
 
   return (
     <section id="booking" className="py-16 md:py-20 relative overflow-hidden">
@@ -119,100 +176,140 @@ export default function Booking() {
 
         <FadeIn delay={0.1}>
           <form
-            onSubmit={handleSubmit(onSubmit)}
+            onSubmit={handleSubmit}
             noValidate
+            data-lenis-prevent
             className="rounded-[2rem] bg-card p-8 md:p-10 border border-border/50 shadow-soft"
           >
             <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
               <div className="relative pb-5">
                 <User size={16} className={iconCls} />
-                <input {...register("name")} placeholder="Full name" maxLength={80} className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors" />
-                {errors.name && <p className="text-xs text-destructive mt-1">{errors.name.message}</p>}
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={(e) => handleChange("name", e.target.value)}
+                  placeholder="Full name"
+                  maxLength={80}
+                  autoComplete="name"
+                  className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors"
+                />
+                {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
               <div className="relative pb-5">
                 <Phone size={16} className={iconCls} />
-                <input {...register("phone")} placeholder="Phone number" maxLength={20} className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors" />
-                {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone.message}</p>}
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={(e) => handleChange("phone", e.target.value)}
+                  placeholder="Phone number"
+                  maxLength={20}
+                  autoComplete="tel"
+                  className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors"
+                />
+                {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
               </div>
 
               <div className="relative pb-5 sm:col-span-2">
                 <Mail size={16} className={iconCls} />
-                <input {...register("email")} type="email" placeholder="Email address" maxLength={255} className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors" />
-                {errors.email && <p className="text-xs text-destructive mt-1">{errors.email.message}</p>}
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  placeholder="Email address"
+                  maxLength={255}
+                  autoComplete="email"
+                  className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors"
+                />
+                {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
               </div>
 
               {/* Custom Service Dropdown */}
               <div className="relative pb-5 sm:col-span-2" ref={serviceRef}>
                 <Sparkles size={16} className={iconCls} />
-                <div 
+                <button
+                  type="button"
                   onClick={() => setServiceOpen(!serviceOpen)}
                   className={inputCls}
                 >
-                  <span className={selectedService ? "text-foreground" : "text-muted-foreground/60"}>
-                    {selectedService || "Select a service or package"}
+                  <span className={formData.service ? "text-foreground" : "text-muted-foreground/60"}>
+                    {formData.service || "Select a service or package"}
                   </span>
                   <ChevronDown size={14} className={`text-gold transition-transform duration-300 ${serviceOpen ? "rotate-180" : ""}`} />
-                </div>
-                
+                </button>
+
                 <AnimatePresence>
                   {serviceOpen && (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
+                      data-lenis-prevent
                       className="absolute left-0 right-0 top-full mt-2 z-20 max-h-80 overflow-y-auto rounded-2xl bg-white/90 backdrop-blur-xl border border-gold/20 shadow-glow p-2 scrollbar-hide"
                     >
                       {categories.map((cat) => (
                         <div key={cat.label} className="mb-2">
                           <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-gold font-semibold">{cat.label}</div>
                           {cat.options.map((s) => (
-                            <div
+                            <button
                               key={s}
+                              type="button"
                               onClick={() => {
-                                setValue("service", s, { shouldValidate: true });
+                                handleChange("service", s);
                                 setServiceOpen(false);
                               }}
-                              className={`px-3 py-2.5 rounded-xl text-sm transition-colors cursor-pointer ${
-                                selectedService === s ? "bg-gold/10 text-primary font-medium" : "text-foreground/80 hover:bg-cream"
+                              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-colors cursor-pointer ${
+                                formData.service === s ? "bg-gold/10 text-primary font-medium" : "text-foreground/80 hover:bg-cream"
                               }`}
                             >
                               {s}
-                            </div>
+                            </button>
                           ))}
                         </div>
                       ))}
                     </motion.div>
                   )}
                 </AnimatePresence>
-                {errors.service && <p className="text-xs text-destructive mt-1">{errors.service.message}</p>}
+                {errors.service && <p className="text-xs text-destructive mt-1">{errors.service}</p>}
               </div>
 
               <div className="relative pb-5">
                 <Calendar size={16} className={iconCls} />
-                <input {...register("date")} type="date" min={today} className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors" />
-                {errors.date && <p className="text-xs text-destructive mt-1">{errors.date.message}</p>}
+                <input
+                  type="date"
+                  name="date"
+                  min={today}
+                  value={formData.date}
+                  onChange={(e) => handleChange("date", e.target.value)}
+                  className="w-full bg-transparent border-b border-border/70 focus:border-gold outline-none py-3 pl-9 pr-2 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors"
+                />
+                {errors.date && <p className="text-xs text-destructive mt-1">{errors.date}</p>}
               </div>
 
               {/* Custom Time Dropdown */}
               <div className="relative pb-5" ref={timeRef}>
                 <Clock size={16} className={iconCls} />
-                <div 
+                <button
+                  type="button"
                   onClick={() => setTimeOpen(!timeOpen)}
                   className={inputCls}
                 >
-                  <span className={selectedTime ? "text-foreground" : "text-muted-foreground/60"}>
-                    {selectedTime || "Preferred time"}
+                  <span className={formData.time ? "text-foreground" : "text-muted-foreground/60"}>
+                    {formData.time || "Preferred time"}
                   </span>
                   <ChevronDown size={14} className={`text-gold transition-transform duration-300 ${timeOpen ? "rotate-180" : ""}`} />
-                </div>
+                </button>
 
                 <AnimatePresence>
                   {timeOpen && (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
+                      data-lenis-prevent
                       className="absolute left-0 right-0 top-full mt-2 z-20 max-h-80 overflow-y-auto rounded-2xl bg-white/95 backdrop-blur-xl border border-gold/20 shadow-glow p-3 scrollbar-hide"
                     >
                       <div className="space-y-4">
@@ -225,21 +322,22 @@ export default function Booking() {
                             <div className="px-2 mb-2 text-[10px] uppercase tracking-widest text-gold/60 font-semibold">{section.label}</div>
                             <div className="grid grid-cols-2 gap-1.5">
                               {section.slots.map((t) => (
-                                <div
+                                <button
                                   key={t}
+                                  type="button"
                                   onClick={() => {
-                                    setValue("time", t, { shouldValidate: true });
+                                    handleChange("time", t);
                                     setTimeOpen(false);
                                   }}
                                   className={`px-3 py-2 rounded-xl text-xs text-center transition-colors cursor-pointer border ${
-                                    selectedTime === t 
-                                      ? "bg-gold/15 border-gold/40 text-primary font-medium" 
+                                    formData.time === t
+                                      ? "bg-gold/15 border-gold/40 text-primary font-medium"
                                       : "border-transparent text-foreground/70 hover:bg-cream hover:border-gold/10"
                                   }`}
                                 >
                                   {t.replace(" AM", "").replace(" PM", "")}
                                   <span className="ml-1 opacity-40 text-[9px]">{t.slice(-2)}</span>
-                                </div>
+                                </button>
                               ))}
                             </div>
                           </div>
@@ -248,25 +346,27 @@ export default function Booking() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                {errors.time && <p className="text-xs text-destructive mt-1">{errors.time.message}</p>}
+                {errors.time && <p className="text-xs text-destructive mt-1">{errors.time}</p>}
               </div>
 
               <div className="sm:col-span-2 pt-2">
                 <textarea
-                  {...register("notes")}
+                  name="notes"
+                  value={formData.notes}
+                  onChange={(e) => handleChange("notes", e.target.value)}
                   placeholder="Anything we should know? (allergies, preferences, occasion)"
                   maxLength={500}
                   rows={3}
                   className="w-full bg-cream/50 rounded-2xl p-4 text-sm outline-none border border-transparent focus:border-gold transition-colors resize-none placeholder:text-muted-foreground/60"
                 />
-                {errors.notes && <p className="text-xs text-destructive mt-1">{errors.notes.message}</p>}
+                {errors.notes && <p className="text-xs text-destructive mt-1">{errors.notes}</p>}
               </div>
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-sm tracking-wide text-primary-foreground hover:bg-teal disabled:opacity-60 transition-all shadow-soft hover:shadow-glow"
+              className="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-sm tracking-wide text-primary-foreground hover:bg-teal disabled:opacity-60 transition-all shadow-soft hover:shadow-glow cursor-pointer"
             >
               {isSubmitting ? "Reserving…" : "Confirm Appointment"}
             </button>

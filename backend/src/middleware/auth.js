@@ -51,4 +51,10 @@ const requirePermission = (permissionKey) => {
   };
 };
 
-module.exports = { authenticate, requireAdmin, requirePermission };
+module.exports = {
+  authenticate,
+  authenticateToken: authenticate,
+  verifyToken: authenticate,
+  requireAdmin,
+  requirePermission,
+};

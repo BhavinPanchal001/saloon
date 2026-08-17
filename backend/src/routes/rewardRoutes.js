@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const rewardController = require('../controllers/rewardController');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { authenticate: verifyToken } = require('../middleware/auth');
 
 router.get('/settings', verifyToken, rewardController.getSettings);
 router.put('/settings', verifyToken, rewardController.updateSettings);

@@ -39,7 +39,7 @@ export default function Mission() {
               className="inline-block mr-[0.3em]"
               variants={{
                 hidden: { opacity: 0, y: 20, filter: "blur(4px)" },
-                show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+                show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const } },
               }}
             >
               {word}
@@ -49,7 +49,7 @@ export default function Mission() {
             className="gold-text not-italic inline-block mr-[0.3em]"
             variants={{
               hidden: { opacity: 0, y: 20, scale: 0.9 },
-              show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
+              show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const } },
             }}
           >
             {highlight}
@@ -61,7 +61,7 @@ export default function Mission() {
               className="inline-block mr-[0.3em]"
               variants={{
                 hidden: { opacity: 0, y: 20, filter: "blur(4px)" },
-                show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+                show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const } },
               }}
             >
               {word}

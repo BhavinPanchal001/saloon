@@ -351,6 +351,7 @@ export function SettingsPage() {
                 </div>
 
                 <div className="space-y-4">
+                  {[
                     {
                       key: "autoSendWhatsAppOnPOS",
                       label: "Auto-send WhatsApp Receipt on POS Bill",
