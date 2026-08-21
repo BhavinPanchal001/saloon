@@ -127,7 +127,7 @@
   }
 
   html {
-    scroll-behavior: auto !important;
+    scroll-behavior: smooth;
   }
 
   body {
@@ -212,20 +212,6 @@ main {
 a,
 button {
   transition: all 0.3s ease;
-}
-
-/* Lenis smooth scrolling rules */
-html.lenis, html.lenis body {
-  height: auto;
-}
-.lenis.lenis-smooth {
-  scroll-behavior: auto !important;
-}
-.lenis.lenis-smooth [data-lenis-prevent] {
-  overscroll-behavior: contain;
-}
-.lenis.lenis-stopped {
-  overflow: auto;
 }
 
 /* Image loading shimmer */
