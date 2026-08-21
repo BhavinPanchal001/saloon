@@ -109,11 +109,33 @@ const setLocalStorageItem = (key, value) => {
 const defaultOutlets = [];
 const defaultRoles = [];
 const defaultShifts = [];
-const defaultLeaveTypes = [];
+const defaultLeaveTypes = [
+  { id: "leave_comp", name: "Compensation leave", code: "COMP", daysAllowed: 5, isPaid: true },
+  { id: "leave_driving", name: "Driving Leave", code: "DRV", daysAllowed: 3, isPaid: true },
+  { id: "leave_lwp", name: "Leave Without Paid", code: "LWP", daysAllowed: 30, isPaid: false },
+  { id: "leave_paid", name: "Paid leave", code: "PL", daysAllowed: 12, isPaid: true },
+  { id: "leave_short", name: "Short Leave", code: "SL", daysAllowed: 12, maxMonthly: 1, isPaid: true },
+  { id: "leave_casual", name: "Casual Leave", code: "CL", daysAllowed: 7, isPaid: true },
+  { id: "leave_sick", name: "Sick Leave", code: "SL", daysAllowed: 7, isPaid: true },
+  { id: "leave_annual", name: "Annual Leave", code: "AL", daysAllowed: 15, isPaid: true }
+];
+
+const defaultHolidays = [
+  { id: "hol_1", occasionName: "Bhaibij", name: "Bhaibij", occasionType: "Festival" },
+  { id: "hol_2", occasionName: "Dashera", name: "Dashera", occasionType: "Festival" },
+  { id: "hol_3", occasionName: "Dhuleti", name: "Dhuleti", occasionType: "Festival" },
+  { id: "hol_4", occasionName: "Diwali", name: "Diwali", occasionType: "Festival" },
+  { id: "hol_5", occasionName: "Ganesh Visarjan", name: "Ganesh Visarjan", occasionType: "Festival" },
+  { id: "hol_6", occasionName: "Independence Day - 15th August", name: "Independence Day - 15th August", occasionType: "National" },
+  { id: "hol_7", occasionName: "Janmashtami", name: "Janmashtami", occasionType: "Festival" },
+  { id: "hol_8", occasionName: "Republic Day - 26th January", name: "Republic Day - 26th January", occasionType: "National" },
+  { id: "hol_9", occasionName: "Gandhi Jayanti - 2nd October", name: "Gandhi Jayanti - 2nd October", occasionType: "National" },
+  { id: "hol_10", occasionName: "New Year Day", name: "New Year Day", occasionType: "National" },
+];
+
 const defaultWorkWeeks = [];
 const defaultContractTypes = [];
 const defaultHolidayTemplates = [];
-const defaultHolidays = [];
 const defaultContractGroups = [];
 
 let roles = getLocalStorageItem("glowy_roles", defaultRoles);
@@ -1439,6 +1461,7 @@ export const fetchAttendanceData = async ({ date, outletId }) => {
         checkIn: record?.checkIn || null,
         checkOut: record?.checkOut || null,
         breaks: record?.breaks || [],
+        hasActiveContract: staff.hasActiveContract !== undefined ? staff.hasActiveContract : (staff.contractStatus === undefined || staff.contractStatus === "active"),
       };
     }),
   );

@@ -362,7 +362,6 @@ export function CustomerListPage() {
           </div>
         </div>
       )}
-
       {/* Customer Loyalty Modal */}
       {selectedLoyaltyCustomer && (
         <CustomerLoyaltyModal

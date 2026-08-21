@@ -4,7 +4,7 @@ import { PageHeader } from "../../../components/ui/PageHeader";
 import { LoadingState } from "../../../components/ui/LoadingState";
 import { useToastStore } from "../../../stores/toastStore";
 import { useAuthStore } from "../../../stores/authStore";
-import { fetchStaff, fetchAttendanceSummary, fetchAttendanceData } from "../../../services/api";
+import { fetchStaff, fetchContracts, fetchAttendanceSummary, fetchAttendanceData } from "../../../services/api";
 import {
   ArrowLeft,
   Calendar,
@@ -317,12 +317,34 @@ const AttendanceSummaryPage = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      let activeStaff = [];
+      let fetchedStaff: any[] = [];
+      let fetchedContracts: any[] = [];
       try {
-        activeStaff = await fetchStaff();
+        const [staffRes, contractsRes] = await Promise.all([
+          fetchStaff(),
+          fetchContracts().catch(() => [])
+        ]);
+        fetchedStaff = staffRes || [];
+        fetchedContracts = contractsRes || [];
       } catch (err) {
         console.error("Failed to fetch staff list:", err);
       }
+
+      // Filter active employees: Must be active staff member AND have an active contract
+      const activeStaff = fetchedStaff.filter((staff: any) => {
+        const isStatusActive = staff.status ? String(staff.status).toLowerCase() === 'active' : true;
+        const isFlagActive = staff.isActive !== false;
+        const isApproved = !staff.onboarding_status || staff.onboarding_status === 'approved';
+
+        // Check active contract requirement
+        const hasActiveContract = staff.hasActiveContract !== false && (
+          fetchedContracts.length === 0 || 
+          fetchedContracts.some((c: any) => String(c.employeeId) === String(staff.id) && String(c.status).toLowerCase() === 'active')
+        );
+
+        return isStatusActive && isFlagActive && isApproved && hasActiveContract;
+      });
+
       setStaffCount(activeStaff.length);
       setActiveStaffList(activeStaff);
 

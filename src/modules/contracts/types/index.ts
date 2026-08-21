@@ -92,6 +92,12 @@ export interface Contract {
   shiftEffectiveDate: string;
   weeklyOffPattern: string[];
 
+  // Wizard & Policy details
+  probationPeriodMonths?: number;
+  noticePeriodDays?: number;
+  isExistingEmployee?: boolean;
+  biometricCode?: string;
+
   // Revisions
   revisions: ContractRevision[];
   currentVersion: number;
@@ -103,6 +109,11 @@ export interface ContractGroup {
   startDate: string;
   endDate?: string;
   employeeId?: string;
+  employeeName?: string;
+  employeeCode?: string;
+  duration?: string;
+  status?: string;
+  description?: string;
 }
 
 // Master Data Types

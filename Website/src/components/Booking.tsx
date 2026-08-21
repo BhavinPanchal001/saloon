@@ -22,11 +22,19 @@ const categories = [
   },
 ];
 
-const times = [
-  "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
-  "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM", "02:30 PM",
-  "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM",
-  "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM", "08:00 PM"
+const timeSlots = [
+  {
+    label: "Morning",
+    slots: ["09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM"],
+  },
+  {
+    label: "Afternoon",
+    slots: ["12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM", "02:30 PM", "03:00 PM", "03:30 PM", "04:00 PM", "04:30 PM"],
+  },
+  {
+    label: "Evening",
+    slots: ["05:00 PM", "05:30 PM", "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM", "08:00 PM"],
+  },
 ];
 
 interface FormState {
@@ -58,11 +66,14 @@ export default function Booking() {
   const [serviceOpen, setServiceOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
 
+
   const serviceRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click only when a dropdown is open
   useEffect(() => {
+    if (!serviceOpen && !timeOpen) return;
+
     if (!serviceOpen && !timeOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
@@ -75,8 +86,10 @@ export default function Booking() {
       }
     };
 
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [serviceOpen, timeOpen]);
   }, [serviceOpen, timeOpen]);
 
   const handleChange = (field: keyof FormState, value: string) => {
@@ -177,11 +190,13 @@ export default function Booking() {
         <FadeIn delay={0.1}>
           <form
             onSubmit={handleSubmit}
+            onSubmit={handleSubmit}
             noValidate
             data-lenis-prevent
             className="rounded-[2rem] bg-card p-8 md:p-10 border border-border/50 shadow-soft"
           >
             <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+              {/* Full Name */}
               <div className="relative pb-5">
                 <User size={16} className={iconCls} />
                 <input
@@ -197,6 +212,7 @@ export default function Booking() {
                 {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
+              {/* Phone */}
               <div className="relative pb-5">
                 <Phone size={16} className={iconCls} />
                 <input
@@ -212,6 +228,7 @@ export default function Booking() {
                 {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
               </div>
 
+              {/* Email */}
               <div className="relative pb-5 sm:col-span-2">
                 <Mail size={16} className={iconCls} />
                 <input
@@ -237,12 +254,17 @@ export default function Booking() {
                 >
                   <span className={formData.service ? "text-foreground" : "text-muted-foreground/60"}>
                     {formData.service || "Select a service or package"}
+                  <span className={formData.service ? "text-foreground" : "text-muted-foreground/60"}>
+                    {formData.service || "Select a service or package"}
                   </span>
                   <ChevronDown size={14} className={`text-gold transition-transform duration-300 ${serviceOpen ? "rotate-180" : ""}`} />
                 </button>
 
+                </button>
+
                 <AnimatePresence>
                   {serviceOpen && (
+                    <motion.div
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -252,12 +274,15 @@ export default function Booking() {
                     >
                       {categories.map((cat) => (
                         <div key={cat.label} className="mb-2">
-                          <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-gold font-semibold">{cat.label}</div>
+                          <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-gold font-semibold">
+                            {cat.label}
+                          </div>
                           {cat.options.map((s) => (
                             <button
                               key={s}
                               type="button"
                               onClick={() => {
+                                handleChange("service", s);
                                 handleChange("service", s);
                                 setServiceOpen(false);
                               }}
@@ -267,6 +292,7 @@ export default function Booking() {
                             >
                               {s}
                             </button>
+                            </button>
                           ))}
                         </div>
                       ))}
@@ -274,8 +300,10 @@ export default function Booking() {
                   )}
                 </AnimatePresence>
                 {errors.service && <p className="text-xs text-destructive mt-1">{errors.service}</p>}
+                {errors.service && <p className="text-xs text-destructive mt-1">{errors.service}</p>}
               </div>
 
+              {/* Date */}
               <div className="relative pb-5">
                 <Calendar size={16} className={iconCls} />
                 <input
@@ -299,12 +327,16 @@ export default function Booking() {
                 >
                   <span className={formData.time ? "text-foreground" : "text-muted-foreground/60"}>
                     {formData.time || "Preferred time"}
+                  <span className={formData.time ? "text-foreground" : "text-muted-foreground/60"}>
+                    {formData.time || "Preferred time"}
                   </span>
                   <ChevronDown size={14} className={`text-gold transition-transform duration-300 ${timeOpen ? "rotate-180" : ""}`} />
+                </button>
                 </button>
 
                 <AnimatePresence>
                   {timeOpen && (
+                    <motion.div
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -313,13 +345,11 @@ export default function Booking() {
                       className="absolute left-0 right-0 top-full mt-2 z-20 max-h-80 overflow-y-auto rounded-2xl bg-white/95 backdrop-blur-xl border border-gold/20 shadow-glow p-3 scrollbar-hide"
                     >
                       <div className="space-y-4">
-                        {[
-                          { label: "Morning", slots: times.filter(t => t.endsWith("AM")) },
-                          { label: "Afternoon", slots: times.filter(t => t.endsWith("PM") && (t.startsWith("12") || ["01", "02", "03", "04"].some(h => t.startsWith(h)))) },
-                          { label: "Evening", slots: times.filter(t => t.endsWith("PM") && ["05", "06", "07", "08"].some(h => t.startsWith(h))) }
-                        ].map((section) => (
+                        {timeSlots.map((section) => (
                           <div key={section.label}>
-                            <div className="px-2 mb-2 text-[10px] uppercase tracking-widest text-gold/60 font-semibold">{section.label}</div>
+                            <div className="px-2 mb-2 text-[10px] uppercase tracking-widest text-gold/60 font-semibold">
+                              {section.label}
+                            </div>
                             <div className="grid grid-cols-2 gap-1.5">
                               {section.slots.map((t) => (
                                 <button
@@ -327,16 +357,18 @@ export default function Booking() {
                                   type="button"
                                   onClick={() => {
                                     handleChange("time", t);
+                                    handleChange("time", t);
                                     setTimeOpen(false);
                                   }}
                                   className={`px-3 py-2 rounded-xl text-xs text-center transition-colors cursor-pointer border ${
                                     formData.time === t
                                       ? "bg-gold/15 border-gold/40 text-primary font-medium"
                                       : "border-transparent text-foreground/70 hover:bg-cream hover:border-gold/10"
-                                  }`}
+                                    }`}
                                 >
                                   {t.replace(" AM", "").replace(" PM", "")}
                                   <span className="ml-1 opacity-40 text-[9px]">{t.slice(-2)}</span>
+                                </button>
                                 </button>
                               ))}
                             </div>
@@ -347,8 +379,10 @@ export default function Booking() {
                   )}
                 </AnimatePresence>
                 {errors.time && <p className="text-xs text-destructive mt-1">{errors.time}</p>}
+                {errors.time && <p className="text-xs text-destructive mt-1">{errors.time}</p>}
               </div>
 
+              {/* Notes */}
               <div className="sm:col-span-2 pt-2">
                 <textarea
                   name="notes"
@@ -366,6 +400,7 @@ export default function Booking() {
             <button
               type="submit"
               disabled={isSubmitting}
+              className="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-sm tracking-wide text-primary-foreground hover:bg-teal disabled:opacity-60 transition-all shadow-soft hover:shadow-glow cursor-pointer"
               className="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-sm tracking-wide text-primary-foreground hover:bg-teal disabled:opacity-60 transition-all shadow-soft hover:shadow-glow cursor-pointer"
             >
               {isSubmitting ? "Reserving…" : "Confirm Appointment"}

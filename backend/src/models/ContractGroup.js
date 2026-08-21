@@ -27,6 +27,14 @@ const ContractGroup = sequelize.define('ContractGroup', {
     type: DataTypes.INTEGER.UNSIGNED,
     allowNull: true,
   },
+  status: {
+    type: DataTypes.STRING(50),
+    defaultValue: "Active",
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
 }, {
   tableName: 'contract_groups',
   underscored: true,

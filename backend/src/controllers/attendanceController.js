@@ -1,4 +1,4 @@
-const { Staff, Attendance, Role } = require('../models');
+const { Staff, Attendance, Role, Contract, Outlet } = require('../models');
 const { Op } = require('sequelize');
 
 // Helper to format timestamp to HH:MM format or similar
@@ -6,6 +6,28 @@ const formatTime = (isoString) => {
   if (!isoString) return '';
   const d = new Date(isoString);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+};
+
+// Helper to verify if staff member has an active contract for a given date
+const isContractActive = (staff, dateStr) => {
+  if (!staff.contracts || staff.contracts.length === 0) return false;
+  return staff.contracts.some((c) => {
+    if (c.status !== 'active') return false;
+    if (dateStr) {
+      if (c.start_date && c.start_date > dateStr) return false;
+      if (c.end_date && c.end_date < dateStr) return false;
+    }
+    return true;
+  });
+};
+
+// Helper to check active contract in database for staff
+const checkStaffContract = async (staffId, dateStr) => {
+  const staff = await Staff.findByPk(staffId, {
+    include: [{ model: Contract, as: 'contracts' }]
+  });
+  if (!staff) return false;
+  return isContractActive(staff, dateStr);
 };
 
 module.exports = {
@@ -24,7 +46,11 @@ module.exports = {
 
       const staffList = await Staff.findAll({
         where: staffQuery,
-        include: [{ model: Role, as: 'role' }],
+        include: [
+          { model: Role, as: 'role' },
+          { model: Contract, as: 'contracts' },
+          { model: Outlet, as: 'outlet' }
+        ],
       });
 
       const staffIds = staffList.map(s => s.id);
@@ -39,6 +65,7 @@ module.exports = {
       const response = staffList.map(staff => {
         const record = attendanceRecords.find(r => r.staff_id === staff.id);
         const name = staff.name || `${staff.first_name} ${staff.last_name}`;
+        const hasActiveContract = isContractActive(staff, dateStr);
 
         return {
           id: staff.id.toString(),
@@ -47,10 +74,13 @@ module.exports = {
           last_name: staff.last_name,
           role: staff.role?.name || 'Staff',
           assignedOutletId: staff.assigned_outlet_id ? `outlet_${staff.assigned_outlet_id}` : null,
+          assignedOutletName: staff.outlet ? staff.outlet.name : undefined,
           attendanceStatus: record ? record.status : 'not_marked',
           checkIn: record?.check_in || null,
           checkOut: record?.check_out || null,
           breaks: record?.breaks || [],
+          hasActiveContract,
+          contractStatus: hasActiveContract ? 'active' : (staff.contracts && staff.contracts.length > 0 ? staff.contracts[0].status : 'no_contract'),
         };
       });
 
@@ -180,6 +210,11 @@ module.exports = {
         return res.status(400).json({ message: 'Missing required fields' });
       }
 
+      const activeContract = await checkStaffContract(staffId, date);
+      if (!activeContract) {
+        return res.status(400).json({ message: 'Attendance can only be recorded for staff with an active contract.' });
+      }
+
       const [record, created] = await Attendance.findOrCreate({
         where: { staff_id: staffId, date },
         defaults: {
@@ -208,6 +243,11 @@ module.exports = {
 
       if (!staffId || !date) {
         return res.status(400).json({ message: 'Missing required fields' });
+      }
+
+      const activeContract = await checkStaffContract(staffId, date);
+      if (!activeContract) {
+        return res.status(400).json({ message: 'Attendance can only be recorded for staff with an active contract.' });
       }
 
       const timestamp = new Date().toISOString();
@@ -243,6 +283,11 @@ module.exports = {
         return res.status(400).json({ message: 'Missing required fields' });
       }
 
+      const activeContract = await checkStaffContract(staffId, date);
+      if (!activeContract) {
+        return res.status(400).json({ message: 'Attendance can only be recorded for staff with an active contract.' });
+      }
+
       const timestamp = new Date().toISOString();
 
       const [record, created] = await Attendance.findOrCreate({
@@ -273,6 +318,11 @@ module.exports = {
 
       if (!staffId || !date) {
         return res.status(400).json({ message: 'Missing required fields' });
+      }
+
+      const activeContract = await checkStaffContract(staffId, date);
+      if (!activeContract) {
+        return res.status(400).json({ message: 'Attendance can only be recorded for staff with an active contract.' });
       }
 
       const timestamp = new Date().toISOString();
@@ -307,6 +357,11 @@ module.exports = {
 
       if (!staffId || !date) {
         return res.status(400).json({ message: 'Missing required fields' });
+      }
+
+      const activeContract = await checkStaffContract(staffId, date);
+      if (!activeContract) {
+        return res.status(400).json({ message: 'Attendance can only be recorded for staff with an active contract.' });
       }
 
       const timestamp = new Date().toISOString();

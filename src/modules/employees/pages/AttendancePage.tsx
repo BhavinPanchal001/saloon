@@ -39,6 +39,8 @@ interface AttendanceMember {
   checkIn: { timestamp: string; photo: string } | null;
   checkOut: { timestamp: string; photo: string } | null;
   breaks: BreakRecord[];
+  hasActiveContract?: boolean;
+  contractStatus?: string;
 }
 
 interface StatCard {
@@ -62,6 +64,7 @@ export default function AttendancePage() {
   const [modalAction, setModalAction] = useState<"check-in" | "check-out" | "break-in" | "break-out">("check-in");
   const [selectedStaff, setSelectedStaff] = useState<AttendanceMember | null>(null);
   const [isToday, setIsToday] = useState(true);
+  const [filterActiveContract, setFilterActiveContract] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);
@@ -104,6 +107,11 @@ export default function AttendancePage() {
   }, [date, user]);
 
   const handleMark = async (staffId: string, status: string) => {
+    const targetStaff = attendance.find((s) => s.id === staffId);
+    if (targetStaff && targetStaff.hasActiveContract === false) {
+      toast.error(`Cannot mark attendance for ${targetStaff.name}. Active contract required.`);
+      return;
+    }
     try {
       await markAttendance({
         staffId,
@@ -114,28 +122,45 @@ export default function AttendancePage() {
       await loadAttendance();
     } catch (error) {
       console.error("Failed to mark attendance", error);
+      toast.error("Failed to mark attendance");
     }
   };
 
   const openCheckInModal = (member: AttendanceMember) => {
+    if (member.hasActiveContract === false) {
+      toast.error(`Cannot check in ${member.name}. Active contract required.`);
+      return;
+    }
     setSelectedStaff(member);
     setModalAction("check-in");
     setModalOpen(true);
   };
 
   const openCheckOutModal = (member: AttendanceMember) => {
+    if (member.hasActiveContract === false) {
+      toast.error(`Cannot check out ${member.name}. Active contract required.`);
+      return;
+    }
     setSelectedStaff(member);
     setModalAction("check-out");
     setModalOpen(true);
   };
 
   const openBreakInModal = (member: AttendanceMember) => {
+    if (member.hasActiveContract === false) {
+      toast.error(`Cannot start break for ${member.name}. Active contract required.`);
+      return;
+    }
     setSelectedStaff(member);
     setModalAction("break-in");
     setModalOpen(true);
   };
 
   const openBreakOutModal = (member: AttendanceMember) => {
+    if (member.hasActiveContract === false) {
+      toast.error(`Cannot end break for ${member.name}. Active contract required.`);
+      return;
+    }
     setSelectedStaff(member);
     setModalAction("break-out");
     setModalOpen(true);
@@ -218,22 +243,41 @@ export default function AttendancePage() {
     return lastBreak && !lastBreak.out;
   };
 
-  const stats = attendance.reduce((acc, member) => {
-    if (member.attendanceStatus === 'present') acc.present++;
-    else if (member.attendanceStatus === 'absent') acc.absent++;
-    else if (member.attendanceStatus === 'half_day') acc.halfDay++;
-    else if (member.attendanceStatus === 'paid_leave') acc.paidLeave++;
-    return acc;
-  }, { present: 0, absent: 0, halfDay: 0, paidLeave: 0 });
+  const displayedAttendance = filterActiveContract
+    ? attendance.filter((m) => m.hasActiveContract !== false)
+    : attendance;
+
+  const stats = attendance.reduce(
+    (acc, member) => {
+      if (member.attendanceStatus === "present") acc.present++;
+      else if (member.attendanceStatus === "absent") acc.absent++;
+      else if (member.attendanceStatus === "half_day") acc.halfDay++;
+      else if (member.attendanceStatus === "paid_leave") acc.paidLeave++;
+      return acc;
+    },
+    { present: 0, absent: 0, halfDay: 0, paidLeave: 0 }
+  );
 
   return (
     <div>
       <PageHeader
         eyebrow="Employees"
         title="Attendance Tracking"
-        description="Mark and monitor daily attendance for all staff members."
+        description="Mark and monitor daily attendance for all staff members with active contracts."
         action={
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setFilterActiveContract(!filterActiveContract)}
+              className={`px-3.5 py-2 text-xs font-bold rounded-xl border transition-all ${
+                filterActiveContract
+                  ? "bg-navy-900 text-white border-navy-900 shadow-sm"
+                  : "bg-white text-navy-700 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              {filterActiveContract ? "Showing Active Contracts" : "Active Contracts Only"}
+            </button>
+
             {/* Date picker with prev/next navigation */}
             <div className="flex items-center gap-1">
               <button
@@ -316,140 +360,166 @@ export default function AttendancePage() {
 
         {loading ? (
           <div className="py-12 text-center text-sm text-navy-400">Loading attendance data...</div>
-        ) : attendance.length === 0 ? (
-          <div className="py-12 text-center text-sm text-navy-400">No staff found for this date.</div>
+        ) : displayedAttendance.length === 0 ? (
+          <div className="py-12 text-center text-sm text-navy-400">
+            {filterActiveContract ? "No staff with an active contract found." : "No staff found for this date."}
+          </div>
         ) : (
           <div className="divide-y divide-navy-50/50">
-            {attendance.map((member) => (
-              <div
-                key={member.id}
-                style={{ zIndex: openMenuId === member.id ? 50 : 1 }}
-                className="relative flex items-center justify-between px-6 py-3.5 transition-colors hover:bg-white/50"
-              >
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-bold text-navy-900">{member.name}</span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span
-                      className={`text-[11px] font-bold uppercase tracking-wide ${
-                        member.attendanceStatus === "not_marked"
-                          ? "text-slate-400"
-                          : member.attendanceStatus === "present"
-                          ? "text-emerald-600"
-                          : member.attendanceStatus === "absent"
-                          ? "text-rose-500"
-                          : member.attendanceStatus === "half_day"
-                          ? "text-amber-600"
-                          : "text-indigo-600"
-                      }`}
-                    >
-                      {member.attendanceStatus === "not_marked"
-                        ? "Not Marked"
-                        : member.attendanceStatus.replace("_", " ")}
-                    </span>
-                    {member.assignedOutletName && (
-                      <span className="text-[10px] text-slate-400">· {member.assignedOutletName}</span>
-                    )}
-                    {/* Check-in/Check-out times */}
-                    {member.checkIn && (
-                      <span className="text-[10px] text-emerald-600 font-medium">
-                        In: {formatTime(member.checkIn.timestamp)}
+            {displayedAttendance.map((member) => {
+              const isContractActive = member.hasActiveContract !== false;
+
+              return (
+                <div
+                  key={member.id}
+                  style={{ zIndex: openMenuId === member.id ? 50 : 1 }}
+                  className={`relative flex items-center justify-between px-6 py-3.5 transition-colors hover:bg-white/50 ${
+                    !isContractActive ? "bg-slate-50/70" : ""
+                  }`}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-bold ${isContractActive ? "text-navy-900" : "text-slate-500"}`}>
+                        {member.name}
                       </span>
-                    )}
-                    {member.checkOut && (
-                      <span className="text-[10px] text-orange-600 font-medium">
-                        Out: {formatTime(member.checkOut.timestamp)}
-                      </span>
-                    )}
-                    {/* Break records */}
-                    {member.breaks.map((breakRecord, index) => (
-                      <span key={index} className="text-[10px] text-amber-600 font-medium">
-                        Break {index + 1}: {formatTime(breakRecord.in)} - {breakRecord.out ? formatTime(breakRecord.out) : "ongoing"}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Check In Button */}
-                  {isToday && !member.checkIn && (
-                    <button
-                      onClick={() => openCheckInModal(member)}
-                      className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition-all hover:bg-emerald-700 active:scale-95 shadow-md shadow-emerald-600/20"
-                    >
-                      <LogIn className="h-3.5 w-3.5" />
-                      Check In
-                    </button>
-                  )}
-
-                  {/* Check Out Button */}
-                  {isToday && member.checkIn && !member.checkOut && (
-                    <button
-                      onClick={() => openCheckOutModal(member)}
-                      className="flex items-center gap-1.5 rounded-xl bg-orange-600 px-3 py-2 text-xs font-bold text-white transition-all hover:bg-orange-700 active:scale-95 shadow-md shadow-orange-600/20"
-                    >
-                      <LogOut className="h-3.5 w-3.5" />
-                      Check Out
-                    </button>
-                  )}
-
-                  {/* Break In/Out Buttons */}
-                  {isToday && member.checkIn && !member.checkOut && (
-                    isOnBreak(member) ? (
-                      <button
-                        onClick={() => openBreakOutModal(member)}
-                        className="flex items-center gap-1.5 rounded-xl bg-amber-100 px-3 py-2 text-xs font-bold text-amber-700 transition-all hover:bg-amber-200 active:scale-95"
-                      >
-                        <Coffee className="h-3.5 w-3.5" />
-                        End Break
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => openBreakInModal(member)}
-                        className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-bold text-amber-700 transition-all hover:bg-amber-50 active:scale-95"
-                      >
-                        <Coffee className="h-3.5 w-3.5" />
-                        Break
-                      </button>
-                    )
-                  )}
-
-                  {/* Half Day / Paid Leave - only for past dates without check-in */}
-                  {!isToday && !member.checkIn && (
-                    <div className="relative">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMenuId(openMenuId === member.id ? null : member.id);
-                        }}
-                        className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all active:scale-95 ${
-                          openMenuId === member.id
-                            ? "bg-navy-900 text-white border-navy-900"
-                            : "border-navy-100 bg-white/60 text-navy-400 hover:bg-navy-50 hover:border-navy-200"
-                        }`}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-                      {openMenuId === member.id && (
-                        <div className="absolute right-0 top-full z-[100] mt-1.5 w-44 overflow-hidden rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-2xl backdrop-blur-xl">
-                          <button
-                            onClick={() => handleMark(member.id, "half_day")}
-                            className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-bold text-navy-700 hover:bg-amber-50 hover:text-amber-700"
-                          >
-                            Half Day (HD)
-                          </button>
-                          <button
-                            onClick={() => handleMark(member.id, "paid_leave")}
-                            className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-bold text-navy-700 hover:bg-indigo-50 hover:text-indigo-700"
-                          >
-                            Paid Leave (PL)
-                          </button>
-                        </div>
+                      {!isContractActive && (
+                        <span className="inline-flex items-center rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 border border-rose-200/60">
+                          Contract Inactive
+                        </span>
                       )}
                     </div>
-                  )}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className={`text-[11px] font-bold uppercase tracking-wide ${
+                          member.attendanceStatus === "not_marked"
+                            ? "text-slate-400"
+                            : member.attendanceStatus === "present"
+                            ? "text-emerald-600"
+                            : member.attendanceStatus === "absent"
+                            ? "text-rose-500"
+                            : member.attendanceStatus === "half_day"
+                            ? "text-amber-600"
+                            : "text-indigo-600"
+                        }`}
+                      >
+                        {member.attendanceStatus === "not_marked"
+                          ? "Not Marked"
+                          : member.attendanceStatus.replace("_", " ")}
+                      </span>
+                      {member.assignedOutletName && (
+                        <span className="text-[10px] text-slate-400">· {member.assignedOutletName}</span>
+                      )}
+                      {/* Check-in/Check-out times */}
+                      {member.checkIn && (
+                        <span className="text-[10px] text-emerald-600 font-medium">
+                          In: {formatTime(member.checkIn.timestamp)}
+                        </span>
+                      )}
+                      {member.checkOut && (
+                        <span className="text-[10px] text-orange-600 font-medium">
+                          Out: {formatTime(member.checkOut.timestamp)}
+                        </span>
+                      )}
+                      {/* Break records */}
+                      {member.breaks.map((breakRecord, index) => (
+                        <span key={index} className="text-[10px] text-amber-600 font-medium">
+                          Break {index + 1}: {formatTime(breakRecord.in)} - {breakRecord.out ? formatTime(breakRecord.out) : "ongoing"}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {!isContractActive ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-xs font-bold text-rose-600">
+                        <UserX className="h-3.5 w-3.5" />
+                        Attendance Disabled
+                      </span>
+                    ) : (
+                      <>
+                        {/* Check In Button */}
+                        {isToday && !member.checkIn && (
+                          <button
+                            onClick={() => openCheckInModal(member)}
+                            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition-all hover:bg-emerald-700 active:scale-95 shadow-md shadow-emerald-600/20"
+                          >
+                            <LogIn className="h-3.5 w-3.5" />
+                            Check In
+                          </button>
+                        )}
+
+                        {/* Check Out Button */}
+                        {isToday && member.checkIn && !member.checkOut && (
+                          <button
+                            onClick={() => openCheckOutModal(member)}
+                            className="flex items-center gap-1.5 rounded-xl bg-orange-600 px-3 py-2 text-xs font-bold text-white transition-all hover:bg-orange-700 active:scale-95 shadow-md shadow-orange-600/20"
+                          >
+                            <LogOut className="h-3.5 w-3.5" />
+                            Check Out
+                          </button>
+                        )}
+
+                        {/* Break In/Out Buttons */}
+                        {isToday && member.checkIn && !member.checkOut && (
+                          isOnBreak(member) ? (
+                            <button
+                              onClick={() => openBreakOutModal(member)}
+                              className="flex items-center gap-1.5 rounded-xl bg-amber-100 px-3 py-2 text-xs font-bold text-amber-700 transition-all hover:bg-amber-200 active:scale-95"
+                            >
+                              <Coffee className="h-3.5 w-3.5" />
+                              End Break
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => openBreakInModal(member)}
+                              className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-bold text-amber-700 transition-all hover:bg-amber-50 active:scale-95"
+                            >
+                              <Coffee className="h-3.5 w-3.5" />
+                              Break
+                            </button>
+                          )
+                        )}
+
+                        {/* Half Day / Paid Leave - only for past dates without check-in */}
+                        {!isToday && !member.checkIn && (
+                          <div className="relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuId(openMenuId === member.id ? null : member.id);
+                              }}
+                              className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all active:scale-95 ${
+                                openMenuId === member.id
+                                  ? "bg-navy-900 text-white border-navy-900"
+                                  : "border-navy-100 bg-white/60 text-navy-400 hover:bg-navy-50 hover:border-navy-200"
+                              }`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                            {openMenuId === member.id && (
+                              <div className="absolute right-0 top-full z-[100] mt-1.5 w-44 overflow-hidden rounded-2xl border border-white/50 bg-white/90 p-1.5 shadow-2xl backdrop-blur-xl">
+                                <button
+                                  onClick={() => handleMark(member.id, "half_day")}
+                                  className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-bold text-navy-700 hover:bg-amber-50 hover:text-amber-700"
+                                >
+                                  Half Day (HD)
+                                </button>
+                                <button
+                                  onClick={() => handleMark(member.id, "paid_leave")}
+                                  className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-bold text-navy-700 hover:bg-indigo-50 hover:text-indigo-700"
+                                >
+                                  Paid Leave (PL)
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

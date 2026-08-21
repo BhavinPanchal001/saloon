@@ -95,6 +95,9 @@ const toContractGroupResponse = (cg) => ({
   endDate: cg.end_date || '',
   employeeId: cg.employee_id || '',
   employeeName: cg.employee ? `${cg.employee.first_name} ${cg.employee.last_name}`.trim() : '',
+  employeeCode: cg.employee?.staff_code || cg.employee?.biometric_code || 'EMP001',
+  status: cg.status || 'Active',
+  description: cg.description || '',
 });
 
 const toSalaryComponentResponse = (sc) => ({
@@ -575,7 +578,7 @@ const getContractGroups = async (req, res) => {
 
 const saveContractGroup = async (req, res) => {
   try {
-    const { id, name, duration, startDate, endDate, employeeId } = req.body;
+    const { id, name, duration, startDate, endDate, employeeId, status, description } = req.body;
     if (!name) return res.status(400).json({ message: 'Name is required.' });
 
     const fields = {
@@ -584,6 +587,8 @@ const saveContractGroup = async (req, res) => {
       start_date: startDate,
       end_date: endDate || null,
       employee_id: employeeId ? Number(employeeId) : null,
+      status: status || 'Active',
+      description: description || null,
     };
 
     let cg;

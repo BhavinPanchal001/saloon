@@ -144,18 +144,60 @@ const createOrUpdate = async (req, res) => {
       contractCode = `CON-${year}-${String(count + 1).padStart(3, '0')}`;
     }
 
+    // Safely parse or resolve numeric IDs to avoid NaN SQL errors
+    const parseNumericId = (val) => {
+      if (val === null || val === undefined || val === '') return null;
+      const num = Number(val);
+      return isNaN(num) ? null : num;
+    };
+
+    // Resolve type_id safely
+    let resolvedTypeId = parseNumericId(payload.typeId);
+    if (!resolvedTypeId) {
+      let foundType = null;
+      if (payload.typeId) {
+        foundType = await ContractType.findOne({
+          where: {
+            [sequelize.Op.or]: [
+              { code: String(payload.typeId) },
+              { name: String(payload.typeId) },
+            ],
+          },
+          transaction: t,
+        });
+      }
+      if (!foundType) {
+        foundType = await ContractType.findOne({ transaction: t });
+      }
+      if (foundType) {
+        resolvedTypeId = foundType.id;
+      }
+    }
+
+    if (!resolvedTypeId) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Valid contract type is required.' });
+    }
+
+    // Resolve template_id safely
+    let resolvedTemplateId = parseNumericId(payload.templateId);
+    if (!resolvedTemplateId && payload.templateId) {
+      const foundTpl = await ContractTypeTemplate.findOne({ transaction: t });
+      if (foundTpl) resolvedTemplateId = foundTpl.id;
+    }
+
     const flatFields = {
       title: payload.title,
-      employee_id: Number(payload.employeeId),
-      group_id: payload.groupId ? Number(payload.groupId) : null,
-      type_id: Number(payload.typeId),
-      template_id: payload.templateId ? Number(payload.templateId) : null,
+      employee_id: parseNumericId(payload.employeeId) || Number(payload.employeeId),
+      group_id: parseNumericId(payload.groupId),
+      type_id: resolvedTypeId,
+      template_id: resolvedTemplateId,
       start_date: payload.startDate,
       end_date: payload.endDate || null,
-      status: payload.status || 'draft',
+      status: payload.status || 'active',
       notes: payload.notes || '',
-      shift_id: payload.shiftId ? Number(payload.shiftId) : null,
-      work_week_id: payload.workWeekId ? Number(payload.workWeekId) : null,
+      shift_id: parseNumericId(payload.shiftId),
+      work_week_id: parseNumericId(payload.workWeekId),
       overtime_enabled: !!payload.overtime?.enabled,
       overtime_type: payload.overtime?.type || '1.5x',
       overtime_calculation: payload.overtime?.rateCalculation || 'fixed_hourly',
@@ -184,14 +226,18 @@ const createOrUpdate = async (req, res) => {
         transaction: t,
       });
 
-      // Insert new ones
+      // Insert new ones safely
       const mappingsToInsert = payload.salaryComponents
-        .filter((sc) => sc.id || sc.salary_component_id)
-        .map((sc) => ({
-          contract_id: contract.id,
-          salary_component_id: Number(sc.id || sc.salary_component_id),
-          custom_amount: Number(sc.amount || sc.custom_amount || 0),
-        }));
+        .map((sc) => {
+          const compId = parseNumericId(sc.masterId) || parseNumericId(sc.salary_component_id) || parseNumericId(sc.id);
+          if (!compId) return null;
+          return {
+            contract_id: contract.id,
+            salary_component_id: compId,
+            custom_amount: Number(sc.amount || sc.custom_amount || 0),
+          };
+        })
+        .filter(Boolean);
 
       if (mappingsToInsert.length > 0) {
         await ContractSalaryMapping.bulkCreate(mappingsToInsert, { transaction: t });
@@ -222,11 +268,15 @@ const createOrUpdate = async (req, res) => {
       ],
     });
 
-    // Automatically update staff onboarding_status to approved if contract status is active
-    if (flatFields.status === 'active') {
+    // Automatically update staff status and onboarding_status to approved/Active if contract status is active
+    if (flatFields.status && String(flatFields.status).toLowerCase() === 'active') {
       const staff = await Staff.findByPk(flatFields.employee_id);
-      if (staff && staff.onboarding_status !== 'approved') {
-        await staff.update({ onboarding_status: 'approved' });
+      if (staff) {
+        await staff.update({ 
+          onboarding_status: 'approved',
+          status: 'Active',
+          is_active: true 
+        });
       }
     }
 
