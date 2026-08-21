@@ -10,7 +10,7 @@ import WhyUs from "@/components/WhyUs";
 // import Testimonials from "@/components/Testimonials";
 import Pricing from "@/components/Pricing";
 import Products from "@/components/Products";
-import Booking from "@/components/Booking";
+
 import Newsletter from "@/components/Newsletter";
 import Footer from "@/components/Footer";
 
@@ -39,7 +39,7 @@ function Index() {
       {/* <Testimonials /> */}
       <Pricing />
       <Products />
-      <Booking />
+
       <Newsletter />
       <Footer />
       <Toaster position="top-center" />
