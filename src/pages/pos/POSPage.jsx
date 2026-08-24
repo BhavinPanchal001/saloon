@@ -149,6 +149,27 @@ export function POSPage() {
     loadShiftData();
   }, [selectedOutlet, user?.outlet_id]);
 
+  // Pre-fill customer from Appointment if navigated via location.state
+  useEffect(() => {
+    if (location.state?.customerPhone || location.state?.customerName) {
+      setCustomer({
+        name: location.state.customerName || "",
+        phone: location.state.customerPhone || "",
+      });
+      if (location.state.customerPhone) {
+        fetchCustomersAPI({ search: location.state.customerPhone })
+          .then((res) => {
+            const match = (res.customers || []).find((c) => c.phone === location.state.customerPhone);
+            if (match) {
+              setSelectedCrmCustomer(match);
+              setCustomer({ name: match.name, phone: match.phone });
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [location.state]);
+
   const handleSelectTerminal = async (term) => {
     setSelectedTerminal(term);
     localStorage.setItem("glowy-selected-terminal-id", term.id.toString());

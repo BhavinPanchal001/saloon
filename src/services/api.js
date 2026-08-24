@@ -1718,6 +1718,22 @@ export const createAppointmentAPI = async (payload) => {
   return handleResponse(res);
 };
 
+export const fetchAppointmentByIdAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/appointments/${id}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const updateAppointmentAPI = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/appointments/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
 export const updateAppointmentStatusAPI = async (id, status) => {
   const res = await fetch(`${API_BASE}/appointments/${id}/status`, {
     method: "PATCH",

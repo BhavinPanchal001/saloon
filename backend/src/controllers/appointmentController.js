@@ -1,5 +1,40 @@
-const { Appointment, Customer, Outlet, Staff, Service } = require('../models');
+const { Appointment, Customer, Outlet, Staff, Service, Package } = require('../models');
 const { Op } = require('sequelize');
+
+// Helper to calculate end time from start time and duration
+const calculateEndTime = (startTime, durationMinutes = 30) => {
+  if (!startTime) return null;
+  let hours = 0;
+  let minutes = 0;
+  const is12Hour = /am|pm/i.test(startTime);
+
+  if (is12Hour) {
+    const match = startTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (match) {
+      hours = parseInt(match[1], 10);
+      minutes = parseInt(match[2], 10);
+      const period = match[3].toUpperCase();
+      if (period === 'PM' && hours < 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+    }
+  } else {
+    const parts = startTime.split(':');
+    hours = parseInt(parts[0], 10) || 0;
+    minutes = parseInt(parts[1], 10) || 0;
+  }
+
+  const totalMinutes = hours * 60 + minutes + Number(durationMinutes);
+  const endHours = Math.floor(totalMinutes / 60) % 24;
+  const endMins = totalMinutes % 60;
+
+  if (is12Hour) {
+    const period = endHours >= 12 ? 'PM' : 'AM';
+    const displayHours = endHours % 12 === 0 ? 12 : endHours % 12;
+    return `${String(displayHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')} ${period}`;
+  }
+
+  return `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+};
 
 // GET /api/appointments
 const getAppointments = async (req, res) => {
@@ -53,7 +88,7 @@ const getAppointmentById = async (req, res) => {
   }
 };
 
-// POST /api/appointments
+// POST /api/appointments (Internal / Admin)
 const createAppointment = async (req, res) => {
   try {
     const {
@@ -67,6 +102,7 @@ const createAppointment = async (req, res) => {
       startTime,
       endTime,
       notes,
+      status,
     } = req.body;
 
     const parsedOutletId = outletId ? Number(outletId) : null;
@@ -93,6 +129,15 @@ const createAppointment = async (req, res) => {
       finalCustomerId = customer.id;
     }
 
+    // Auto calculate endTime if not provided and serviceId exists
+    let finalEndTime = endTime || null;
+    if (!finalEndTime && parsedServiceId) {
+      const srv = await Service.findByPk(parsedServiceId);
+      if (srv && srv.duration) {
+        finalEndTime = calculateEndTime(startTime, srv.duration);
+      }
+    }
+
     const newAppointment = await Appointment.create({
       outlet_id: parsedOutletId,
       customer_id: finalCustomerId || null,
@@ -102,9 +147,9 @@ const createAppointment = async (req, res) => {
       service_id: parsedServiceId || null,
       appointment_date: appointmentDate,
       start_time: startTime,
-      end_time: endTime || null,
+      end_time: finalEndTime,
       notes: notes ? notes.trim() : null,
-      status: 'confirmed',
+      status: status || 'confirmed',
     });
 
     const appointment = await Appointment.findByPk(newAppointment.id, {
@@ -120,6 +165,162 @@ const createAppointment = async (req, res) => {
   } catch (err) {
     console.error('Error creating appointment:', err);
     return res.status(500).json({ message: 'Server error creating appointment.' });
+  }
+};
+
+// POST /api/appointments/public (Public Booking from Website)
+const createPublicAppointment = async (req, res) => {
+  try {
+    const {
+      name,
+      customerName,
+      phone,
+      customerPhone,
+      email,
+      service,
+      serviceId,
+      date,
+      appointmentDate,
+      time,
+      startTime,
+      notes,
+      outletId,
+    } = req.body;
+
+    const finalName = (customerName || name || '').trim();
+    const finalPhone = (customerPhone || phone || '').trim();
+    const finalDate = appointmentDate || date;
+    const finalTime = startTime || time;
+    const finalEmail = email ? email.trim() : null;
+
+    if (!finalName || !finalPhone || !finalDate || !finalTime) {
+      return res.status(400).json({
+        message: 'Name, phone number, date, and time are required.',
+      });
+    }
+
+    // Resolve Outlet: if none provided, fallback to the first active outlet
+    let targetOutletId = outletId ? Number(outletId) : null;
+    if (!targetOutletId) {
+      const activeOutlet = await Outlet.findOne({ where: { status: 'active' } }) || await Outlet.findOne();
+      if (activeOutlet) {
+        targetOutletId = activeOutlet.id;
+      }
+    }
+
+    if (!targetOutletId) {
+      return res.status(400).json({ message: 'No salon outlet available for booking.' });
+    }
+
+    // Find or create customer
+    let customer = await Customer.findOne({ where: { phone: finalPhone } });
+    if (!customer) {
+      customer = await Customer.create({
+        name: finalName,
+        phone: finalPhone,
+        email: finalEmail,
+      });
+    } else if (finalEmail && !customer.email) {
+      await customer.update({ email: finalEmail });
+    }
+
+    // Resolve Service if passed by name or ID
+    let parsedServiceId = serviceId ? Number(serviceId) : null;
+    let serviceDuration = 45;
+    let extraNotes = notes ? notes.trim() : '';
+
+    if (!parsedServiceId && service) {
+      const srv = await Service.findOne({
+        where: {
+          service_name: { [Op.like]: `%${service.trim()}%` },
+        },
+      });
+      if (srv) {
+        parsedServiceId = srv.id;
+        serviceDuration = srv.duration || 45;
+      } else {
+        // If it's a package or custom service, record it in notes
+        extraNotes = extraNotes ? `[Service: ${service}] ${extraNotes}` : `[Service: ${service}]`;
+      }
+    } else if (parsedServiceId) {
+      const srv = await Service.findByPk(parsedServiceId);
+      if (srv && srv.duration) serviceDuration = srv.duration;
+    }
+
+    const calculatedEndTime = calculateEndTime(finalTime, serviceDuration);
+
+    const newAppointment = await Appointment.create({
+      outlet_id: targetOutletId,
+      customer_id: customer.id,
+      customer_name: finalName,
+      customer_phone: finalPhone,
+      staff_id: null,
+      service_id: parsedServiceId || null,
+      appointment_date: finalDate,
+      start_time: finalTime,
+      end_time: calculatedEndTime,
+      notes: extraNotes || null,
+      status: 'requested',
+    });
+
+    const appointment = await Appointment.findByPk(newAppointment.id, {
+      include: [
+        { model: Customer, as: 'customer', attributes: ['id', 'name', 'phone', 'email'] },
+        { model: Outlet, as: 'outlet', attributes: ['id', 'name', 'code'] },
+        { model: Service, as: 'service', attributes: ['id', 'service_name', 'price', 'duration'] },
+      ],
+    });
+
+    return res.status(201).json({
+      message: 'Appointment reserved successfully!',
+      appointment,
+    });
+  } catch (err) {
+    console.error('Error creating public appointment:', err);
+    return res.status(500).json({ message: 'Server error processing your reservation.' });
+  }
+};
+
+// GET /api/appointments/public/services (Fetch available services and outlets for booking form)
+const getPublicServicesAndOutlets = async (req, res) => {
+  try {
+    const [services, outlets, packages] = await Promise.all([
+      Service.findAll({
+        where: { status: 'active' },
+        attributes: ['id', 'service_name', 'price', 'duration', 'category_id'],
+        order: [['service_name', 'ASC']],
+      }),
+      Outlet.findAll({
+        where: { status: 'active' },
+        attributes: ['id', 'name', 'code', 'city', 'state'],
+      }),
+      Package ? Package.findAll({
+        where: { status: 'active' },
+        attributes: ['id', 'name', 'price', 'description'],
+      }).catch(() => []) : [],
+    ]);
+
+    return res.json({
+      services: services.map(s => ({
+        id: s.id,
+        name: s.service_name,
+        price: Number(s.price),
+        duration: s.duration,
+      })),
+      packages: (packages || []).map(p => ({
+        id: p.id,
+        name: p.name,
+        price: Number(p.price),
+      })),
+      outlets: outlets.map(o => ({
+        id: o.id,
+        name: o.name,
+        city: o.city,
+      })),
+    });
+  } catch (err) {
+    console.error('Error fetching public services:', err);
+    return res.status(500).json({ message: 'Server error fetching booking options.' });
   }
 };
 
@@ -207,6 +408,8 @@ module.exports = {
   getAppointments,
   getAppointmentById,
   createAppointment,
+  createPublicAppointment,
+  getPublicServicesAndOutlets,
   updateAppointmentStatus,
   updateAppointment,
   deleteAppointment,

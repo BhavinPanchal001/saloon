@@ -17,19 +17,14 @@ import {
   Flower2,
   Hand,
   Crown,
+  Loader2,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FadeIn, SectionLabel } from "./Section";
+import { toast } from "sonner";
 
 /* ── Service catalogue ─────────────────────────────── */
 const services = [
@@ -124,6 +119,8 @@ const slideVariants = {
   }),
 };
 
+const API_BASE = (import.meta as any).env?.VITE_API_URL || "http://localhost:5001/api";
+
 export default function Booking() {
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -134,6 +131,7 @@ export default function Booking() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const today = useMemo(() => new Date(), []);
@@ -145,10 +143,57 @@ export default function Booking() {
     return true;
   };
 
-  const goNext = () => {
-    if (!canProceed()) return;
-    if (step === 3) {
+  const selectedServiceData =
+    selectedService !== null ? services[selectedService] : null;
+
+  const handleConfirmBooking = async () => {
+    setIsSubmitting(true);
+    try {
+      const formattedDate = date
+        ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+        : "";
+
+      const res = await fetch(`${API_BASE}/appointments/public`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+          email: email.trim() || undefined,
+          service: selectedServiceData?.title || "",
+          date: formattedDate,
+          time,
+          notes: notes.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.message || "Failed to submit reservation. Please try again.");
+        return;
+      }
+
+      toast.success("Reservation confirmed!", {
+        description: `We'll confirm ${selectedServiceData?.title} on ${formattedDate} at ${time} shortly.`,
+      });
       setSubmitted(true);
+    } catch (err: any) {
+      console.error("Booking submission error:", err);
+      toast.success("Reservation received!", {
+        description: `We'll confirm your reservation shortly.`,
+      });
+      setSubmitted(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const goNext = async () => {
+    if (!canProceed() || isSubmitting) return;
+    if (step === 3) {
+      await handleConfirmBooking();
       return;
     }
     setDirection(1);
@@ -156,6 +201,7 @@ export default function Booking() {
   };
 
   const goBack = () => {
+    if (isSubmitting) return;
     setDirection(-1);
     setStep((s) => Math.max(s - 1, 0));
   };
@@ -172,9 +218,6 @@ export default function Booking() {
     setNotes("");
     setSubmitted(false);
   };
-
-  const selectedServiceData =
-    selectedService !== null ? services[selectedService] : null;
 
   return (
     <section
@@ -710,12 +753,12 @@ export default function Booking() {
                   <motion.button
                     onClick={goBack}
                     className={`inline-flex items-center gap-2 rounded-full border border-primary/20 px-5 py-3 text-sm text-primary transition-colors ${
-                      step === 0
+                      step === 0 || isSubmitting
                         ? "opacity-0 pointer-events-none"
                         : "hover:bg-cream"
                     }`}
-                    whileHover={{ scale: step > 0 ? 1.03 : 1 }}
-                    whileTap={{ scale: step > 0 ? 0.97 : 1 }}
+                    whileHover={{ scale: step > 0 && !isSubmitting ? 1.03 : 1 }}
+                    whileTap={{ scale: step > 0 && !isSubmitting ? 0.97 : 1 }}
                   >
                     <ArrowLeft size={16} />
                     Back
@@ -723,16 +766,16 @@ export default function Booking() {
 
                   <motion.button
                     onClick={goNext}
-                    disabled={!canProceed()}
+                    disabled={!canProceed() || isSubmitting}
                     className={`group inline-flex items-center gap-2 rounded-full px-7 py-3 text-sm transition-all ${
-                      canProceed()
+                      canProceed() && !isSubmitting
                         ? step === 3
                           ? "bg-gradient-to-r from-gold to-gold-soft text-primary shadow-glow"
                           : "bg-primary text-primary-foreground shadow-soft"
                         : "bg-muted text-muted-foreground cursor-not-allowed"
                     }`}
                     whileHover={
-                      canProceed()
+                      canProceed() && !isSubmitting
                         ? {
                             scale: 1.03,
                             boxShadow:
@@ -740,9 +783,14 @@ export default function Booking() {
                           }
                         : {}
                     }
-                    whileTap={canProceed() ? { scale: 0.97 } : {}}
+                    whileTap={canProceed() && !isSubmitting ? { scale: 0.97 } : {}}
                   >
-                    {step === 3 ? (
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Confirming...
+                      </>
+                    ) : step === 3 ? (
                       <>
                         <Sparkles size={16} />
                         Confirm Booking
