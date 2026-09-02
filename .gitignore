@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+baileys_auth_info/
+whatsappConfig.json
 
 # Editor directories and files
 .vscode/*

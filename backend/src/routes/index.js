@@ -41,6 +41,8 @@ const appointmentRoutes = require('./appointmentRoutes');
 const reportRoutes = require('./reports');
 const payrollRoutes = require('./payroll');
 const rewardRoutes = require('./rewardRoutes');
+const businessSettingsRoutes = require('./businessSettingsRoutes');
+const whatsappRoutes = require('./whatsappRoutes');
 
 router.get('/', (req, res) => {
   res.json({ message: 'Glowy Saloon API v1' });
@@ -86,5 +88,7 @@ router.use('/contract-groups', contractGroupRoutes);
 router.use('/salary-masters', salaryMasterRoutes);
 router.use('/payroll', payrollRoutes);
 router.use('/rewards', rewardRoutes);
+router.use('/business-settings', businessSettingsRoutes);
+router.use('/whatsapp', whatsappRoutes);
 
 module.exports = router;

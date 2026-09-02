@@ -212,8 +212,29 @@ const createPublicAppointment = async (req, res) => {
       return res.status(400).json({ message: 'No salon outlet available for booking.' });
     }
 
-    // Find or create customer
-    let customer = await Customer.findOne({ where: { phone: finalPhone } });
+    // Find or resolve customer
+    let customer = null;
+    if (req.body.customerId) {
+      customer = await Customer.findByPk(req.body.customerId);
+    }
+
+    if (!customer) {
+      const cleanDigits = finalPhone.replace(/\D/g, '');
+      const last10 = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
+      const phoneConditions = [
+        { phone: finalPhone },
+        { phone: cleanDigits },
+        { phone: `+${cleanDigits}` },
+      ];
+      if (last10 && last10.length >= 7) {
+        phoneConditions.push({ phone: { [Op.like]: `%${last10}` } });
+      }
+
+      customer = await Customer.findOne({
+        where: { [Op.or]: phoneConditions },
+      });
+    }
+
     if (!customer) {
       customer = await Customer.create({
         name: finalName,
@@ -223,6 +244,7 @@ const createPublicAppointment = async (req, res) => {
     } else if (finalEmail && !customer.email) {
       await customer.update({ email: finalEmail });
     }
+
 
     // Resolve Service if passed by name or ID
     let parsedServiceId = serviceId ? Number(serviceId) : null;

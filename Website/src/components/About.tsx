@@ -102,8 +102,8 @@ export default function About() {
           <FadeIn delay={0.2}>
             <div className="grid grid-cols-2 gap-6 mt-10">
               <motion.div
-                className="rounded-2xl bg-card p-6 border border-border/50"
-                whileHover={{ y: -8, boxShadow: "0 20px 60px -25px color-mix(in oklab, var(--teal-deep) 18%, transparent)" }}
+                className="rounded-2xl bg-card p-6 border border-border/50 hover:shadow-soft transition-shadow"
+                whileHover={{ y: -8 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
               >
                 <motion.div
@@ -116,8 +116,8 @@ export default function About() {
                 <p className="text-sm text-muted-foreground mt-2">Clean, organic, ethically sourced ingredients in every ritual.</p>
               </motion.div>
               <motion.div
-                className="rounded-2xl bg-card p-6 border border-border/50"
-                whileHover={{ y: -8, boxShadow: "0 20px 60px -25px color-mix(in oklab, var(--teal-deep) 18%, transparent)" }}
+                className="rounded-2xl bg-card p-6 border border-border/50 hover:shadow-soft transition-shadow"
+                whileHover={{ y: -8 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
               >
                 <motion.div

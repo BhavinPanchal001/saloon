@@ -53,11 +53,10 @@ export default function WhyUs() {
               viewport={{ once: true, margin: "-60px" }}
             >
               <motion.div
-                className="h-full rounded-3xl bg-card p-6 border border-border/40 text-center transition-colors"
+                className="h-full rounded-3xl bg-card p-6 border border-border/40 text-center transition-colors hover:shadow-glow"
                 whileHover={{
                   y: -12,
                   scale: 1.03,
-                  boxShadow: "0 30px 80px -30px color-mix(in oklab, var(--gold) 25%, transparent)",
                   backgroundColor: "var(--cream)",
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}

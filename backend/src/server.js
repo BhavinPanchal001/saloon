@@ -1,8 +1,11 @@
 require('dotenv').config();
 const { execSync } = require('child_process');
 const os = require('os');
+const http = require('http');
 const app = require('./app');
 const { sequelize } = require('./models');
+const { initSocket } = require('./services/socketService');
+const { whatsappService } = require('./services/whatsappService');
 
 const PORT = process.env.PORT || 5001;
 
@@ -227,8 +230,12 @@ const startServer = async () => {
       console.log('[Migration] Column outlet_id added successfully to admins.');
     }
 
-    const server = app.listen(PORT, () => {
+    const server = http.createServer(app);
+    initSocket(server, { corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173' });
+
+    server.listen(PORT, () => {
       console.log(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+      whatsappService.init();
     });
 
     server.on('error', (err) => {

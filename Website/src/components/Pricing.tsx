@@ -178,8 +178,8 @@ export default function Pricing() {
 
                   <motion.a
                     href="#booking"
-                    className="mt-8 inline-flex items-center justify-center gap-2 rounded-full bg-gold text-primary px-8 py-4 text-sm transition-colors w-full sm:w-auto"
-                    whileHover={{ scale: 1.03, boxShadow: "0 20px 60px -15px color-mix(in oklab, var(--gold) 40%, transparent)" }}
+                    className="mt-8 inline-flex items-center justify-center gap-2 rounded-full bg-gold text-primary px-8 py-4 text-sm transition-colors hover:shadow-glow w-full sm:w-auto"
+                    whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                   >
                     Book Demo {featured.name}
@@ -218,12 +218,11 @@ function SideCard({
 }) {
   return (
     <motion.div
-      className={`rounded-[1.75rem] bg-card border border-border/50 p-7 transition-all ${
+      className={`rounded-[1.75rem] bg-card border border-border/50 p-7 transition-all hover:shadow-soft ${
         align === "right" ? "lg:text-right" : "lg:text-left"
       }`}
       whileHover={{
         y: -10,
-        boxShadow: "0 30px 80px -30px color-mix(in oklab, var(--gold) 25%, transparent)",
       }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
     >

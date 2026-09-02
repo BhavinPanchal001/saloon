@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchStaff, fetchSettings, fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI, validateCouponAPI, fetchCustomersAPI, fetchBillByIdFromAPI, updateBillAPI } from "../../services/api";
+import { fetchStaff, fetchSettings, fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI, validateCouponAPI, fetchCustomersAPI, fetchBillByIdFromAPI, updateBillAPI, fetchWhatsAppStatusAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
@@ -14,7 +14,7 @@ import { XReportModal } from "./components/XReportModal";
 import { CloseShiftModal } from "./components/CloseShiftModal";
 import { ZReportPrintModal } from "./components/ZReportPrintModal";
 import { fetchTerminalsAPI, createTerminalAPI, fetchActiveShiftAPI, openShiftAPI, addCashMovementAPI } from "../../services/posShiftApi";
-import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle, CreditCard, Keyboard, HelpCircle, X, User, Edit, ChevronDown, ChevronUp, Monitor, PlayCircle, StopCircle, CheckCircle2, FileText } from "lucide-react";
+import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle, CreditCard, Keyboard, HelpCircle, X, User, Edit, ChevronDown, ChevronUp, Monitor, PlayCircle, StopCircle, CheckCircle2, FileText, MessageCircle } from "lucide-react";
 import BankSelector from "../../modules/bank/components/BankSelector";
 
 const paymentMethods = ["Cash", "Card", "UPI", "Store Credit", "Split"];
@@ -72,6 +72,7 @@ export function POSPage() {
   const [stockErrors, setStockErrors] = useState([]);
   const [allowOutOfStockCheckout, setAllowOutOfStockCheckout] = useState(false);
   const [autoSendWhatsAppOnPOS, setAutoSendWhatsAppOnPOS] = useState(true);
+  const [whatsappProvider, setWhatsappProvider] = useState("business_api");
   const [paymentDetails, setPaymentDetails] = useState([]);
 
   const [transactionReference, setTransactionReference] = useState("");
@@ -392,6 +393,13 @@ export function POSPage() {
       } catch (err) {
         console.error("Failed to load settings in POS:", err);
       }
+
+      try {
+        const waData = await fetchWhatsAppStatusAPI();
+        if (waData?.activeProvider) {
+          setWhatsappProvider(waData.activeProvider);
+        }
+      } catch (_) {}
     };
     loadPOSSettings();
   }, []);
@@ -1015,13 +1023,27 @@ export function POSPage() {
       paymentDetails: resolvedDetails,
       transactionReference: transactionReference.trim() || undefined,
       paymentNotes: paymentNotes.trim() || undefined,
+      servedBy: (() => {
+        const talents = [
+          ...new Set(
+            cart
+              .filter((l) => l.type === "service" && l.staffId)
+              .map((l) => staffMembers.find((m) => String(m.id) === String(l.staffId))?.name || l.staffId)
+              .filter(Boolean)
+          ),
+        ];
+        return talents.length > 0 ? talents.join(", ") : undefined;
+      })(),
       lineItems: cart.map((line) => ({
         itemId: line.id,
         itemType: line.type,
         itemName: line.name,
         qty: line.quantity,
         price: getLinePrice(line),
-        staffAssigned: line.type === "service" ? line.staffId : null,
+        staffAssigned:
+          line.type === "service" && line.staffId
+            ? (staffMembers.find((m) => String(m.id) === String(line.staffId))?.name || line.staffId)
+            : null,
         unit: line.type === "product" ? (line.unit || "primary") : undefined,
         unitAbbr: line.type === "product" && line.unitMaster
           ? (line.unit === "secondary" ? line.unitMaster.secondaryAbbr : line.unitMaster.primaryAbbr)
@@ -1044,7 +1066,9 @@ export function POSPage() {
                   serviceId: svc.serviceId,
                   serviceName: svc.serviceName,
                   sessions: svc.sessions,
-                  staffAssigned: svc.staffId || null,
+                  staffAssigned: svc.staffId
+                    ? (staffMembers.find((m) => String(m.id) === String(svc.staffId))?.name || svc.staffId)
+                    : null,
                   productConsumption: (svc.productLinkages || [])
                     .filter((link) => link.enabled && link.inventoryId && (Number(link.currentQty) || 0) > 0)
                     .map((link) => ({
@@ -2323,6 +2347,27 @@ export function POSPage() {
                 </div>
               </div>
             )}
+
+            {/* WhatsApp Invoice Auto-send Option */}
+            <div className="mt-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 p-2.5 flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={autoSendWhatsAppOnPOS}
+                  onChange={(e) => setAutoSendWhatsAppOnPOS(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <div className="flex items-center gap-1.5">
+                  <MessageCircle className="h-4 w-4 text-emerald-600" />
+                  <span className="text-xs font-bold text-navy-900">Send invoice on WhatsApp</span>
+                </div>
+              </label>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                whatsappProvider === 'baileys' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+              }`}>
+                {whatsappProvider === 'baileys' ? 'Baileys' : 'Business API'}
+              </span>
+            </div>
 
             <button
               type="button"

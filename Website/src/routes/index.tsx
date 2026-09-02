@@ -11,6 +11,7 @@ import WhyUs from "@/components/WhyUs";
 import Pricing from "@/components/Pricing";
 import Products from "@/components/Products";
 import Booking from "@/components/Booking";
+import Consultation from "@/components/Consultation";
 
 import Newsletter from "@/components/Newsletter";
 import Footer from "@/components/Footer";
@@ -41,6 +42,7 @@ function Index() {
       <Pricing />
       <Products />
       <Booking />
+      <Consultation />
 
       <Newsletter />
       <Footer />

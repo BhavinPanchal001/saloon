@@ -1,0 +1,13 @@
+{
+  "name": "Glowy",
+  "tagline": "Glow to go with Glowy",
+  "address": "Kuala Lumpur, Malaysia",
+  "phone": "+60 12-345 6789",
+  "email": "hello@glowy.my",
+  "website": "www.glowy.my",
+  "taxNumber": "",
+  "currency": "RM",
+  "receiptHeader": "Welcome to Glowy",
+  "receiptFooter": "Thank you for visiting! Glow to go with Glowy ✨",
+  "terms": "Services and products once rendered/sold are non-refundable. Computer generated invoice."
+}

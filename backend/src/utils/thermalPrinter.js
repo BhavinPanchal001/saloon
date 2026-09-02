@@ -12,6 +12,44 @@ try {
   // escpos-network not installed — network printing not available
 }
 
+// ComPort Adapter for Windows Virtual COM / Bluetooth Serial ports
+class ComPortAdapter {
+  constructor(portPath) {
+    this.portPath = process.platform === 'win32' && portPath && !portPath.startsWith('\\\\.\\')
+      ? `\\\\.\\${portPath}`
+      : (portPath || (process.platform === 'win32' ? '\\\\.\\COM3' : '/dev/rfcomm0'));
+    this.stream = null;
+  }
+  open(callback) {
+    try {
+      this.stream = fs.createWriteStream(this.portPath, { flags: 'w', autoClose: true });
+      this.stream.on('error', (err) => {
+        if (callback) callback(err);
+      });
+      this.stream.on('open', () => {
+        if (callback) callback(null);
+      });
+    } catch (err) {
+      if (callback) callback(err);
+    }
+  }
+  write(data, callback) {
+    if (!this.stream) {
+      if (callback) callback(new Error(`Bluetooth COM port ${this.portPath} is not open`));
+      return;
+    }
+    this.stream.write(data, callback);
+  }
+  close(callback) {
+    if (this.stream) {
+      this.stream.end(callback);
+      this.stream = null;
+    } else if (callback) {
+      callback();
+    }
+  }
+}
+
 const CONFIG_FILE = path.join(os.homedir(), '.glowy-saloon', 'printerConfig.json');
 
 // Default config structure
@@ -22,6 +60,8 @@ const defaultConfig = {
   pid: process.env.THERMAL_PRINTER_PID || '',
   ip: process.env.THERMAL_PRINTER_IP || '',
   port: process.env.THERMAL_PRINTER_PORT ? parseInt(process.env.THERMAL_PRINTER_PORT, 10) : 9100,
+  comPort: process.env.THERMAL_PRINTER_COM || 'COM3',
+  baudRate: process.env.THERMAL_PRINTER_BAUD ? parseInt(process.env.THERMAL_PRINTER_BAUD, 10) : 9600,
   paperWidth: 48, // 48 chars = 80mm paper, 32 chars = 58mm paper
 };
 
@@ -50,11 +90,40 @@ const loadConfigFromFile = () => {
 loadConfigFromFile();
 
 /**
- * Format currency in INR
+ * Format amount for thermal printer with RM (Malaysian Ringgit)
  */
 const formatCurrency = (amount) => {
   const num = Number(amount) || 0;
-  return `Rs.${num.toFixed(2)}`;
+  return `RM ${num.toFixed(2)}`;
+};
+
+/**
+ * Format fixed-width table row for items
+ */
+const formatTableRow = (itemText, qtyText, amountText, lineWidth = 48) => {
+  const is58 = Number(lineWidth) <= 32;
+  const itemColWidth = is58 ? 15 : 26;
+  const qtyColWidth = is58 ? 4 : 6;
+  const amtColWidth = is58 ? 13 : 16;
+
+  const qtyStr = String(qtyText).padStart(qtyColWidth);
+  const amtStr = String(amountText).padStart(amtColWidth);
+
+  if (itemText.length <= itemColWidth) {
+    return [itemText.padEnd(itemColWidth) + qtyStr + amtStr];
+  } else {
+    const lines = [];
+    const firstChunk = itemText.substring(0, itemColWidth);
+    lines.push(firstChunk.padEnd(itemColWidth) + qtyStr + amtStr);
+
+    let remaining = itemText.substring(itemColWidth).trim();
+    while (remaining.length > 0) {
+      const wrapChunk = remaining.substring(0, itemColWidth - 2);
+      remaining = remaining.substring(itemColWidth - 2).trim();
+      lines.push(('  ' + wrapChunk).padEnd(itemColWidth) + ' '.repeat(qtyColWidth + amtColWidth));
+    }
+    return lines;
+  }
 };
 
 /**
@@ -94,6 +163,13 @@ const formatTime = (iso) => {
  * Returns the escpos device or throws an error.
  */
 const openDevice = () => {
+  if (currentConfig.connectionType === 'bluetooth' || currentConfig.connectionType === 'serial') {
+    if (!currentConfig.comPort) {
+      throw new Error('Bluetooth COM port is not configured (e.g. COM3 or COM4).');
+    }
+    return new ComPortAdapter(currentConfig.comPort);
+  }
+
   if (currentConfig.connectionType === 'network') {
     if (!escposNetwork) {
       throw new Error('escpos-network package is not installed. Run: npm install escpos-network');
@@ -129,6 +205,8 @@ const getPrinterStatus = () => {
     }
   } else if (currentConfig.connectionType === 'network') {
     deviceDetected = !!currentConfig.ip;
+  } else if (currentConfig.connectionType === 'bluetooth' || currentConfig.connectionType === 'serial') {
+    deviceDetected = !!currentConfig.comPort;
   }
 
   return {
@@ -138,6 +216,8 @@ const getPrinterStatus = () => {
     pid: currentConfig.pid ? currentConfig.pid.toUpperCase() : '',
     ip: currentConfig.ip || '',
     port: currentConfig.port || 9100,
+    comPort: currentConfig.comPort || 'COM3',
+    baudRate: currentConfig.baudRate || 9600,
     paperWidth: currentConfig.paperWidth || 48,
     networkSupported: !!escposNetwork,
     deviceDetected,
@@ -151,7 +231,7 @@ const savePrinterConfig = (newConfig = {}) => {
   if (typeof newConfig.enabled === 'boolean') {
     currentConfig.enabled = newConfig.enabled;
   }
-  if (newConfig.connectionType === 'usb' || newConfig.connectionType === 'network') {
+  if (newConfig.connectionType === 'usb' || newConfig.connectionType === 'network' || newConfig.connectionType === 'bluetooth' || newConfig.connectionType === 'serial') {
     currentConfig.connectionType = newConfig.connectionType;
   }
   if (typeof newConfig.vid === 'string') {
@@ -165,6 +245,12 @@ const savePrinterConfig = (newConfig = {}) => {
   }
   if (newConfig.port) {
     currentConfig.port = Number(newConfig.port) || 9100;
+  }
+  if (typeof newConfig.comPort === 'string') {
+    currentConfig.comPort = newConfig.comPort.trim();
+  }
+  if (newConfig.baudRate) {
+    currentConfig.baudRate = Number(newConfig.baudRate) || 9600;
   }
   if (newConfig.paperWidth) {
     currentConfig.paperWidth = Number(newConfig.paperWidth) || 48;
@@ -192,7 +278,7 @@ const setPrinterEnabled = (enabled) => {
 };
 
 /**
- * Set connection type at runtime ('usb' or 'network').
+ * Set connection type at runtime ('usb', 'network', or 'bluetooth').
  */
 const setConnectionType = (type) => {
   return savePrinterConfig({ connectionType: type });
@@ -251,34 +337,58 @@ const printReceipt = async (billData) => {
     return { success: false, reason: 'not_connected', message: err.message };
   }
 
+  const { getRuntimeBusinessInfo } = require('../controllers/businessSettingsController');
+  const biz = getRuntimeBusinessInfo();
+
   const result = await executePrint(device, (printer, separator, dashLine, lineWidth) => {
+    const brandName = biz.name || 'GLOWY';
+    const tagline = biz.tagline || 'Glow to go with Glowy';
+    const address = billData.outlet?.address || billData.outlet_address || biz.address;
+    const phone = billData.outlet?.phone || billData.outlet_phone || biz.phone;
+    const taxNum = biz.taxNumber || '';
+
     printer
       .font('a')
       .align('ct')
       .style('b')
       .size(1, 1)
-      .text('GLOWY')
+      .text(brandName.toUpperCase())
       .style('normal')
-      .size(0, 0)
-      .text('Glow to go with Glowy')
-      .text(separator)
-      .align('ct')
-      .text('42, Brigade Road, Bengaluru')
-      .text('Ph: +91 80 4567 8900')
-      .text('GSTIN: 29AABCG1234F1ZP')
-      .text(dashLine)
-      .align('lt');
+      .size(0, 0);
+
+    if (tagline) printer.text(tagline);
+    printer.text(separator).align('ct');
+
+    if (address) printer.text(address);
+    if (phone) printer.text(`Ph: ${phone}`);
+    if (taxNum) printer.text(`SST/Reg: ${taxNum}`);
+
+    const talents = [
+      ...new Set(
+        [
+          billData.servedBy,
+          billData.served_by,
+          billData.staffName,
+          ...(billData.lineItems || []).map((it) => it.staffAssigned || it.staff_assigned),
+        ].filter(Boolean)
+      ),
+    ];
+    const servedBy = talents.join(', ');
 
     // Bill info
     printer
       .text(padLine(`Bill#: ${billData.billNumber}`, '', lineWidth))
       .text(padLine(`Date : ${formatDate(billData.createdAt)}`, formatTime(billData.createdAt), lineWidth))
       .text(padLine(`Outlet: ${billData.outletName || '--'}`, '', lineWidth))
-      .text(padLine(`Customer: ${billData.customer?.name || 'Walk-in'}`, '', lineWidth))
-      .text(dashLine);
+      .text(padLine(`Customer: ${billData.customer?.name || 'Walk-in'}`, '', lineWidth));
 
-    // Column header
-    printer.text(padLine('# Item', 'Qty   Amount', lineWidth));
+    if (servedBy) {
+      printer.text(padLine(`Served by: ${servedBy}`, '', lineWidth));
+    }
+    printer.text(dashLine);
+
+    // Column header with fixed column alignment
+    printer.text(formatTableRow('# Item', 'Qty', 'Amount', lineWidth)[0]);
     printer.text(dashLine);
 
     // Line items
@@ -288,11 +398,13 @@ const printReceipt = async (billData) => {
         const name = item.itemName || 'Item';
         const qty = String(item.qty || 1);
         const amount = formatCurrency(Number(item.price || 0) * Number(item.qty || 1));
-        const rightPart = `${qty.padStart(3)}  ${amount}`;
-        const maxName = lineWidth - num.length - rightPart.length - 1;
-        const truncName = name.length > maxName ? name.substring(0, maxName) : name;
-        const line = num + truncName + ' '.repeat(Math.max(lineWidth - num.length - truncName.length - rightPart.length, 1)) + rightPart;
-        printer.text(line);
+        const rowLines = formatTableRow(num + name, qty, amount, lineWidth);
+        rowLines.forEach((l) => printer.text(l));
+
+        const talent = item.staffAssigned || item.staff_assigned;
+        if (talent) {
+          printer.text(`   Served by: ${talent}`);
+        }
       });
     }
 
@@ -316,10 +428,30 @@ const printReceipt = async (billData) => {
     printer
       .align('ct')
       .text('')
-      .text('Thank you for visiting!')
-      .text('See you soon!')
-      .text('')
-      .text(separator);
+      .text(biz.receiptFooter || 'Thank you for visiting!');
+
+    if (biz.terms) {
+      const termLines = String(biz.terms).split('\n');
+      termLines.forEach((tLine) => {
+        const trimmed = tLine.trim();
+        if (!trimmed) return;
+        const words = trimmed.split(' ');
+        let curLine = '';
+        words.forEach((w) => {
+          if ((curLine + ' ' + w).trim().length <= lineWidth) {
+            curLine = (curLine + ' ' + w).trim();
+          } else {
+            if (curLine) printer.text(curLine);
+            curLine = w;
+          }
+        });
+        if (curLine) printer.text(curLine);
+      });
+    } else {
+      printer.text('See you soon!');
+    }
+
+    printer.text('').text(separator);
   });
 
   if (result.success) {

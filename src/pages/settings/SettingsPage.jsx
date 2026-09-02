@@ -3,8 +3,19 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchSettings, saveSettings, fetchPrinterStatusAPI, togglePrinterAPI, testPrintAPI, switchPrinterConnectionAPI, savePrinterSettingsAPI } from '../../services/api';
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
-import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound, Printer, Usb, Wifi, Save, HelpCircle, Info, Package, Award, MessageCircle } from "lucide-react";
+import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckCircle, KeyRound, Printer, Usb, Wifi, Bluetooth, Save, HelpCircle, Info, Package, Award, MessageCircle, RefreshCw, Power, Building2 } from "lucide-react";
 import { RewardSettingsTab } from "./RewardSettingsTab";
+import { BusinessInfoTab } from "./BusinessInfoTab";
+import { WhatsAppSettingsTab } from "./WhatsAppSettingsTab";
+import {
+  isBluetoothSupported,
+  getBluetoothPrinterStatus,
+  connectBluetoothPrinter,
+  disconnectBluetoothPrinter,
+  autoReconnectBluetoothPrinter,
+  onPrinterStateChange,
+  printBluetoothTestReceipt,
+} from "../../utils/bluetoothPrinter";
 
 
 export function SettingsPage() {
@@ -41,12 +52,45 @@ export function SettingsPage() {
   }, [user]);
 
   // Printer settings state
-  const [printerStatus, setPrinterStatus] = useState({ enabled: false, connectionType: 'usb', vid: '', pid: '', ip: '', port: 9100, paperWidth: 48, deviceDetected: false });
-  const [printerForm, setPrinterForm] = useState({ enabled: false, connectionType: 'usb', vid: '', pid: '', ip: '', port: 9100, paperWidth: 48 });
+  const [printerStatus, setPrinterStatus] = useState({
+    enabled: false,
+    connectionType: 'usb',
+    vid: '',
+    pid: '',
+    ip: '',
+    port: 9100,
+    comPort: 'COM3',
+    baudRate: 9600,
+    paperWidth: 48,
+    deviceDetected: false,
+  });
+  const [printerForm, setPrinterForm] = useState({
+    enabled: false,
+    connectionType: 'usb',
+    vid: '',
+    pid: '',
+    ip: '',
+    port: 9100,
+    comPort: 'COM3',
+    baudRate: 9600,
+    paperWidth: 48,
+  });
   const [printerLoading, setPrinterLoading] = useState(false);
   const [printerToggling, setPrinterToggling] = useState(false);
   const [printerSaving, setPrinterSaving] = useState(false);
   const [testPrinting, setTestPrinting] = useState(false);
+
+  // Web Bluetooth live state
+  const [btStatus, setBtStatus] = useState(getBluetoothPrinterStatus());
+  const [btConnecting, setBtConnecting] = useState(false);
+  const [btTestPrinting, setBtTestPrinting] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onPrinterStateChange((status) => {
+      setBtStatus(status);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleSetupTOTP = async () => {
     setTotpLoading(true);
@@ -124,11 +168,13 @@ export function SettingsPage() {
     };
     loadSettings();
     fetchPrinterStatus();
+    autoReconnectBluetoothPrinter().catch(() => {});
   }, []);
 
   useEffect(() => {
     if (activeTab === "printer") {
       fetchPrinterStatus();
+      autoReconnectBluetoothPrinter().catch(() => {});
     }
   }, [activeTab]);
 
@@ -144,8 +190,13 @@ export function SettingsPage() {
         pid: status.pid || '',
         ip: status.ip || '',
         port: status.port || 9100,
+        comPort: status.comPort || 'COM3',
+        baudRate: status.baudRate || 9600,
         paperWidth: status.paperWidth || 48,
       });
+      if (status.paperWidth) {
+        localStorage.setItem('glowy_printer_paper_width', String(status.paperWidth));
+      }
     } catch (err) {
       console.error('Failed to fetch printer status:', err);
     } finally {
@@ -174,7 +225,10 @@ export function SettingsPage() {
       setPrinterForm((prev) => ({ ...prev, connectionType: updatedStatus.connectionType }));
       toast.success(`Switched connection mode to ${type.toUpperCase()}`);
     } catch (err) {
-      toast.error(err.message || 'Failed to switch connection mode');
+      // Local fallback if API fails
+      setPrinterForm((prev) => ({ ...prev, connectionType: type }));
+      setPrinterStatus((prev) => ({ ...prev, connectionType: type }));
+      toast.info(`Selected ${type.toUpperCase()} mode`);
     }
   };
 
@@ -184,6 +238,9 @@ export function SettingsPage() {
     try {
       const updatedStatus = await savePrinterSettingsAPI(printerForm);
       setPrinterStatus(updatedStatus);
+      if (printerForm.paperWidth) {
+        localStorage.setItem('glowy_printer_paper_width', String(printerForm.paperWidth));
+      }
       toast.success(updatedStatus.message || 'Printer settings saved successfully!');
     } catch (err) {
       toast.error(err.message || 'Failed to save printer settings');
@@ -201,6 +258,37 @@ export function SettingsPage() {
       toast.error(err.message || 'Test print failed');
     } finally {
       setTestPrinting(false);
+    }
+  };
+
+  const handleConnectBluetooth = async () => {
+    setBtConnecting(true);
+    try {
+      const res = await connectBluetoothPrinter();
+      toast.success(`Connected to ${res.deviceName}!`);
+    } catch (err) {
+      if (err.name !== 'NotFoundError' && !err.message?.includes('User cancelled')) {
+        toast.error(err.message || 'Failed to connect Bluetooth printer');
+      }
+    } finally {
+      setBtConnecting(false);
+    }
+  };
+
+  const handleDisconnectBluetooth = () => {
+    disconnectBluetoothPrinter();
+    toast.success('Bluetooth printer disconnected.');
+  };
+
+  const handleTestBluetoothPrint = async () => {
+    setBtTestPrinting(true);
+    try {
+      await printBluetoothTestReceipt({ paperWidth: printerForm.paperWidth });
+      toast.success('Bluetooth test receipt printed successfully!');
+    } catch (err) {
+      toast.error(err.message || 'Failed to print test receipt over Bluetooth');
+    } finally {
+      setBtTestPrinting(false);
     }
   };
 
@@ -231,12 +319,14 @@ export function SettingsPage() {
 
   const tabs = [
     { id: "profile", label: "Profile", icon: User },
+    { id: "business", label: "Business & Store", icon: Building2 },
+    { id: "printer", label: "Printer & POS", icon: Printer },
+    { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+    { id: "rewards", label: "Reward System", icon: Award },
+    { id: "inventory", label: "Inventory & POS", icon: Package },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "appearance", label: "Appearance", icon: Moon },
     { id: "security", label: "Security", icon: Shield },
-    { id: "inventory", label: "Inventory & POS", icon: Package },
-    { id: "rewards", label: "Reward System", icon: Award },
-    { id: "printer", label: "Printer", icon: Printer },
   ];
 
   return (
@@ -806,7 +896,7 @@ export function SettingsPage() {
                     {/* Connection Type Selector */}
                     <div className="rounded-xl border border-slate-100 bg-white/50 p-5">
                       <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-3">Connection Type</p>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <button
                           type="button"
                           onClick={() => handleConnectionTypeChange('usb')}
@@ -818,10 +908,11 @@ export function SettingsPage() {
                         >
                           <Usb className={`h-5 w-5 ${printerForm.connectionType === 'usb' ? 'text-navy-600' : 'text-slate-400'}`} />
                           <div className="text-left">
-                            <p className={`text-sm font-semibold ${printerForm.connectionType === 'usb' ? 'text-navy-900' : 'text-slate-600'}`}>USB Connection</p>
-                            <p className="text-xs text-slate-400">Plugged directly into PC via USB cable</p>
+                            <p className={`text-sm font-semibold ${printerForm.connectionType === 'usb' ? 'text-navy-900' : 'text-slate-600'}`}>USB</p>
+                            <p className="text-xs text-slate-400">Direct USB cable</p>
                           </div>
                         </button>
+
                         <button
                           type="button"
                           onClick={() => handleConnectionTypeChange('network')}
@@ -833,8 +924,24 @@ export function SettingsPage() {
                         >
                           <Wifi className={`h-5 w-5 ${printerForm.connectionType === 'network' ? 'text-navy-600' : 'text-slate-400'}`} />
                           <div className="text-left">
-                            <p className={`text-sm font-semibold ${printerForm.connectionType === 'network' ? 'text-navy-900' : 'text-slate-600'}`}>Network Connection</p>
-                            <p className="text-xs text-slate-400">Connected via Wi-Fi or LAN cable (IP address)</p>
+                            <p className={`text-sm font-semibold ${printerForm.connectionType === 'network' ? 'text-navy-900' : 'text-slate-600'}`}>Network</p>
+                            <p className="text-xs text-slate-400">Wi-Fi / LAN IP</p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleConnectionTypeChange('bluetooth')}
+                          className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-all ${
+                            printerForm.connectionType === 'bluetooth' || printerForm.connectionType === 'serial'
+                              ? 'border-indigo-500 bg-indigo-50/70 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <Bluetooth className={`h-5 w-5 ${printerForm.connectionType === 'bluetooth' || printerForm.connectionType === 'serial' ? 'text-indigo-600' : 'text-slate-400'}`} />
+                          <div className="text-left">
+                            <p className={`text-sm font-semibold ${printerForm.connectionType === 'bluetooth' || printerForm.connectionType === 'serial' ? 'text-navy-900' : 'text-slate-600'}`}>Bluetooth</p>
+                            <p className="text-xs text-slate-400">Wireless POS / BLE</p>
                           </div>
                         </button>
                       </div>
@@ -843,10 +950,202 @@ export function SettingsPage() {
                     {/* Printer Configuration Form Fields */}
                     <div className="rounded-xl border border-slate-100 bg-white/50 p-5 space-y-4">
                       <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-1">
-                        {printerForm.connectionType === 'usb' ? 'USB Hardware Identifiers' : 'Network Communication Details'}
+                        {printerForm.connectionType === 'usb'
+                          ? 'USB Hardware Identifiers'
+                          : printerForm.connectionType === 'network'
+                          ? 'Network Communication Details'
+                          : 'Bluetooth Thermal Printer Configuration'}
                       </p>
 
-                      {printerForm.connectionType === 'usb' ? (
+                      {printerForm.connectionType === 'bluetooth' || printerForm.connectionType === 'serial' ? (
+                        <div className="space-y-4">
+                          {/* Direct Web Bluetooth Card */}
+                          <div className="rounded-xl border-2 border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                                  btStatus.connected
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : btStatus.hasPairedDevice
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-indigo-100 text-indigo-600'
+                                }`}>
+                                  <Bluetooth className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-bold text-navy-900">Direct Browser Bluetooth (BLE)</p>
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                      btStatus.connected
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : btStatus.isConnecting
+                                        ? 'bg-indigo-100 text-indigo-800'
+                                        : btStatus.hasPairedDevice
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : 'bg-slate-200 text-slate-600'
+                                    }`}>
+                                      <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${
+                                        btStatus.connected
+                                          ? 'bg-emerald-500 animate-pulse'
+                                          : btStatus.isConnecting
+                                          ? 'bg-indigo-500 animate-spin'
+                                          : btStatus.hasPairedDevice
+                                          ? 'bg-amber-500'
+                                          : 'bg-slate-400'
+                                      }`} />
+                                      {btStatus.connected
+                                        ? 'Connected'
+                                        : btStatus.isConnecting
+                                        ? 'Connecting...'
+                                        : btStatus.hasPairedDevice
+                                        ? 'Paired (Ready to Reconnect)'
+                                        : 'Disconnected'}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-500">
+                                    {btStatus.deviceName
+                                      ? `Paired Device: ${btStatus.deviceName}`
+                                      : 'Print wirelessly directly from Chrome/Edge on PC, Mac, Tablet & Mobile'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {btStatus.connected ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={handleTestBluetoothPrint}
+                                      disabled={btTestPrinting}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 shadow-sm"
+                                    >
+                                      {btTestPrinting ? (
+                                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                                      ) : (
+                                        <Printer className="h-3.5 w-3.5" />
+                                      )}
+                                      Test Print
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleDisconnectBluetooth}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-white border border-rose-200 rounded-lg hover:bg-rose-50 shadow-sm"
+                                    >
+                                      <Power className="h-3.5 w-3.5" />
+                                      Disconnect
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        setBtConnecting(true);
+                                        try {
+                                          const reconnected = await autoReconnectBluetoothPrinter();
+                                          if (!reconnected) {
+                                            await connectBluetoothPrinter();
+                                          }
+                                        } catch (err) {
+                                          if (err.name !== 'NotFoundError' && !err.message?.includes('User cancelled')) {
+                                            toast.error(err.message || 'Connection failed');
+                                          }
+                                        } finally {
+                                          setBtConnecting(false);
+                                        }
+                                      }}
+                                      disabled={btConnecting || !btStatus.supported}
+                                      className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm disabled:opacity-50"
+                                    >
+                                      {btConnecting || btStatus.isConnecting ? (
+                                        <>
+                                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                                          Connecting...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Bluetooth className="h-4 w-4" />
+                                          {btStatus.hasPairedDevice ? "Reconnect Printer" : "Scan & Connect Printer"}
+                                        </>
+                                      )}
+                                    </button>
+
+                                    {btStatus.hasPairedDevice && (
+                                      <button
+                                        type="button"
+                                        onClick={handleConnectBluetooth}
+                                        disabled={btConnecting}
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm"
+                                        title="Scan a different Bluetooth printer"
+                                      >
+                                        <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
+                                        Scan Other
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            {!btStatus.supported && (
+                              <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                                <b>Note:</b> Web Bluetooth API is supported in Google Chrome, Microsoft Edge, Opera, and Android browsers.
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Backend COM Port Fields (for Desktop paired BT virtual ports) */}
+                          <div className="pt-2 border-t border-slate-100">
+                            <p className="text-xs font-semibold text-slate-700 mb-2">
+                              Backend Virtual Serial / COM Port (Optional Desktop Server Mode)
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                  Serial / COM Port
+                                </label>
+                                <input
+                                  type="text"
+                                  value={printerForm.comPort || ''}
+                                  onChange={(e) => setPrinterForm({ ...printerForm, comPort: e.target.value })}
+                                  placeholder="e.g. COM3, COM4 or /dev/rfcomm0"
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-200"
+                                />
+                                <p className="mt-1 text-[11px] text-slate-400">Windows Virtual COM port assigned to paired Bluetooth printer</p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                  Baud Rate
+                                </label>
+                                <select
+                                  value={printerForm.baudRate || 9600}
+                                  onChange={(e) => setPrinterForm({ ...printerForm, baudRate: Number(e.target.value) })}
+                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-200"
+                                >
+                                  <option value={9600}>9600 (Standard POS default)</option>
+                                  <option value={19200}>19200</option>
+                                  <option value={38400}>38400</option>
+                                  <option value={115200}>115200 (High-speed BLE)</option>
+                                </select>
+                                <p className="mt-1 text-[11px] text-slate-400">Communication speed for serial stream</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-3.5 text-xs text-slate-600 space-y-1">
+                            <div className="flex items-center gap-1.5 font-semibold text-navy-900">
+                              <HelpCircle className="h-4 w-4 text-indigo-600" />
+                              How to connect Bluetooth Thermal Printer:
+                            </div>
+                            <ol className="list-decimal list-inside space-y-1 text-slate-500 pl-1">
+                              <li>Turn on your Bluetooth thermal printer and ensure Bluetooth is active.</li>
+                              <li><b>Direct Web Bluetooth:</b> Click <b>"Scan & Connect Printer"</b> above and pick your printer from the browser window.</li>
+                              <li><b>Windows Pairing:</b> Open <i>Windows Settings &rarr; Bluetooth & Devices</i> &rarr; Pair your printer (PIN is usually <code>0000</code> or <code>1234</code>).</li>
+                              <li>If using backend COM mode, check <i>Device Manager &rarr; Ports (COM & LPT)</i> for the COM port number (e.g. <code>COM3</code>).</li>
+                            </ol>
+                          </div>
+                        </div>
+                      ) : printerForm.connectionType === 'usb' ? (
                         <>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
@@ -949,7 +1248,10 @@ export function SettingsPage() {
                               name="paperWidth"
                               value={48}
                               checked={Number(printerForm.paperWidth) === 48}
-                              onChange={() => setPrinterForm({ ...printerForm, paperWidth: 48 })}
+                              onChange={() => {
+                                setPrinterForm({ ...printerForm, paperWidth: 48 });
+                                localStorage.setItem('glowy_printer_paper_width', '48');
+                              }}
                               className="text-navy-600 focus:ring-navy-500"
                             />
                             <div>
@@ -970,12 +1272,15 @@ export function SettingsPage() {
                               name="paperWidth"
                               value={32}
                               checked={Number(printerForm.paperWidth) === 32}
-                              onChange={() => setPrinterForm({ ...printerForm, paperWidth: 32 })}
+                              onChange={() => {
+                                setPrinterForm({ ...printerForm, paperWidth: 32 });
+                                localStorage.setItem('glowy_printer_paper_width', '32');
+                              }}
                               className="text-navy-600 focus:ring-navy-500"
                             />
                             <div>
                               <p className="text-sm font-semibold text-navy-900">58mm Paper Roll</p>
-                              <p className="text-xs text-slate-500">32 characters per line (Compact)</p>
+                              <p className="text-xs text-slate-500">32 characters per line (Compact Bluetooth/Mobile)</p>
                             </div>
                           </div>
                         </label>
@@ -985,20 +1290,33 @@ export function SettingsPage() {
                     {/* Status summary banner */}
                     <div className="rounded-xl border border-slate-100 bg-white/50 p-4 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className={`h-3 w-3 rounded-full ${printerStatus.deviceDetected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+                        <div className={`h-3 w-3 rounded-full ${
+                          btStatus.connected || printerStatus.deviceDetected
+                            ? 'bg-emerald-500 animate-pulse'
+                            : 'bg-amber-400'
+                        }`} />
                         <p className="text-xs font-medium text-slate-700">
-                          {printerStatus.deviceDetected
-                            ? `Status: Printer configured and detected (${printerForm.connectionType.toUpperCase()})`
-                            : `Status: Printer not detected (${printerForm.connectionType.toUpperCase()})`}
+                          {btStatus.connected
+                            ? `Status: Bluetooth printer connected (${btStatus.deviceName})`
+                            : printerStatus.deviceDetected
+                            ? `Status: Printer configured and detected (${(printerForm.connectionType || 'usb').toUpperCase()})`
+                            : `Status: Printer not detected (${(printerForm.connectionType || 'usb').toUpperCase()})`}
                         </p>
                       </div>
                       <button
                         type="button"
-                        onClick={handleTestPrint}
-                        disabled={testPrinting || !printerForm.enabled}
+                        onClick={
+                          printerForm.connectionType === 'bluetooth' && btStatus.connected
+                            ? handleTestBluetoothPrint
+                            : handleTestPrint
+                        }
+                        disabled={
+                          (printerForm.connectionType === 'bluetooth' && !btStatus.connected && !printerForm.enabled) ||
+                          (printerForm.connectionType !== 'bluetooth' && (!printerForm.enabled || testPrinting))
+                        }
                         className="btn-premium-primary !py-2 !px-4 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {testPrinting ? (
+                        {testPrinting || btTestPrinting ? (
                           <span className="flex items-center gap-2">
                             <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                             Printing...
@@ -1039,6 +1357,12 @@ export function SettingsPage() {
 
             {/* Reward System Tab */}
             {activeTab === "rewards" && <RewardSettingsTab />}
+
+            {/* WhatsApp Tab */}
+            {activeTab === "whatsapp" && <WhatsAppSettingsTab />}
+
+            {/* Business & Store Info Tab */}
+            {activeTab === "business" && <BusinessInfoTab />}
           </div>
         </div>
       </div>

@@ -131,8 +131,8 @@ export default function Hero() {
           >
             <motion.a
               href="#booking"
-              className="group inline-flex items-center gap-3 rounded-full bg-primary px-7 py-4 text-sm tracking-wide text-primary-foreground shadow-soft transition-all"
-              whileHover={{ scale: 1.03, boxShadow: "0 30px 80px -30px color-mix(in oklab, var(--gold) 35%, transparent)" }}
+              className="group inline-flex items-center gap-3 rounded-full bg-primary px-7 py-4 text-sm tracking-wide text-primary-foreground shadow-soft hover:shadow-glow transition-all"
+              whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
             >
               Book Appointment

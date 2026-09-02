@@ -8,7 +8,8 @@ import { formatCurrency } from "../../utils/format";
 import { InvoiceModal } from "./InvoiceModal";
 import { EditInvoiceModal } from "./EditInvoiceModal";
 import { AddPaymentModal } from "../../components/pos/AddPaymentModal";
-import { Search, Download, Filter, FileText, Eye, Calendar, CreditCard, Printer, Edit, MessageCircle } from "lucide-react";
+import { Search, Download, Filter, FileText, Eye, Calendar, CreditCard, Printer, Edit, MessageCircle, Bluetooth } from "lucide-react";
+import { getBluetoothPrinterStatus, printBluetoothReceipt } from "../../utils/bluetoothPrinter";
 
 const paymentFilters = ["All", "Cash", "Card", "UPI", "Split", "Store Credit", "Unpaid"];
 
@@ -54,11 +55,18 @@ export default function BillingListPage() {
     }
   }, [isAdmin]);
 
-  const handleThermalPrint = async (billId) => {
+  const handleThermalPrint = async (bill) => {
+    const billId = bill.id;
     setPrintingBillId(billId);
     try {
-      const result = await printReceiptAPI(billId);
-      toast.success(result.message || "Receipt sent to printer ✓");
+      const btStatus = getBluetoothPrinterStatus();
+      if (btStatus.connected || btStatus.hasPairedDevice) {
+        await printBluetoothReceipt(bill);
+        toast.success("Receipt printed to Bluetooth printer ✓");
+      } else {
+        const result = await printReceiptAPI(billId);
+        toast.success(result.message || "Receipt sent to printer ✓");
+      }
     } catch (err) {
       toast.error(err.message || "Printer not available");
     } finally {
@@ -363,7 +371,7 @@ export default function BillingListPage() {
                         Invoice
                       </button>
                       <button
-                        onClick={() => handleThermalPrint(bill.id)}
+                        onClick={() => handleThermalPrint(bill)}
                         disabled={printingBillId === bill.id}
                         className="group inline-flex items-center gap-1.5 rounded-xl border border-purple-300/50 bg-purple-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-purple-700 whitespace-nowrap transition-all hover:bg-purple-500 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Print to Thermal Printer"

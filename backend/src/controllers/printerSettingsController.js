@@ -40,16 +40,18 @@ const toggle = async (req, res) => {
   }
 };
 
+const VALID_CONNECTION_TYPES = ['usb', 'network', 'bluetooth', 'serial'];
+
 /**
  * POST /api/printer/connection-type
- * Switch between 'usb' and 'network' connection at runtime.
- * Body: { type: 'usb' | 'network' }
+ * Switch between 'usb', 'network', or 'bluetooth' connection at runtime.
+ * Body: { type: 'usb' | 'network' | 'bluetooth' }
  */
 const switchConnectionType = async (req, res) => {
   try {
     const type = req.body.type || req.body.connectionType;
-    if (!type || (type !== 'usb' && type !== 'network')) {
-      return res.status(400).json({ message: '"type" must be "usb" or "network".' });
+    if (!type || !VALID_CONNECTION_TYPES.includes(type)) {
+      return res.status(400).json({ message: `"type" must be one of: ${VALID_CONNECTION_TYPES.join(', ')}.` });
     }
 
     const status = setConnectionType(type);
@@ -63,11 +65,11 @@ const switchConnectionType = async (req, res) => {
 /**
  * PUT /api/printer/settings (or POST)
  * Save full thermal printer settings from UI form.
- * Body: { enabled, connectionType, vid, pid, ip, port, paperWidth }
+ * Body: { enabled, connectionType, vid, pid, ip, port, comPort, baudRate, paperWidth }
  */
 const saveSettings = async (req, res) => {
   try {
-    const { enabled, connectionType, vid, pid, ip, port, paperWidth } = req.body;
+    const { enabled, connectionType, vid, pid, ip, port, comPort, baudRate, paperWidth } = req.body;
 
     const updatedStatus = savePrinterConfig({
       enabled,
@@ -76,6 +78,8 @@ const saveSettings = async (req, res) => {
       pid,
       ip,
       port,
+      comPort,
+      baudRate,
       paperWidth,
     });
 

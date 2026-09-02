@@ -521,7 +521,7 @@
 }
 
 /* ═══════════════════════════════════
-   PRINT STYLES — A4 Invoice
+   PRINT STYLES — A4 Invoice & Thermal Receipt
    ═══════════════════════════════════ */
 
 @media print {
@@ -569,6 +569,18 @@
     color: #000000 !important;
   }
 
+  /* Thermal Receipt Print Styling */
+  #thermal-receipt-print-area {
+    position: static !important;
+    margin: 0 auto !important;
+    padding: 2mm 3mm !important;
+    border: none !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    color: #000 !important;
+  }
+
+  /* A4 Invoice Print Styling */
   #invoice-print-area {
     position: static;
     width: 100%;
@@ -581,7 +593,7 @@
 
   @page {
     size: auto;
-    margin: 4mm;
+    margin: 3mm;
   }
 }
 

@@ -864,14 +864,22 @@ const checkout = async (req, res) => {
       console.warn('[Checkout] Thermal print failed (non-blocking):', printErr.message);
     });
 
-    // Fire-and-forget: send Meta WhatsApp bill receipt if enabled in settings / request payload
+    // Safe non-blocking WhatsApp bill receipt dispatch
     const shouldSendWhatsApp = req.body.sendWhatsApp !== undefined ? Boolean(req.body.sendWhatsApp) : true;
     if (shouldSendWhatsApp) {
-      sendBillWhatsAppReceipt(response).catch((waErr) => {
+      try {
+        const waResult = await sendBillWhatsAppReceipt(response);
+        response.whatsapp = waResult;
+      } catch (waErr) {
         console.warn('[Checkout] WhatsApp receipt failed (non-blocking):', waErr.message);
-      });
+        response.whatsapp = {
+          success: false,
+          error: waErr.message || 'Failed to send WhatsApp message.',
+        };
+      }
     } else {
       console.log('[Checkout] WhatsApp auto-send skipped as per setting / request preference.');
+      response.whatsapp = { skipped: true };
     }
 
 

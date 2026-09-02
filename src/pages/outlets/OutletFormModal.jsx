@@ -11,6 +11,8 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
     address: "",
     invoicePrefix: "",
     manager: "",
+    phone: "",
+    email: "",
   });
 
   useEffect(() => {
@@ -24,7 +26,9 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
             city: data.city,
             address: data.address || "",
             invoicePrefix: data.invoicePrefix || "",
-            manager: data.manager,
+            manager: data.manager || "",
+            phone: data.phone || "",
+            email: data.email || "",
           });
           setLoading(false);
         }).catch(() => setLoading(false));
@@ -36,6 +40,8 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
           address: "",
           invoicePrefix: "",
           manager: "",
+          phone: "",
+          email: "",
         });
       }
     }
@@ -52,6 +58,8 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
         address: formData.address,
         invoice_prefix: formData.invoicePrefix,
         manager: formData.manager,
+        phone: formData.phone,
+        email: formData.email,
       };
       if (outletId) {
         await updateOutletAPI(outletId, payload);
@@ -185,6 +193,28 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
                     placeholder="Manager Name"
                     className="premium-input"
                     required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="premium-label">Phone Number</label>
+                  <input
+                    type="text"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="e.g. +60 12-345 6789"
+                    className="premium-input"
+                  />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <label className="premium-label">Branch Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="e.g. outlet1@glowy.my"
+                    className="premium-input"
                   />
                 </div>
               </div>

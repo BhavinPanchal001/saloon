@@ -1903,6 +1903,52 @@ export const saveSettings = async (settingsPayload) => {
   }
 };
 
+export const DEFAULT_BUSINESS_INFO = {
+  name: "Glowy",
+  tagline: "Glow to go with Glowy",
+  address: "Kuala Lumpur, Malaysia",
+  phone: "+60 12-345 6789",
+  email: "hello@glowy.my",
+  website: "www.glowy.my",
+  taxNumber: "",
+  currency: "RM",
+  receiptHeader: "Welcome to Glowy",
+  receiptFooter: "Thank you for visiting! Glow to go with Glowy ✨",
+  terms: "Services and products once rendered/sold are non-refundable. Computer generated invoice.",
+};
+
+export const fetchBusinessSettingsAPI = async () => {
+  try {
+    const res = await api.get('/business-settings');
+    if (res.data?.success && res.data?.data) {
+      localStorage.setItem('glowy_business_info', JSON.stringify(res.data.data));
+      return res.data.data;
+    }
+  } catch (err) {
+    console.warn("Could not fetch business settings from server, falling back to cached/default:", err.message);
+  }
+  try {
+    const cached = localStorage.getItem('glowy_business_info');
+    if (cached) return { ...DEFAULT_BUSINESS_INFO, ...JSON.parse(cached) };
+  } catch (_) {}
+  return DEFAULT_BUSINESS_INFO;
+};
+
+export const saveBusinessSettingsAPI = async (payload) => {
+  try {
+    const res = await api.put('/business-settings', payload);
+    if (res.data?.success && res.data?.data) {
+      localStorage.setItem('glowy_business_info', JSON.stringify(res.data.data));
+      window.dispatchEvent(new Event('glowy_business_info_updated'));
+      return res.data;
+    }
+  } catch (err) {
+    console.error("Failed to save business settings to server:", err);
+    throw err;
+  }
+};
+
+
 
 // ─── Payroll & Commission API Wrappers ────────────────────────────────────────
 
@@ -2009,6 +2055,63 @@ export const adjustCustomerPointsAPI = async (customerId, { points, notes }) => 
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ points, notes }),
+  });
+  return handleResponse(res);
+};
+
+// ─── WhatsApp Settings & Baileys ──────────────────────────────────────────────
+
+export const fetchWhatsAppSettingsAPI = async () => {
+  const res = await fetch(`${API_BASE}/whatsapp/settings`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const saveWhatsAppSettingsAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/whatsapp/settings`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const fetchWhatsAppStatusAPI = async () => {
+  const res = await fetch(`${API_BASE}/whatsapp/status`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const connectBaileysAPI = async () => {
+  const res = await fetch(`${API_BASE}/whatsapp/baileys/connect`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const disconnectBaileysAPI = async () => {
+  const res = await fetch(`${API_BASE}/whatsapp/baileys/disconnect`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const sendWhatsAppTestMessageAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/whatsapp/test-message`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const fetchWhatsAppLogsAPI = async (limit = 50) => {
+  const res = await fetch(`${API_BASE}/whatsapp/logs?limit=${limit}`, {
+    headers: authHeaders(),
   });
   return handleResponse(res);
 };

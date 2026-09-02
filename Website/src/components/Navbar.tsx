@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, CalendarDays, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useCustomerAuth } from "@/hooks/useCustomerAuth";
 
 const links = [
   ["Home", "/#home"],
@@ -16,6 +17,7 @@ const links = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const { isAuthenticated, user } = useCustomerAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 30);
@@ -49,12 +51,23 @@ export default function Navbar() {
           ))}
         </nav>
 
-        <a
-          href="/#booking"
-          className="hidden lg:inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm text-primary-foreground hover:bg-teal transition-colors shadow-soft"
-        >
-          Book Appointment
-        </a>
+        <div className="hidden lg:flex items-center gap-3">
+          <a
+            href="/my-appointments"
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-cream/40 px-4 py-2 text-xs font-medium text-primary hover:bg-cream hover:border-gold/60 transition-all shadow-xs"
+          >
+            <CalendarDays size={14} className="text-gold" />
+            {isAuthenticated ? (user?.name ? user.name.split(" ")[0] : "My Appointments") : "My Appointments"}
+          </a>
+
+          <a
+            href="/#booking"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm text-primary-foreground hover:bg-teal transition-colors shadow-soft"
+          >
+            Book Appointment
+          </a>
+        </div>
+
 
         <button
           className="lg:hidden p-2 text-primary"
@@ -84,6 +97,15 @@ export default function Navbar() {
                   {label}
                 </a>
               ))}
+              <a
+                href="/my-appointments"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 text-foreground/80 hover:text-primary py-1"
+              >
+                <CalendarDays size={16} className="text-gold" />
+                {isAuthenticated ? `My Appointments (${user?.name || "Account"})` : "My Appointments / Sign In"}
+              </a>
+
               <a
                 href="/#booking"
                 onClick={() => setOpen(false)}

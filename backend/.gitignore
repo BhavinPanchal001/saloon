@@ -1,3 +1,5 @@
 node_modules/
 .env
 *.log
+baileys_auth_info/
+whatsappConfig.json

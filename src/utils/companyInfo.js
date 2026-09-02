@@ -1,9 +1,51 @@
-export const COMPANY_INFO = {
+/**
+ * Company & Business Information Utility
+ * Dynamically reads the real stored business configuration from localStorage
+ * with automatic fallback defaults.
+ */
+
+const DEFAULT_COMPANY_INFO = {
   name: "Glowy",
   tagline: "Glow to go with Glowy",
-  address: "42, Brigade Road, 3rd Floor, Bengaluru, Karnataka 560001",
-  phone: "+91 80 4567 8900",
-  email: "hello@glowy.com",
-  website: "www.glowy.com",
-  gstin: "29AABCG1234F1ZP",
+  address: "Kuala Lumpur, Malaysia",
+  phone: "+60 12-345 6789",
+  email: "hello@glowy.my",
+  website: "www.glowy.my",
+  gstin: "",
+  taxNumber: "",
+  currency: "RM",
+  receiptHeader: "Welcome to Glowy",
+  receiptFooter: "Thank you for visiting! Glow to go with Glowy ✨",
+  terms: "Services and products once rendered/sold are non-refundable. Computer generated invoice.",
 };
+
+export const getCompanyInfo = () => {
+  try {
+    const raw = localStorage.getItem("glowy_business_info");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ...DEFAULT_COMPANY_INFO,
+        ...parsed,
+        gstin: parsed.taxNumber || parsed.gstin || "",
+      };
+    }
+  } catch (err) {
+    console.warn("Could not parse saved business info:", err);
+  }
+  return { ...DEFAULT_COMPANY_INFO };
+};
+
+/**
+ * Live Proxy object ensuring existing imports (e.g. COMPANY_INFO.address)
+ * always evaluate dynamically to the latest saved business settings.
+ */
+export const COMPANY_INFO = new Proxy(DEFAULT_COMPANY_INFO, {
+  get(target, prop) {
+    const current = getCompanyInfo();
+    if (prop === "gstin") {
+      return current.taxNumber || current.gstin || "";
+    }
+    return current[prop] !== undefined ? current[prop] : target[prop];
+  },
+});

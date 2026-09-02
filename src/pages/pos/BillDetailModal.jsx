@@ -103,6 +103,18 @@ export function BillDetailModal({ bill, onClose }) {
                   <MapPin size={14} className="text-navy-400" />
                   <span className="text-navy-700">{bill.outletName}</span>
                 </div>
+                {(() => {
+                  const servedBy = bill.servedBy || bill.served_by || bill.staffName || [
+                    ...new Set((bill.lineItems || []).map((it) => it.staffAssigned || it.staff_assigned).filter(Boolean)),
+                  ].join(', ');
+                  if (!servedBy) return null;
+                  return (
+                    <div className="flex items-center gap-3 text-sm">
+                      <Sparkles size={14} className="text-amber-500" />
+                      <span className="text-navy-700">Served by <strong className="text-navy-900">{servedBy}</strong></span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <div className="glass-card !p-4 bg-navy-50/30">
@@ -145,7 +157,7 @@ export function BillDetailModal({ bill, onClose }) {
                 <thead>
                   <tr className="bg-navy-50/50 border-b border-navy-100">
                     <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-navy-600">Item</th>
-                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-navy-600">Staff</th>
+                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-navy-600">Served By</th>
                     <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-navy-600 text-center">Qty</th>
                     <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-navy-600 text-right">Price</th>
                   </tr>
@@ -158,11 +170,25 @@ export function BillDetailModal({ bill, onClose }) {
                           <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${item.itemType === 'service' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>
                             {item.itemType === 'service' ? <Scissors size={14} /> : <Package size={14} />}
                           </div>
-                          <p className="text-sm font-bold text-navy-900">{item.itemName}</p>
+                          <div>
+                            <p className="text-sm font-bold text-navy-900">{item.itemName}</p>
+                            {item.staffAssigned && (
+                              <p className="text-xs text-slate-500 font-medium sm:hidden">
+                                Served by: {item.staffAssigned}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <span className="text-xs font-semibold text-navy-600">{item.staffAssigned || "—"}</span>
+                        {item.staffAssigned ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+                            <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                            {item.staffAssigned}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span className="text-sm font-bold text-navy-900">

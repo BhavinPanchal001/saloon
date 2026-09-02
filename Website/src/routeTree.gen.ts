@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsConditionsRouteImport } from './routes/terms-conditions'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as MyAppointmentsRouteImport } from './routes/my-appointments'
 import { Route as BoutiqueRouteImport } from './routes/boutique'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -22,6 +23,11 @@ const TermsConditionsRoute = TermsConditionsRouteImport.update({
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyAppointmentsRoute = MyAppointmentsRouteImport.update({
+  id: '/my-appointments',
+  path: '/my-appointments',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BoutiqueRoute = BoutiqueRouteImport.update({
@@ -38,12 +44,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/boutique': typeof BoutiqueRoute
+  '/my-appointments': typeof MyAppointmentsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/terms-conditions': typeof TermsConditionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/boutique': typeof BoutiqueRoute
+  '/my-appointments': typeof MyAppointmentsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/terms-conditions': typeof TermsConditionsRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/boutique': typeof BoutiqueRoute
+  '/my-appointments': typeof MyAppointmentsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/terms-conditions': typeof TermsConditionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/boutique' | '/privacy-policy' | '/terms-conditions'
+  fullPaths: '/' | '/boutique' | '/my-appointments' | '/privacy-policy' | '/terms-conditions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/boutique' | '/privacy-policy' | '/terms-conditions'
-  id: '__root__' | '/' | '/boutique' | '/privacy-policy' | '/terms-conditions'
+  to: '/' | '/boutique' | '/my-appointments' | '/privacy-policy' | '/terms-conditions'
+  id: '__root__' | '/' | '/boutique' | '/my-appointments' | '/privacy-policy' | '/terms-conditions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BoutiqueRoute: typeof BoutiqueRoute
+  MyAppointmentsRoute: typeof MyAppointmentsRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   TermsConditionsRoute: typeof TermsConditionsRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-appointments': {
+      id: '/my-appointments'
+      path: '/my-appointments'
+      fullPath: '/my-appointments'
+      preLoaderRoute: typeof MyAppointmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/boutique': {
@@ -105,9 +122,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BoutiqueRoute: BoutiqueRoute,
+  MyAppointmentsRoute: MyAppointmentsRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   TermsConditionsRoute: TermsConditionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+

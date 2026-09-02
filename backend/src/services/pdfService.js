@@ -18,16 +18,22 @@ function sanitizeText(str, maxLength = 0) {
     .replace(/\)/g, '\\)');
 }
 
-const COMPANY_INFO = {
-  name: "Glowy",
-  tagline: "Glow to go with Glowy",
-  address: "42, Brigade Road, 3rd Floor, Bengaluru, Karnataka 560001",
-  phone: "+91 80 4567 8900",
-  email: "hello@glowy.com",
-  gstin: "29AABCG1234F1ZP",
+const { getRuntimeBusinessInfo } = require('../controllers/businessSettingsController');
+
+const getCompanyInfo = () => {
+  const biz = getRuntimeBusinessInfo();
+  return {
+    name: biz.name || "Glowy",
+    tagline: biz.tagline || "Glow to go with Glowy",
+    address: biz.address || "Kuala Lumpur, Malaysia",
+    phone: biz.phone || "+60 12-345 6789",
+    email: biz.email || "hello@glowy.my",
+    gstin: biz.taxNumber || "",
+  };
 };
 
 function generateInvoicePDFBuffer(bill) {
+  const COMPANY_INFO = getCompanyInfo();
   const outletName = sanitizeText(bill.outletName || bill.Outlet?.name || 'Outlet 1', 30);
   const billNumber = sanitizeText(bill.billNumber || bill.bill_number || 'GL-2026-OT1-0022', 30);
   const customerName = sanitizeText(bill.customer?.name || bill.customer_name || 'Walk-in Guest', 30);
@@ -116,6 +122,25 @@ function generateInvoicePDFBuffer(bill) {
   commands.push(`BT /F1 9 Tf 450 694 Td (${timeStr}) Tj ET`);
   commands.push(`BT /F1 9 Tf 450 680 Td (${outletName}) Tj ET`);
 
+  const talents = [
+    ...new Set(
+      [
+        bill.servedBy,
+        bill.served_by,
+        bill.staffName,
+        ...lineItems.map((it) => it.staffAssigned || it.staff_assigned),
+      ].filter(Boolean)
+    ),
+  ];
+  const servedBy = talents.join(', ');
+
+  if (servedBy) {
+    commands.push('0.55 0.6 0.7 rg');
+    commands.push('BT /F1 8 Tf 375 666 Td (SERVED BY) Tj ET');
+    commands.push('0.1 0.15 0.25 rg');
+    commands.push(`BT /F2 8.5 Tf 450 666 Td (${sanitizeText(servedBy, 25)}) Tj ET`);
+  }
+
   // --- BILL TO BOX ---
   commands.push('0.97 0.98 0.99 rg');
   commands.push('0.88 0.9 0.94 RG 1 w');
@@ -158,10 +183,19 @@ function generateInvoicePDFBuffer(bill) {
     const qty = item.qty || 1;
     const priceStr = sanitizeText(formatCur(item.price));
     const amountStr = sanitizeText(formatCur((Number(item.price) || 0) * qty));
+    const talent = item.staffAssigned || item.staff_assigned;
 
     commands.push('0.2 0.25 0.35 rg');
     commands.push(`BT /F1 9 Tf 45 ${rowY} Td (${idx + 1}) Tj ET`);
-    commands.push(`BT /F2 9 Tf 70 ${rowY} Td (${name}) Tj ET`);
+
+    if (talent) {
+      commands.push(`BT /F2 9 Tf 70 ${rowY + 3} Td (${name}) Tj ET`);
+      commands.push('0.5 0.55 0.65 rg');
+      commands.push(`BT /F1 7.5 Tf 70 ${rowY - 7} Td (Served by: ${sanitizeText(talent, 24)}) Tj ET`);
+      commands.push('0.2 0.25 0.35 rg');
+    } else {
+      commands.push(`BT /F2 9 Tf 70 ${rowY} Td (${name}) Tj ET`);
+    }
 
     // Type Badge
     commands.push('0.5 0.55 0.65 rg');
@@ -324,6 +358,7 @@ function generateInvoicePDFBuffer(bill) {
 }
 
 function generateReportPDFBuffer(type, data, metadata = {}) {
+  const COMPANY_INFO = getCompanyInfo();
   const commands = [];
 
   const reportTitle = sanitizeText(
