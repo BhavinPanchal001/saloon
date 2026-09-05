@@ -1,8 +1,11 @@
 {
   "name": "Glowy",
   "tagline": "Glow to go with Glowy",
+  "logoUrl": "/uploads/business/logo-1788638790945-2775.jpeg",
+  "showLogoOnReceipt": true,
   "address": "Kuala Lumpur, Malaysia",
   "phone": "+60 12-345 6789",
+  "ownerPhone": "",
   "email": "hello@glowy.my",
   "website": "www.glowy.my",
   "taxNumber": "",

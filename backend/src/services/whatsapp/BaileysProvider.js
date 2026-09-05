@@ -282,6 +282,53 @@ class BaileysProvider extends BaseWhatsAppProvider {
     }
   }
 
+  async sendDocument({ to, document, fileName, caption = '', mimetype = 'application/pdf' }) {
+    if (this.status !== 'connected' || !this.sock) {
+      return {
+        success: false,
+        error: 'Baileys WhatsApp is not connected. Please connect WhatsApp in Settings.',
+      };
+    }
+
+    const config = getWhatsAppConfig();
+    const defaultCountryCode = config?.baileys?.defaultCountryCode || '91';
+    const recipientPhone = this.formatPhoneNumber(to, defaultCountryCode);
+
+    if (!recipientPhone) {
+      return { success: false, error: 'Recipient phone number is missing or invalid.' };
+    }
+
+    const jid = `${recipientPhone}@s.whatsapp.net`;
+
+    try {
+      const result = await this.sock.sendMessage(jid, {
+        document,
+        mimetype,
+        fileName: fileName || 'document.pdf',
+        caption,
+      });
+      const messageId = result?.key?.id;
+      logMessage({
+        recipientPhone,
+        provider: this.name,
+        type: 'document',
+        status: 'sent',
+        messageId,
+      });
+      return { success: true, recipient: recipientPhone, messageId };
+    } catch (err) {
+      console.error(`[Baileys Error] Failed to send document to ${recipientPhone}:`, err.message);
+      logMessage({
+        recipientPhone,
+        provider: this.name,
+        type: 'document',
+        status: 'failed',
+        error: err.message,
+      });
+      return { success: false, recipient: recipientPhone, error: err.message };
+    }
+  }
+
   async sendInvoice(bill, options = {}) {
     if (this.status !== 'connected' || !this.sock) {
       return {

@@ -6,8 +6,11 @@ const CONFIG_FILE = path.join(__dirname, '..', '..', 'businessConfig.json');
 const DEFAULT_BUSINESS_INFO = {
   name: "Glowy",
   tagline: "Glow to go with Glowy",
+  logoUrl: "",
+  showLogoOnReceipt: true,
   address: "Kuala Lumpur, Malaysia",
   phone: "+60 12-345 6789",
+  ownerPhone: "",
   email: "hello@glowy.my",
   website: "www.glowy.my",
   taxNumber: "",
@@ -72,8 +75,11 @@ const updateBusinessSettings = (req, res) => {
     const updated = {
       name: (updates.name || runtimeConfig.name || "").trim(),
       tagline: (updates.tagline || "").trim(),
+      logoUrl: updates.logoUrl !== undefined ? updates.logoUrl : (runtimeConfig.logoUrl || ""),
+      showLogoOnReceipt: updates.showLogoOnReceipt !== undefined ? Boolean(updates.showLogoOnReceipt) : (runtimeConfig.showLogoOnReceipt ?? true),
       address: (updates.address || "").trim(),
       phone: (updates.phone || "").trim(),
+      ownerPhone: updates.ownerPhone !== undefined ? (updates.ownerPhone || "").trim() : (runtimeConfig.ownerPhone || "").trim(),
       email: (updates.email || "").trim(),
       website: (updates.website || "").trim(),
       taxNumber: (updates.taxNumber || updates.tax_number || updates.gstin || "").trim(),
@@ -100,6 +106,34 @@ const updateBusinessSettings = (req, res) => {
 };
 
 /**
+ * POST /api/v1/business-settings/logo
+ * Handle logo image file upload
+ */
+const uploadBusinessLogo = (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No image file provided." });
+    }
+
+    const relativeUrl = `/uploads/business/${req.file.filename}`;
+    runtimeConfig.logoUrl = relativeUrl;
+    saveConfig(runtimeConfig);
+
+    return res.json({
+      success: true,
+      message: "Salon logo uploaded successfully",
+      data: {
+        logoUrl: relativeUrl,
+        filename: req.file.filename,
+      },
+    });
+  } catch (err) {
+    console.error('[BusinessSettings] upload logo error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
  * Helper for backend services (PDF, Thermal Printer)
  */
 const getRuntimeBusinessInfo = () => {
@@ -109,5 +143,6 @@ const getRuntimeBusinessInfo = () => {
 module.exports = {
   getBusinessSettings,
   updateBusinessSettings,
+  uploadBusinessLogo,
   getRuntimeBusinessInfo,
 };

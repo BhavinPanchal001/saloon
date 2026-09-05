@@ -10,6 +10,8 @@ const getDefaultConfig = () => {
 
   return {
     provider: process.env.WHATSAPP_PROVIDER || 'business_api', // 'business_api' | 'baileys'
+    ownerPhone: process.env.WHATSAPP_OWNER_PHONE || '',
+    sendShiftReportToOwner: process.env.WHATSAPP_SEND_SHIFT_REPORT !== 'false',
     businessApi: {
       enabled: process.env.WHATSAPP_ENABLED !== 'false',
       phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
@@ -35,6 +37,8 @@ const loadConfig = () => {
       const parsed = JSON.parse(raw);
       runtimeConfig = {
         provider: parsed.provider || defaults.provider,
+        ownerPhone: parsed.ownerPhone !== undefined ? parsed.ownerPhone : defaults.ownerPhone,
+        sendShiftReportToOwner: parsed.sendShiftReportToOwner !== undefined ? Boolean(parsed.sendShiftReportToOwner) : defaults.sendShiftReportToOwner,
         businessApi: {
           ...defaults.businessApi,
           ...(parsed.businessApi || {}),
@@ -82,6 +86,8 @@ const updateWhatsAppConfig = (updates) => {
   const nextConfig = {
     ...current,
     ...updates,
+    ownerPhone: updates.ownerPhone !== undefined ? updates.ownerPhone : current.ownerPhone,
+    sendShiftReportToOwner: updates.sendShiftReportToOwner !== undefined ? Boolean(updates.sendShiftReportToOwner) : current.sendShiftReportToOwner,
     businessApi: {
       ...current.businessApi,
       ...(updates.businessApi || {}),

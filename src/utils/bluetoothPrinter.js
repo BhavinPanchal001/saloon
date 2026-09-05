@@ -21,7 +21,7 @@ const COMMON_SERVICE_UUIDS = [
   '0000af00-0000-1000-8000-00805f9b34fb',
 ];
 
-import { COMPANY_INFO } from './companyInfo';
+import { COMPANY_INFO, getFullImageUrl } from './companyInfo';
 
 // In-memory state
 let bluetoothDevice = null;
@@ -449,10 +449,112 @@ const formatTime = (iso) => {
 };
 
 /**
+ * Helper to convert an image URL to 1-bit ESC/POS raster bitmap command (GS v 0)
+ */
+const encodeLogoToEscPos = async (encoder, imageUrl, is58 = false) => {
+  if (!imageUrl || typeof window === 'undefined') return false;
+
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      const timer = setTimeout(() => {
+        resolve(false);
+      }, 3000);
+
+      img.onload = () => {
+        clearTimeout(timer);
+        try {
+          const maxDots = is58 ? 200 : 256;
+          let width = img.naturalWidth || img.width;
+          let height = img.naturalHeight || img.height;
+
+          if (!width || !height) {
+            resolve(false);
+            return;
+          }
+
+          if (width > maxDots) {
+            height = Math.round((height * maxDots) / width);
+            width = maxDots;
+          }
+
+          // ESC/POS raster width must be a multiple of 8 bits
+          const widthBytes = Math.ceil(width / 8);
+          const alignedWidth = widthBytes * 8;
+
+          const canvas = document.createElement('canvas');
+          canvas.width = alignedWidth;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+
+          // Clean white background for transparency
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, alignedWidth, height);
+
+          // Center horizontally
+          const offsetX = Math.floor((alignedWidth - width) / 2);
+          ctx.drawImage(img, offsetX, 0, width, height);
+
+          const imgData = ctx.getImageData(0, 0, alignedWidth, height);
+          const pixels = imgData.data;
+          const rasterBytes = [];
+
+          for (let y = 0; y < height; y++) {
+            for (let b = 0; b < widthBytes; b++) {
+              let byte = 0;
+              for (let bit = 0; bit < 8; bit++) {
+                const x = b * 8 + bit;
+                const idx = (y * alignedWidth + x) * 4;
+                const r = pixels[idx];
+                const g = pixels[idx + 1];
+                const bVal = pixels[idx + 2];
+                const a = pixels[idx + 3];
+
+                const lum = r * 0.299 + g * 0.587 + bVal * 0.114;
+                if (a > 64 && lum < 150) {
+                  byte |= (0x80 >> bit);
+                }
+              }
+              rasterBytes.push(byte);
+            }
+          }
+
+          const xL = widthBytes % 256;
+          const xH = Math.floor(widthBytes / 256);
+          const yL = height % 256;
+          const yH = Math.floor(height / 256);
+
+          encoder.align('center');
+          // GS v 0 0 xL xH yL yH [data]
+          encoder.raw([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...rasterBytes]);
+          encoder.feed(1);
+          resolve(true);
+        } catch (canvasErr) {
+          console.warn('[BluetoothPrinter] Error rendering logo image:', canvasErr);
+          resolve(false);
+        }
+      };
+
+      img.onerror = () => {
+        clearTimeout(timer);
+        resolve(false);
+      };
+
+      img.src = imageUrl;
+    } catch (err) {
+      resolve(false);
+    }
+  });
+};
+
+/**
  * Print receipt on connected Bluetooth POS Thermal Printer
  */
 export const printBluetoothReceipt = async (billData, options = {}) => {
   const paperWidth = options.paperWidth || (localStorage.getItem('glowy_printer_paper_width') ? parseInt(localStorage.getItem('glowy_printer_paper_width'), 10) : 48);
+  const is58 = paperWidth <= 32;
   const encoder = new EscPosEncoder(paperWidth);
 
   const brandName = COMPANY_INFO.name || 'GLOWY';
@@ -461,8 +563,14 @@ export const printBluetoothReceipt = async (billData, options = {}) => {
   const phone = billData.outlet?.phone || billData.outlet_phone || COMPANY_INFO.phone;
   const taxNum = COMPANY_INFO.taxNumber || COMPANY_INFO.gstin || '';
 
+  encoder.init();
+
+  // Print salon logo if configured and enabled
+  if (COMPANY_INFO.logoUrl && COMPANY_INFO.showLogoOnReceipt !== false) {
+    await encodeLogoToEscPos(encoder, getFullImageUrl(COMPANY_INFO.logoUrl), is58);
+  }
+
   encoder
-    .init()
     .align('center')
     .bold(true)
     .size(2, 2)

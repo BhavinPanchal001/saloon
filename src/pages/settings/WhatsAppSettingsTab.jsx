@@ -28,6 +28,7 @@ import {
   Clock,
   Check,
   X,
+  FileText,
 } from "lucide-react";
 
 export function WhatsAppSettingsTab() {
@@ -60,6 +61,11 @@ export function WhatsAppSettingsTab() {
   const [connectingBaileys, setConnectingBaileys] = useState(false);
   const [disconnectingBaileys, setDisconnectingBaileys] = useState(false);
 
+  // Owner Shift Notification (Z-Report)
+  const [ownerPhone, setOwnerPhone] = useState("");
+  const [sendShiftReportToOwner, setSendShiftReportToOwner] = useState(true);
+  const [savingOwnerSettings, setSavingOwnerSettings] = useState(false);
+
   // Test message form
   const [testPhone, setTestPhone] = useState("");
   const [testText, setTestText] = useState("Hello from Glowy Saloon POS! This is a test WhatsApp message.");
@@ -74,6 +80,8 @@ export function WhatsAppSettingsTab() {
     try {
       const data = await fetchWhatsAppSettingsAPI();
       setActiveProvider(data.provider || "business_api");
+      setOwnerPhone(data.ownerPhone || "");
+      setSendShiftReportToOwner(data.sendShiftReportToOwner !== false);
 
       if (data.businessApi) {
         setBusinessApiForm({
@@ -258,6 +266,68 @@ export function WhatsAppSettingsTab() {
       toast.error(err.message || "Failed to disconnect Baileys");
     } finally {
       setDisconnectingBaileys(false);
+    }
+  };
+
+  const handleSaveOwnerNotificationSettings = async (e) => {
+    if (e) e.preventDefault();
+    setSavingOwnerSettings(true);
+    try {
+      const res = await saveWhatsAppSettingsAPI({
+        ownerPhone: ownerPhone.trim(),
+        sendShiftReportToOwner,
+      });
+      toast.success(res.message || "Owner Shift Z-Report settings saved successfully!");
+    } catch (err) {
+      toast.error(err.message || "Failed to save owner settings");
+    } finally {
+      setSavingOwnerSettings(false);
+    }
+  };
+
+  const handleSendTestZReport = async () => {
+    if (!ownerPhone.trim()) {
+      toast.error("Please enter and save an owner WhatsApp phone number first");
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      const sampleText =
+        `📊 *SAMPLE END OF SHIFT Z-REPORT* — Glowy Saloon\n\n` +
+        `🏷️ *Shift #:* 6  |  🖥️ *Terminal:* Counter 1\n` +
+        `👤 *Cashier:* Demo Cashier\n` +
+        `🕒 *Opened:* ${new Date().toLocaleDateString()} 09:00 AM\n` +
+        `🏁 *Closed:* ${new Date().toLocaleDateString()} 09:00 PM\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `📈 *SALES SUMMARY:*\n` +
+        `• Total Bills: 12\n` +
+        `• *Gross Sales:* *RM 3,450.00*\n` +
+        `• Cash Sales: RM 1,200.00\n` +
+        `• Card / Online Sales: RM 2,250.00\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `💵 *DRAWER RECONCILIATION:*\n` +
+        `• Expected Cash: RM 1,200.00\n` +
+        `• Actual Counted: RM 1,200.00\n` +
+        `• Variance: Balanced (RM 0.00)\n\n` +
+        `📄 *This is a test preview. When cashiers close a real shift, the full PDF report is also automatically attached.*`;
+
+      const res = await sendWhatsAppTestMessageAPI({
+        to: ownerPhone.trim(),
+        text: sampleText,
+        provider: activeProvider,
+      });
+
+      if (res.success) {
+        toast.success("Sample Z-Report preview sent to owner WhatsApp!");
+        loadLogs();
+      } else {
+        toast.error(res.message || "Failed to send sample Z-Report");
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to send test message");
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -666,6 +736,101 @@ export function WhatsAppSettingsTab() {
           </button>
         </div>
       </form>
+
+      {/* ─── Owner Shift Z-Report Notifications Card ─── */}
+      <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 via-white to-white p-6 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800 shadow-sm">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-navy-900 text-base">Owner Shift Z-Report Notifications</h4>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                  Automated PDF & Summary
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Automatically deliver the End-of-Shift Z-Report (financial summary + PDF document) to the salon owner on WhatsApp when cashiers close their shift.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={handleSendTestZReport}
+              disabled={sendingTest || !ownerPhone.trim()}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition disabled:opacity-50"
+              title="Send a sample Z-report preview message to verify number"
+            >
+              <Send className="h-3.5 w-3.5" /> Send Sample Z-Report
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveOwnerNotificationSettings}
+              disabled={savingOwnerSettings}
+              className="btn-premium-primary text-xs !py-2 !px-4 flex items-center gap-1.5"
+            >
+              {savingOwnerSettings ? (
+                <>
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-3.5 w-3.5" /> Save Owner Settings
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSaveOwnerNotificationSettings} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+            <div className="md:col-span-6 space-y-1.5">
+              <label className="block text-xs font-bold text-navy-800 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Smartphone className="h-3.5 w-3.5 text-emerald-600" /> Owner WhatsApp Phone Number <span className="text-rose-500">*</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-normal">With country code</span>
+              </label>
+              <input
+                type="tel"
+                value={ownerPhone}
+                onChange={(e) => setOwnerPhone(e.target.value)}
+                placeholder="e.g. +60123456789 or +919876543210"
+                className="premium-input text-sm font-mono"
+              />
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Include country code without spaces or dashes (e.g. <span className="font-mono font-bold text-slate-700">+60123456789</span> for Malaysia, <span className="font-mono font-bold text-slate-700">+919876543210</span> for India).
+              </p>
+            </div>
+
+            <div className="md:col-span-6 space-y-3 pt-1">
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2">
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={sendShiftReportToOwner}
+                    onChange={(e) => setSendShiftReportToOwner(e.target.checked)}
+                    className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-navy-900 block">
+                      Auto-send Z-Report when cashier closes shift
+                    </span>
+                    <span className="text-[11px] text-slate-500 block mt-0.5">
+                      When enabled, Glowy immediately dispatches the sales performance, drawer reconciliation, and attached PDF to this owner WhatsApp number.
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
 
       {/* ─── Test Message Sender Card ─── */}
       <div className="rounded-2xl border border-slate-200 bg-white/70 p-6 space-y-4">

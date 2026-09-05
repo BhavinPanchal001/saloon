@@ -1,5 +1,6 @@
-const { Customer, Bill, Appointment, CustomerLedger, LoyaltyTier, sequelize } = require('../models');
+const { Customer, Bill, Appointment, CustomerLedger, LoyaltyTier, Bank, Payment, PaymentDetail, sequelize } = require('../models');
 const { Op } = require('sequelize');
+const { sendCustomerDueReminderWhatsApp } = require('../services/whatsappService');
 
 // GET /api/customers
 const getCustomers = async (req, res) => {
@@ -398,6 +399,222 @@ const settleCustomerBalance = async (req, res) => {
   }
 };
 
+// POST /api/customers/:id/send-whatsapp-reminder
+const sendCustomerDueReminder = async (req, res) => {
+  try {
+    const customerId = req.params.id;
+    const { bill_id, customMessage, forceSend } = req.body || {};
+
+    const customer = await Customer.findByPk(customerId);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found.' });
+    }
+
+    if (!customer.phone) {
+      return res.status(400).json({ message: 'Customer does not have a phone number on record.' });
+    }
+
+    // Resolve Bank UPI ID
+    let upiId = process.env.DEFAULT_UPI_ID || 'glowy@okicici';
+    try {
+      const activeBank = await Bank.findOne({
+        where: {
+          isActive: true,
+          upi_id: { [Op.ne]: null },
+        },
+        order: [['is_default', 'DESC']],
+      });
+      if (activeBank) {
+        const foundUpi = activeBank.upiId || activeBank.upi_id || activeBank.get('upi_id') || activeBank.get('upiId');
+        if (foundUpi) upiId = foundUpi;
+      }
+    } catch (_) {}
+
+    let pendingBills = [];
+    let totalDue = 0;
+
+    if (bill_id) {
+      // Targeted reminder for a single bill
+      const targetBill = await Bill.findByPk(bill_id, {
+        include: [
+          {
+            model: Payment,
+            as: 'payments',
+            include: [{ model: PaymentDetail, as: 'details' }],
+          },
+        ],
+      });
+
+      if (!targetBill) {
+        return res.status(404).json({ message: 'Specified bill not found.' });
+      }
+
+      let paidFromDetails = 0;
+      (targetBill.payments || []).forEach((p) => {
+        (p.details || []).forEach((d) => {
+          paidFromDetails += Number(d.amount || 0);
+        });
+      });
+
+      const ledgers = await CustomerLedger.findAll({
+        where: {
+          customer_id: customerId,
+          bill_id: targetBill.id,
+          type: { [Op.in]: ['settlement', 'bill_payment'] },
+        },
+      });
+      const paidFromLedgers = ledgers.reduce((sum, l) => sum + Number(l.amount || 0), 0);
+      const totalPaid = Math.max(paidFromDetails, paidFromLedgers);
+      const billTotal = Number(targetBill.total || 0);
+      const remainingDue = Math.max(0, billTotal - totalPaid);
+
+      pendingBills.push({
+        id: targetBill.id,
+        billNumber: targetBill.bill_number,
+        total: billTotal,
+        totalPaid,
+        remainingDue,
+        createdAt: targetBill.createdAt,
+        status: targetBill.status,
+      });
+      totalDue = remainingDue > 0 ? remainingDue : billTotal;
+    } else {
+      // Find all pending bills for this customer
+      const billWhere = {};
+      if (customer.phone) {
+        billWhere[Op.or] = [
+          { customer_id: customerId },
+          { customer_phone: customer.phone },
+        ];
+      } else {
+        billWhere.customer_id = customerId;
+      }
+
+      const customerBills = await Bill.findAll({
+        where: billWhere,
+        include: [
+          {
+            model: Payment,
+            as: 'payments',
+            include: [{ model: PaymentDetail, as: 'details' }],
+          },
+        ],
+        order: [['createdAt', 'DESC']],
+      });
+
+      const ledgers = await CustomerLedger.findAll({
+        where: { customer_id: customerId },
+        include: [
+          { model: Bill, as: 'bill', attributes: ['id', 'bill_number', 'total', 'payment_method', 'status', 'createdAt'] },
+        ],
+      });
+
+      const pendingBillsMap = {};
+
+      customerBills.forEach((b) => {
+        let paidFromDetails = 0;
+        (b.payments || []).forEach((p) => {
+          (p.details || []).forEach((d) => {
+            paidFromDetails += Number(d.amount || 0);
+          });
+        });
+
+        let paidFromLedgers = 0;
+        ledgers.forEach((l) => {
+          if (l.bill_id === b.id && (l.type === 'settlement' || l.type === 'bill_payment')) {
+            paidFromLedgers += Number(l.amount || 0);
+          }
+        });
+
+        const totalPaid = Math.max(paidFromDetails, paidFromLedgers);
+        const billTotal = Number(b.total || 0);
+        const remainingDue = billTotal - totalPaid;
+
+        if (remainingDue > 0.01 || b.status === 'unpaid' || b.status === 'partially_paid' || b.payment_method === 'Unpaid') {
+          pendingBillsMap[b.id] = {
+            id: b.id,
+            billNumber: b.bill_number,
+            total: billTotal,
+            totalPaid,
+            remainingDue: Math.max(0, remainingDue),
+            status: b.status,
+            createdAt: b.createdAt,
+          };
+        }
+      });
+
+      // Process ledgers linked to bills that might not have customer_id on Bill table
+      ledgers.forEach((item) => {
+        if (item.bill_id && item.bill && !pendingBillsMap[item.bill_id]) {
+          const bId = item.bill_id;
+          const bTotal = Number(item.bill.total || 0);
+          let paid = 0;
+          ledgers.forEach((l) => {
+            if (l.bill_id === bId && (l.type === 'settlement' || l.type === 'bill_payment')) {
+              paid += Number(l.amount || 0);
+            }
+          });
+          const rem = bTotal - paid;
+          if (rem > 0.01 || item.bill.status === 'unpaid' || item.bill.status === 'partially_paid') {
+            pendingBillsMap[bId] = {
+              id: item.bill.id,
+              billNumber: item.bill.bill_number,
+              total: bTotal,
+              totalPaid: paid,
+              remainingDue: Math.max(0, rem),
+              status: item.bill.status,
+              createdAt: item.bill.createdAt,
+            };
+          }
+        }
+      });
+
+      pendingBills = Object.values(pendingBillsMap).filter((b) => b.remainingDue > 0);
+      const billsTotalDue = pendingBills.reduce((sum, b) => sum + Number(b.remainingDue), 0);
+      const creditBal = Number(customer.credit_balance || 0);
+      const balanceDue = creditBal < 0 ? Math.abs(creditBal) : 0;
+
+      totalDue = Math.max(billsTotalDue, balanceDue);
+
+      if (totalDue <= 0 && !forceSend) {
+        return res.status(400).json({
+          message: 'Customer has no outstanding dues or pending bills.',
+          totalDue: 0,
+        });
+      }
+    }
+
+    // Dispatch via WhatsApp service
+    const waResult = await sendCustomerDueReminderWhatsApp({
+      customer,
+      pendingBills,
+      totalDue,
+      customMessage,
+      upiId,
+    });
+
+    const cleanPhone = (customer.phone || '').replace(/[^0-9]/g, '');
+    const encodedText = encodeURIComponent(waResult.messageText || '');
+    const waLink = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+
+    return res.status(200).json({
+      success: Boolean(waResult.success),
+      message: waResult.success
+        ? 'WhatsApp payment reminder sent successfully.'
+        : (waResult.reason || waResult.error || 'Direct WhatsApp send failed. You can use WhatsApp Web instead.'),
+      recipient: customer.phone,
+      totalDue,
+      pendingBills,
+      messageText: waResult.messageText,
+      waLink,
+      result: waResult,
+    });
+  } catch (err) {
+    console.error('Error sending customer WhatsApp due reminder:', err);
+    return res.status(500).json({ message: 'Server error sending WhatsApp reminder: ' + err.message });
+  }
+};
+
 module.exports = {
   getCustomers,
   getCustomerById,
@@ -406,5 +623,7 @@ module.exports = {
   deleteCustomer,
   getCustomerLedger,
   settleCustomerBalance,
+  sendCustomerDueReminder,
 };
+
 

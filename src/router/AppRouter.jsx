@@ -47,6 +47,7 @@ import RolePermissionsPage from "../pages/users/RolePermissionsPage";
 import { SettingsPage } from "../pages/settings/SettingsPage";
 import { NotificationsPage } from "../pages/notifications/NotificationsPage";
 import { CouponManagementPage } from "../pages/coupons/CouponManagementPage";
+import { VoucherManagementPage } from "../pages/vouchers/VoucherManagementPage";
 import { CustomerListPage } from "../pages/customers/CustomerListPage";
 import { AppointmentCalendarPage } from "../pages/appointments/AppointmentCalendarPage";
 import { ReportsPage } from "../pages/reports/ReportsPage";
@@ -323,6 +324,10 @@ export const router = createBrowserRouter([
               {
                 path: "/coupons",
                 element: <CouponManagementPage />,
+              },
+              {
+                path: "/vouchers",
+                element: <VoucherManagementPage />,
               },
               {
                 path: "/pos/bills/:id",

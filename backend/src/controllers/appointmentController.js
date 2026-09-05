@@ -39,13 +39,23 @@ const calculateEndTime = (startTime, durationMinutes = 30) => {
 // GET /api/appointments
 const getAppointments = async (req, res) => {
   try {
-    const { outletId, date, staffId, status } = req.query;
+    const { outletId, date, staffId, status, search, appointmentId } = req.query;
     const where = {};
 
     if (outletId) where.outlet_id = outletId;
-    if (date) where.appointment_date = date;
+    if (appointmentId) {
+      where.id = appointmentId;
+    } else if (date) {
+      where.appointment_date = date;
+    }
     if (staffId) where.staff_id = staffId;
     if (status) where.status = status;
+    if (search) {
+      where[Op.or] = [
+        { customer_name: { [Op.like]: `%${search}%` } },
+        { customer_phone: { [Op.like]: `%${search}%` } },
+      ];
+    }
 
     const appointments = await Appointment.findAll({
       where,

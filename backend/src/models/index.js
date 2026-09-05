@@ -53,6 +53,7 @@ const PosShiftMovement = require('./PosShiftMovement');
 const LoyaltyTier = require('./LoyaltyTier');
 const LoyaltyLedger = require('./LoyaltyLedger');
 const RewardSetting = require('./RewardSetting');
+const CustomerVoucher = require('./CustomerVoucher');
 
 // Define associations
 OutletInventory.belongsTo(Product, { foreignKey: 'product_id' });
@@ -232,6 +233,15 @@ LoyaltyLedger.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' })
 Bill.hasMany(LoyaltyLedger, { foreignKey: 'bill_id', as: 'loyaltyLedgers' });
 LoyaltyLedger.belongsTo(Bill, { foreignKey: 'bill_id', as: 'bill' });
 
+// CustomerVoucher associations
+Customer.hasMany(CustomerVoucher, { foreignKey: 'customer_id', as: 'vouchers' });
+CustomerVoucher.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+Bill.belongsTo(CustomerVoucher, { foreignKey: 'voucher_id', as: 'voucher' });
+CustomerVoucher.hasMany(Bill, { foreignKey: 'voucher_id', as: 'bills' });
+CustomerVoucher.belongsTo(Bill, { foreignKey: 'redeemed_bill_id', as: 'redeemedBill' });
+CustomerVoucher.belongsTo(Bill, { foreignKey: 'issued_from_bill_id', as: 'sourceBill' });
+Bill.hasOne(CustomerVoucher, { foreignKey: 'issued_from_bill_id', as: 'awardedVoucher' });
+
 module.exports = {
   sequelize,
   Sequelize,
@@ -287,4 +297,5 @@ module.exports = {
   LoyaltyTier,
   LoyaltyLedger,
   RewardSetting,
+  CustomerVoucher,
 };

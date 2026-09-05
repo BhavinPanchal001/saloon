@@ -1,6 +1,6 @@
 import { X, Printer, Sparkles, MessageCircle, Bluetooth, FileText, Receipt, Check, Loader2, RefreshCw } from "lucide-react";
 import { formatCurrency } from "../../utils/format";
-import { COMPANY_INFO } from "../../utils/companyInfo";
+import { COMPANY_INFO, getFullImageUrl } from "../../utils/companyInfo";
 import { useEffect, useState } from "react";
 import { fetchProductsFromAPI, sendWhatsAppBillAPI } from "../../services/api";
 import { useToastStore } from "../../stores/toastStore";
@@ -86,10 +86,15 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
       document.body.classList.add("thermal-print-mode");
       if (paperWidth === 32) document.body.classList.add("thermal-print-mode-58");
     }
-    window.print();
-    setTimeout(() => {
+
+    const cleanup = () => {
       document.body.classList.remove("thermal-print-mode", "thermal-print-mode-58");
-    }, 500);
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+
+    window.print();
+    setTimeout(cleanup, 1500);
   };
 
   const handlePrintBluetooth = async () => {
@@ -303,8 +308,8 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
         {/* ─── Printable Content Area ─── */}
         {templateMode === "thermal" ? (
           /* POS Thermal Receipt Template View */
-          <div className="bg-slate-100 p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-inner flex justify-center overflow-x-auto">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200/80">
+          <div className="bg-slate-100 p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-inner flex justify-center overflow-x-auto thermal-preview-container">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200/80 thermal-receipt-card">
               <ThermalReceiptTemplate
                 bill={bill}
                 paperWidth={paperWidth}
@@ -318,7 +323,11 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
             {/* Header */}
             <header className="invoice-header">
               <div className="invoice-header-left">
-                <img src="/glowy-logo.png" alt="Glowy" className="invoice-logo" />
+                <img
+                  src={getFullImageUrl(COMPANY_INFO.logoUrl) || "/glowy-logo.png"}
+                  alt={COMPANY_INFO.name || "Glowy"}
+                  className="invoice-logo"
+                />
                 <div>
                   <h1 className="invoice-brand">{COMPANY_INFO.name}</h1>
                   <p className="invoice-tagline">{COMPANY_INFO.tagline}</p>
@@ -487,6 +496,25 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
                   <span>− {formatCurrency(bill.discountAmount)}</span>
                 </div>
               )}
+              {(() => {
+                const vDisc = Number(
+                  bill.voucherDiscountAmount ||
+                  bill.voucher_discount_amount ||
+                  bill.voucherDiscount ||
+                  bill.voucher_discount ||
+                  0
+                );
+                const vCode = bill.voucherCode || bill.voucher_code || bill.voucher?.code || "";
+                if (vDisc <= 0) return null;
+                return (
+                  <div className="invoice-totals-row text-amber-700 font-semibold">
+                    <span>
+                      Voucher {vCode ? `(${vCode})` : ""}
+                    </span>
+                    <span>− {formatCurrency(vDisc)}</span>
+                  </div>
+                );
+              })()}
               {(bill.points_redeemed || bill.pointsRedeemed) > 0 && (
                 <div className="invoice-totals-row text-amber-700 font-semibold">
                   <span>
@@ -534,6 +562,36 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
                   )}
               </div>
             </div>
+
+            {/* Awarded Next-Visit Voucher Banner */}
+            {(() => {
+              const awCode = bill.awardedVoucherCode || bill.awarded_voucher_code || bill.awardedVoucher?.code;
+              const awAmt = Number(bill.awardedVoucherAmount || bill.awarded_voucher_amount || bill.awardedVoucher?.amount || 0);
+              if (!awCode || awAmt <= 0) return null;
+
+              return (
+                <div className="my-4 p-4 rounded-xl border-2 border-dashed border-amber-400 bg-amber-50/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-lg flex-shrink-0">
+                      🎁
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-amber-900 text-sm uppercase tracking-wide">Next Visit Reward Voucher</h4>
+                      <p className="text-xs text-amber-700 mt-0.5">Congratulations! You've earned a discount voucher for your next appointment.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="text-right">
+                      <div className="text-[10px] text-amber-800 font-bold uppercase tracking-wider">Voucher Value</div>
+                      <div className="text-base font-black text-amber-900">{formatCurrency(awAmt)} OFF</div>
+                    </div>
+                    <div className="px-3 py-1.5 bg-white border border-amber-300 rounded-lg font-mono font-bold text-amber-900 text-xs tracking-wider shadow-sm">
+                      {awCode}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Footer */}
             <footer className="invoice-footer">

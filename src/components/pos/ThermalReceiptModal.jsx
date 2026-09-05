@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Printer, X, Bluetooth, Check, Loader2 } from "lucide-react";
 import {
   getBluetoothPrinterStatus,
@@ -32,10 +33,15 @@ export function ThermalReceiptModal({ bill, onClose }) {
   const handlePrintBrowser = () => {
     document.body.classList.add("thermal-print-mode");
     if (paperWidth === 32) document.body.classList.add("thermal-print-mode-58");
-    window.print();
-    setTimeout(() => {
+
+    const cleanup = () => {
       document.body.classList.remove("thermal-print-mode", "thermal-print-mode-58");
-    }, 500);
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+
+    window.print();
+    setTimeout(cleanup, 1500);
   };
 
   const handlePrintBluetooth = async () => {
@@ -81,9 +87,9 @@ export function ThermalReceiptModal({ bill, onClose }) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-5 space-y-3.5 border border-slate-100 max-h-[92vh] overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 thermal-receipt-overlay">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-5 space-y-3.5 border border-slate-100 max-h-[92vh] overflow-y-auto thermal-receipt-wrapper">
         <div className="flex items-center justify-between no-print border-b border-slate-100 pb-3">
           <h3 className="text-sm font-black text-slate-800 flex items-center gap-2">
             <Printer className="w-4 h-4 text-indigo-600" /> POS Thermal Receipt
@@ -123,8 +129,8 @@ export function ThermalReceiptModal({ bill, onClose }) {
         </div>
 
         {/* Printable Area Wrapper */}
-        <div className="p-2 border border-slate-200 rounded-2xl bg-slate-50 flex justify-center shadow-inner">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 overflow-hidden">
+        <div className="p-2 border border-slate-200 rounded-2xl bg-slate-50 flex justify-center shadow-inner thermal-preview-container">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 overflow-hidden thermal-receipt-card">
             <ThermalReceiptTemplate bill={bill} paperWidth={paperWidth} />
           </div>
         </div>
@@ -164,6 +170,7 @@ export function ThermalReceiptModal({ bill, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

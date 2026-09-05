@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { X, Wallet, ArrowDownRight, ArrowUpRight, ShieldAlert, History, PlusCircle, CreditCard, ArrowLeft, Search, CheckCircle2, Phone, Mail, Award } from "lucide-react";
+import { X, Wallet, ArrowDownRight, ArrowUpRight, ShieldAlert, History, PlusCircle, CreditCard, ArrowLeft, Search, CheckCircle2, Phone, Mail, Award, MessageCircle } from "lucide-react";
 import { fetchCustomerLedgerAPI, settleCustomerBalanceAPI } from "../../services/api";
+import { WhatsAppReminderModal } from "./WhatsAppReminderModal";
 
 export function CustomerLedgerModal({ customer, onClose, onUpdate }) {
   const [activeTab, setActiveTab] = useState("history"); // "history" | "settle"
@@ -12,6 +13,8 @@ export function CustomerLedgerModal({ customer, onClose, onUpdate }) {
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderTargetBill, setReminderTargetBill] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -175,9 +178,23 @@ export function CustomerLedgerModal({ customer, onClose, onUpdate }) {
                   <ArrowDownRight className="w-4.5 h-4.5" /> +₹{netBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })} (Store Credit)
                 </span>
               ) : netBalance < 0 ? (
-                <span className="text-base font-extrabold text-rose-600 flex items-center gap-1">
-                  <ShieldAlert className="w-4.5 h-4.5 text-rose-500" /> -₹{Math.abs(netBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })} (Outstanding Due)
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-extrabold text-rose-600 flex items-center gap-1">
+                    <ShieldAlert className="w-4.5 h-4.5 text-rose-500" /> -₹{Math.abs(netBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })} (Outstanding Due)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReminderTargetBill(null);
+                      setShowReminderModal(true);
+                    }}
+                    className="p-1.5 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-all text-xs font-bold flex items-center gap-1.5 shadow-2xs"
+                    title="Send WhatsApp Payment Reminder"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>WhatsApp</span>
+                  </button>
+                </div>
               ) : (
                 <span className="text-base font-extrabold text-slate-700">₹0.00 (Account Clean)</span>
               )}
@@ -251,9 +268,23 @@ export function CustomerLedgerModal({ customer, onClose, onUpdate }) {
                 </span>
                 <p className="text-xs text-amber-700 mt-0.5">The following POS bills have outstanding unpaid balances.</p>
               </div>
-              <span className="text-sm font-black text-amber-900 bg-amber-100/80 px-3.5 py-1 rounded-xl border border-amber-300/60 self-start sm:self-auto">
-                Total Due: ₹{pendingBills.reduce((sum, b) => sum + Number(b.remainingDue), 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </span>
+              <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+                <span className="text-sm font-black text-amber-900 bg-amber-100/80 px-3.5 py-1.5 rounded-xl border border-amber-300/60">
+                  Total Due: ₹{pendingBills.reduce((sum, b) => sum + Number(b.remainingDue), 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReminderTargetBill(null);
+                    setShowReminderModal(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs shadow-xs transition-all"
+                  title="Send WhatsApp Payment Reminder for all pending bills"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Send WhatsApp Reminder</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -270,24 +301,38 @@ export function CustomerLedgerModal({ customer, onClose, onUpdate }) {
                       Date: {new Date(b.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} • Total: ₹{Number(b.total).toLocaleString("en-IN")}
                     </p>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="text-right shrink-0 space-y-1.5">
                     <span className="block text-sm font-black text-rose-600">₹{Number(b.remainingDue).toFixed(2)}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTab("settle");
-                        setFormData((prev) => ({
-                          ...prev,
-                          type: "settlement",
-                          bill_id: b.id,
-                          amount: Number(b.remainingDue).toFixed(2),
-                          notes: `Settling Bill #${b.billNumber}`,
-                        }));
-                      }}
-                      className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors"
-                    >
-                      Settle Bill →
-                    </button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReminderTargetBill(b);
+                          setShowReminderModal(true);
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2.5 py-1 rounded-lg transition-colors"
+                        title="Send WhatsApp reminder for this bill"
+                      >
+                        <MessageCircle className="w-3 h-3 text-emerald-600" />
+                        <span>Remind</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab("settle");
+                          setFormData((prev) => ({
+                            ...prev,
+                            type: "settlement",
+                            bill_id: b.id,
+                            amount: Number(b.remainingDue).toFixed(2),
+                            notes: `Settling Bill #${b.billNumber}`,
+                          }));
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors"
+                      >
+                        Settle →
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -513,6 +558,23 @@ export function CustomerLedgerModal({ customer, onClose, onUpdate }) {
           </div>
         )}
       </div>
+
+      {/* WhatsApp Payment Reminder Modal */}
+      {showReminderModal && (
+        <WhatsAppReminderModal
+          customer={currentCustomer}
+          targetBill={reminderTargetBill}
+          initialPendingBills={reminderTargetBill ? [reminderTargetBill] : pendingBills}
+          onClose={() => {
+            setShowReminderModal(false);
+            setReminderTargetBill(null);
+          }}
+          onSent={() => {
+            loadLedger();
+            if (onUpdate) onUpdate();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { COMPANY_INFO } from "../../utils/companyInfo";
+import { COMPANY_INFO, getFullImageUrl } from "../../utils/companyInfo";
 
 const formatDate = (iso) => {
   if (!iso) return "—";
@@ -28,11 +28,13 @@ const formatAmt = (val) => {
  * Clean, high-contrast POS Thermal Receipt Template with RM (Malaysian Ringgit)
  * Perfectly scaled for 80mm (48 chars / ~300px) and 58mm (32 chars / ~220px) thermal printers.
  */
-export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters = [] }) {
+export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters = [], logoUrl = null }) {
   if (!bill) return null;
 
   const is58mm = Number(paperWidth) === 32 || String(paperWidth).includes("58");
   const lineItems = bill.lineItems || bill.line_items || [];
+  const effectiveLogoUrl = logoUrl || COMPANY_INFO.logoUrl;
+  const showLogo = COMPANY_INFO.showLogoOnReceipt !== false;
 
   const servedBy = useMemo(() => {
     if (bill.servedBy || bill.served_by || bill.staffName) {
@@ -59,6 +61,17 @@ export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters =
     >
       {/* ─── Header ─── */}
       <div className="text-center pb-1 space-y-0.5">
+        {effectiveLogoUrl && showLogo && (
+          <div className="flex justify-center pb-1">
+            <img
+              src={getFullImageUrl(effectiveLogoUrl)}
+              alt={COMPANY_INFO.name || "Salon Logo"}
+              className={`object-contain filter grayscale contrast-125 mx-auto ${
+                is58mm ? "max-h-12 max-w-[120px]" : "max-h-14 max-w-[150px]"
+              }`}
+            />
+          </div>
+        )}
         <h1 className={`${is58mm ? "text-sm" : "text-base"} font-black tracking-widest uppercase`}>
           {COMPANY_INFO.name || "GLOWY"}
         </h1>
@@ -192,6 +205,26 @@ export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters =
           </div>
         )}
 
+        {(() => {
+          const vDisc = Number(
+            bill.voucherDiscountAmount ||
+            bill.voucher_discount_amount ||
+            bill.voucherDiscount ||
+            bill.voucher_discount ||
+            0
+          );
+          const vCode = bill.voucherCode || bill.voucher_code || bill.voucher?.code || "";
+          if (vDisc <= 0) return null;
+          return (
+            <div className="flex justify-between font-medium">
+              <span>
+                Voucher {vCode ? `(${vCode})` : ""}:
+              </span>
+              <span>- {formatAmt(vDisc)}</span>
+            </div>
+          );
+        })()}
+
         {(bill.points_redeemed || bill.pointsRedeemed) > 0 && (
           <div className="flex justify-between">
             <span>Points Redeemed ({bill.points_redeemed || bill.pointsRedeemed}):</span>
@@ -240,6 +273,33 @@ export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters =
           </div>
         )}
       </div>
+
+      {/* ─── Next Visit Reward Voucher Block ─── */}
+      {(() => {
+        const awCode = bill.awardedVoucherCode || bill.awarded_voucher_code || bill.awardedVoucher?.code;
+        const awAmt = Number(bill.awardedVoucherAmount || bill.awarded_voucher_amount || bill.awardedVoucher?.amount || 0);
+        if (!awCode || awAmt <= 0) return null;
+
+        return (
+          <div className="border-t border-dashed border-black my-1.5 pt-1.5 pb-1">
+            <div className="border border-black p-1.5 text-center bg-black/[0.03]">
+              <p className="text-[10px] font-black uppercase tracking-wider">🎉 NEXT VISIT VOUCHER 🎉</p>
+              <p className="text-[8.5px] text-black/80 mt-0.5">Special Gift for Your Next Visit!</p>
+              <div className="my-1">
+                <span className="text-xs font-black px-2 py-0.5 border border-black bg-white inline-block">
+                  {formatAmt(awAmt)} OFF
+                </span>
+              </div>
+              <p className="text-[9px] font-mono font-bold tracking-wider text-black">
+                CODE: {awCode}
+              </p>
+              <p className="text-[7.5px] text-black/70 mt-1 leading-tight">
+                Present receipt or code on your next visit to redeem discount.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── Footer & Barcode/Thank You ─── */}
       <div className="border-t border-dashed border-black my-1.5 pt-1 text-center space-y-1">

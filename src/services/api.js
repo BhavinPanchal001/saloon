@@ -1590,6 +1590,120 @@ export const validateCouponAPI = async (code, subtotal) => {
   return handleResponse(res);
 };
 
+// ─── Vouchers Management ──────────────────────────────────────────────────────
+
+export const fetchVouchersAPI = async (params = {}) => {
+  const cleanParams = Object.entries(params).reduce((acc, [key, val]) => {
+    if (val !== undefined && val !== null && val !== "" && val !== "all") {
+      acc[key] = val;
+    }
+    return acc;
+  }, {});
+  const query = new URLSearchParams(cleanParams).toString();
+  const url = `${API_BASE}/vouchers${query ? `?${query}` : ""}`;
+  const res = await fetch(url, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchVoucherRedemptionsAPI = async (params = {}) => {
+  const cleanParams = Object.entries(params).reduce((acc, [key, val]) => {
+    if (val !== undefined && val !== null && val !== "") {
+      acc[key] = val;
+    }
+    return acc;
+  }, {});
+  const query = new URLSearchParams(cleanParams).toString();
+  const url = `${API_BASE}/vouchers/redemptions${query ? `?${query}` : ""}`;
+  const res = await fetch(url, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchCustomerVouchersAPI = async (customerId, params = {}) => {
+  const cleanParams = Object.entries(params).reduce((acc, [key, val]) => {
+    if (val !== undefined && val !== null && val !== "") {
+      acc[key] = val;
+    }
+    return acc;
+  }, {});
+  const query = new URLSearchParams(cleanParams).toString();
+  const url = `${API_BASE}/vouchers/customer/${customerId}${query ? `?${query}` : ""}`;
+  const res = await fetch(url, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const issueVoucherAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/vouchers`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const validateVoucherAPI = async (code, subtotal, customerId) => {
+  const res = await fetch(`${API_BASE}/vouchers/validate`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ code, subtotal, customerId }),
+  });
+  return handleResponse(res);
+};
+
+export const updateVoucherAPI = async (id, payload) => {
+  const res = await fetch(`${API_BASE}/vouchers/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const deleteVoucherAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/vouchers/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const cancelVoucherAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/vouchers/${id}/cancel`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const resendVoucherWhatsAppAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/vouchers/${id}/send-whatsapp`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchVoucherRewardRulesAPI = async () => {
+  const res = await fetch(`${API_BASE}/vouchers/reward-rules`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const updateVoucherRewardRulesAPI = async (payload) => {
+  const res = await fetch(`${API_BASE}/vouchers/reward-rules`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
 // ─── Customers API ────────────────────────────────────────────────────────────
 
 export const fetchCustomersAPI = async (params = {}) => {
@@ -1685,6 +1799,15 @@ export const fetchCustomerLedgerAPI = async (id) => {
 
 export const settleCustomerBalanceAPI = async (id, payload) => {
   const res = await fetch(`${API_BASE}/customers/${id}/settle`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
+export const sendCustomerDueReminderWhatsAppAPI = async (id, payload = {}) => {
+  const res = await fetch(`${API_BASE}/customers/${id}/send-whatsapp-reminder`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify(payload),
@@ -1906,8 +2029,11 @@ export const saveSettings = async (settingsPayload) => {
 export const DEFAULT_BUSINESS_INFO = {
   name: "Glowy",
   tagline: "Glow to go with Glowy",
+  logoUrl: "",
+  showLogoOnReceipt: true,
   address: "Kuala Lumpur, Malaysia",
   phone: "+60 12-345 6789",
+  ownerPhone: "",
   email: "hello@glowy.my",
   website: "www.glowy.my",
   taxNumber: "",
@@ -1919,10 +2045,15 @@ export const DEFAULT_BUSINESS_INFO = {
 
 export const fetchBusinessSettingsAPI = async () => {
   try {
-    const res = await api.get('/business-settings');
-    if (res.data?.success && res.data?.data) {
-      localStorage.setItem('glowy_business_info', JSON.stringify(res.data.data));
-      return res.data.data;
+    const res = await fetch(`${API_BASE}/business-settings`, {
+      headers: authHeaders(),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json?.success && json?.data) {
+        localStorage.setItem('glowy_business_info', JSON.stringify(json.data));
+        return json.data;
+      }
     }
   } catch (err) {
     console.warn("Could not fetch business settings from server, falling back to cached/default:", err.message);
@@ -1936,16 +2067,43 @@ export const fetchBusinessSettingsAPI = async () => {
 
 export const saveBusinessSettingsAPI = async (payload) => {
   try {
-    const res = await api.put('/business-settings', payload);
-    if (res.data?.success && res.data?.data) {
-      localStorage.setItem('glowy_business_info', JSON.stringify(res.data.data));
+    const res = await fetch(`${API_BASE}/business-settings`, {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const json = await handleResponse(res);
+    if (json?.success && json?.data) {
+      localStorage.setItem('glowy_business_info', JSON.stringify(json.data));
       window.dispatchEvent(new Event('glowy_business_info_updated'));
-      return res.data;
+      return json;
     }
+    return json;
   } catch (err) {
     console.error("Failed to save business settings to server:", err);
     throw err;
   }
+};
+
+export const uploadBusinessLogoAPI = async (file) => {
+  const form = new FormData();
+  form.append("logo", file);
+
+  const res = await fetch(`${API_BASE}/business-settings/logo`, {
+    method: "POST",
+    headers: authHeadersNoContentType(),
+    body: form,
+  });
+  const json = await handleResponse(res);
+  if (json?.success && json?.data?.logoUrl) {
+    try {
+      const cached = JSON.parse(localStorage.getItem('glowy_business_info') || '{}');
+      const updated = { ...cached, logoUrl: json.data.logoUrl };
+      localStorage.setItem('glowy_business_info', JSON.stringify(updated));
+      window.dispatchEvent(new Event('glowy_business_info_updated'));
+    } catch (_) {}
+  }
+  return json;
 };
 
 
@@ -2115,6 +2273,17 @@ export const fetchWhatsAppLogsAPI = async (limit = 50) => {
   });
   return handleResponse(res);
 };
+
+// ─── Global Search ───────────────────────────────────────────────────────────
+
+export const globalSearchAPI = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/search${query ? `?${query}` : ""}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
 
 
 

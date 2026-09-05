@@ -3,7 +3,9 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { Navbar } from "../components/navigation/Navbar";
 import { Sidebar } from "../components/navigation/Sidebar";
 import { ToastContainer } from "../components/ui/ToastContainer";
+import { GlobalSearchModal } from "../components/search/GlobalSearchModal";
 import { useAuthStore } from "../stores/authStore";
+import { useSearchStore } from "../stores/searchStore";
 
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -20,13 +22,29 @@ export function AppLayout() {
 
   const user = useAuthStore((state) => state.user);
   const isPosUser = user?.role === "cashier" || user?.role === "pos";
+  const openSearch = useSearchStore((state) => state.openSearch);
+  const toggleSearch = useSearchStore((state) => state.toggleSearch);
 
-  // Global Keyboard shortcuts: Ctrl+B (sidebar), Alt+P (POS), Alt+B (Bills), Alt+I (Inventory), Alt+E (Expenses)
+  // Global Keyboard shortcuts: Ctrl+K (search), Ctrl+B (sidebar), Alt+P (POS), Alt+B (Bills), Alt+I (Inventory), Alt+E (Expenses)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Don't trigger navigation shortcuts if user is holding Ctrl or typing in an editable field (except Ctrl+B)
+      // Don't trigger navigation shortcuts if user is typing in an editable field (except Ctrl shortcuts)
       const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
       
+      // Ctrl+K / Cmd+K to toggle Global Search anywhere
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        toggleSearch();
+        return;
+      }
+
+      // Pressing "/" when not in an editable field to open search
+      if (e.key === "/" && !isInput) {
+        e.preventDefault();
+        openSearch();
+        return;
+      }
+
       if (e.ctrlKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
         setSidebarCollapsed((prev) => !prev);
@@ -53,7 +71,7 @@ export function AppLayout() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [navigate, isPosUser]);
+  }, [navigate, isPosUser, openSearch, toggleSearch]);
 
   return (
     <div className="min-h-screen lg:flex">
@@ -70,6 +88,7 @@ export function AppLayout() {
         </main>
       </div>
       <ToastContainer />
+      <GlobalSearchModal />
     </div>
   );
 }

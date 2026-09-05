@@ -525,75 +525,144 @@
    ═══════════════════════════════════ */
 
 @media print {
-  /* Hide everything on the page except invoice overlay and z-report modal */
-  body > *:not(.invoice-overlay):not(.printable-z-modal) {
+  /* Suppress default browser headers, footers (URL, date, title), and zero out printer margins */
+  @page {
+    margin: 0 !important;
+    size: auto;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+  }
+
+  /* Completely remove the main application tree and any background elements from print */
+  #root,
+  body > *:not(.invoice-overlay):not(.printable-z-modal):not(.thermal-receipt-overlay) {
     display: none !important;
   }
 
+  /* Screen utility classes to hide buttons and navigation */
   .print-hide,
+  .no-print,
   .print\:hidden {
     display: none !important;
   }
 
+  /* Overlays and wrapper modals become zero-margin static containers */
   .invoice-overlay,
-  .printable-z-modal {
+  .printable-z-modal,
+  .thermal-receipt-overlay {
     position: static !important;
-    background: #ffffff !important;
+    display: block !important;
+    background: transparent !important;
     backdrop-filter: none !important;
     padding: 0 !important;
     margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
     box-shadow: none !important;
     border: none !important;
+    animation: none !important;
   }
 
   .invoice-modal-wrapper,
-  .printable-z-wrapper {
+  .printable-z-wrapper,
+  .thermal-receipt-wrapper {
+    position: static !important;
+    display: block !important;
     max-width: 100% !important;
+    width: 100% !important;
     box-shadow: none !important;
     border: none !important;
-    background: #ffffff !important;
+    background: transparent !important;
     padding: 0 !important;
     margin: 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
   }
 
-  .printable-z-report {
-    position: static !important;
-    width: 80mm !important;
-    max-width: 80mm !important;
+  /* Strip card containers in print */
+  .thermal-preview-container,
+  .thermal-receipt-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
     margin: 0 auto !important;
-    padding: 8px !important;
+    border-radius: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  /* ─── Thermal Receipt Print Styling (Normal flow, avoiding page-breaks) ─── */
+  #thermal-receipt-print-area {
+    position: static !important;
+    display: block !important;
+    margin: 0 auto !important;
+    padding: 1mm 2mm !important;
     border: none !important;
     background: #ffffff !important;
     box-shadow: none !important;
     color: #000000 !important;
+    width: 100% !important;
+    max-width: 72mm !important; /* Matches standard 80mm roll printable area without overflowing */
+    box-sizing: border-box !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  /* Thermal Receipt Print Styling */
-  #thermal-receipt-print-area {
+  body.thermal-print-mode-58 #thermal-receipt-print-area {
+    max-width: 48mm !important; /* Standard printable width for 58mm roll */
+  }
+
+  #thermal-receipt-print-area img {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    margin: 0 auto 4px auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ─── Z-Report Thermal Style ─── */
+  .printable-z-report {
     position: static !important;
+    width: 100% !important;
+    max-width: 72mm !important;
     margin: 0 auto !important;
-    padding: 2mm 3mm !important;
+    padding: 4px !important;
     border: none !important;
-    background: #fff !important;
+    background: #ffffff !important;
     box-shadow: none !important;
-    color: #000 !important;
+    color: #000000 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  /* A4 Invoice Print Styling */
+  /* ─── A4 Invoice Print Styling ─── */
   #invoice-print-area {
-    position: static;
-    width: 100%;
-    padding: 1.5cm 2cm;
-    border-radius: 0;
-    box-shadow: none;
-    border: none;
-    background: #fff;
-  }
-
-  @page {
-    size: auto;
-    margin: 3mm;
+    position: static !important;
+    width: 100% !important;
+    padding: 1.5cm 2cm !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
 

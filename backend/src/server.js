@@ -97,6 +97,11 @@ const startServer = async () => {
       const RewardSetting = require('./models/RewardSetting');
       await RewardSetting.sync({ force: true });
     }
+    if (!tablesBeforeSync.includes('customer_vouchers')) {
+      console.log('[Migration] Creating customer_vouchers table...');
+      const CustomerVoucher = require('./models/CustomerVoucher');
+      await CustomerVoucher.sync({ force: true });
+    }
 
     // Ensure columns exist on customers and bills tables
     try {
@@ -129,33 +134,69 @@ const startServer = async () => {
         console.log('[Migration] Adding points_discount_amount column to bills table...');
         await sequelize.query("ALTER TABLE bills ADD COLUMN `points_discount_amount` DECIMAL(12,2) DEFAULT 0");
       }
+      if (!colNames.includes('voucher_id')) {
+        console.log('[Migration] Adding voucher_id column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `voucher_id` INT UNSIGNED NULL");
+      }
+      if (!colNames.includes('voucher_code')) {
+        console.log('[Migration] Adding voucher_code column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `voucher_code` VARCHAR(50) NULL");
+      }
+      if (!colNames.includes('voucher_discount_amount')) {
+        console.log('[Migration] Adding voucher_discount_amount column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `voucher_discount_amount` DECIMAL(12,2) DEFAULT 0");
+      }
+      if (!colNames.includes('awarded_voucher_id')) {
+        console.log('[Migration] Adding awarded_voucher_id column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `awarded_voucher_id` INT UNSIGNED NULL");
+      }
+      if (!colNames.includes('awarded_voucher_code')) {
+        console.log('[Migration] Adding awarded_voucher_code column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `awarded_voucher_code` VARCHAR(50) NULL");
+      }
+      if (!colNames.includes('awarded_voucher_amount')) {
+        console.log('[Migration] Adding awarded_voucher_amount column to bills table...');
+        await sequelize.query("ALTER TABLE bills ADD COLUMN `awarded_voucher_amount` DECIMAL(12,2) DEFAULT 0");
+      }
+
+      // Check customer_vouchers table for issued_from_bill_id
+      const [vchCols] = await sequelize.query("SHOW COLUMNS FROM customer_vouchers");
+      const vchColNames = vchCols.map(c => c.Field);
+      if (!vchColNames.includes('issued_from_bill_id')) {
+        console.log('[Migration] Adding issued_from_bill_id column to customer_vouchers table...');
+        await sequelize.query("ALTER TABLE customer_vouchers ADD COLUMN `issued_from_bill_id` INT UNSIGNED NULL");
+      }
+      const custIdCol = vchCols.find(c => c.Field === 'customer_id');
+      if (custIdCol && custIdCol.Null === 'NO') {
+        console.log('[Migration] Modifying customer_id in customer_vouchers to allow NULL...');
+        await sequelize.query("ALTER TABLE customer_vouchers MODIFY customer_id INT UNSIGNED NULL");
+      }
     } catch (colErr) {
       console.error('[Migration Warning] Checking/adding columns:', colErr.message);
     }
 
-    // Clean up duplicate indexes on banks table caused by repeated alter syncs
+    // Automatic cleanup of duplicate indexes created by past alter syncs (e.g. code_2, email_3, etc.)
     try {
-      const [indexes] = await sequelize.query("SHOW INDEX FROM banks WHERE Column_name = 'account_number'");
-      if (indexes && indexes.length > 2) {
-        console.log(`[Migration] Cleaning up duplicate indexes on banks.account_number...`);
-        const uniqueKeyNames = [...new Set(indexes.map(i => i.Key_name))].filter(k => k !== 'PRIMARY' && k !== 'account_number_2');
-        for (const keyName of uniqueKeyNames) {
-          try {
-            await sequelize.query(`ALTER TABLE banks DROP INDEX \`${keyName}\``);
-          } catch (_) {}
+      const [allTables] = await sequelize.query('SHOW TABLES');
+      const dbCol = Object.keys(allTables[0] || {})[0];
+      if (dbCol) {
+        for (const row of allTables) {
+          const tableName = row[dbCol];
+          const [indexes] = await sequelize.query(`SHOW INDEX FROM \`${tableName}\``);
+          const uniqueKeyNames = [...new Set(indexes.map(i => i.Key_name))];
+          const dupKeys = uniqueKeyNames.filter(k => k !== 'PRIMARY' && /_\d+$/.test(k) && !k.includes('ibfk'));
+          for (const keyName of dupKeys) {
+            try {
+              await sequelize.query(`ALTER TABLE \`${tableName}\` DROP INDEX \`${keyName}\``);
+            } catch (_) {}
+          }
         }
       }
     } catch (_) {}
 
-    // Ensure models & tables exist
-    try {
-      await sequelize.sync({ alter: true });
-      console.log('Database models synchronized successfully.');
-    } catch (syncErr) {
-      console.warn('[Warning] sequelize.sync alter failed (e.g. index limit reached), falling back to standard sync:', syncErr.message);
-      await sequelize.sync();
-      console.log('Database models synchronized via standard sync.');
-    }
+    // Ensure models & tables exist without creating redundant unique indexes
+    await sequelize.sync();
+    console.log('Database models synchronized successfully.');
 
     // Seed Default Walk-in Guest customer
     try {

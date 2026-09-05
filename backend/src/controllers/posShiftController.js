@@ -1,5 +1,7 @@
 const { PosTerminal, PosShift, PosShiftMovement, Bill, Admin, Outlet, Payment, PaymentDetail, sequelize } = require('../models');
 const { Op } = require('sequelize');
+const { whatsappService } = require('../services/whatsappService');
+const { getWhatsAppConfig } = require('../services/whatsapp/config');
 
 // Self-healing DB Migration helper: ensures tables and bill columns exist in MySQL immediately
 (async () => {
@@ -447,14 +449,62 @@ exports.closeShift = async (req, res) => {
 
     const updatedMetrics = await computeShiftMetrics(id);
 
+    // Auto-dispatch Z-Report PDF and summary to Salon Owner via WhatsApp if configured
+    let whatsappResult = null;
+    const whatsappCfg = getWhatsAppConfig();
+    if (whatsappCfg.sendShiftReportToOwner !== false) {
+      try {
+        whatsappResult = await whatsappService.sendZReportToOwner(updatedMetrics);
+        console.log(`[POS Shift #${id}] Auto-sent Z-Report to owner:`, whatsappResult?.success ? 'Success' : whatsappResult?.reason || whatsappResult?.error);
+      } catch (waErr) {
+        console.warn(`[POS Shift #${id}] Non-blocking WhatsApp Z-Report auto-send notice:`, waErr.message);
+        whatsappResult = { success: false, error: waErr.message };
+      }
+    }
+
     res.json({
       success: true,
       message: 'Shift closed successfully',
       report: updatedMetrics,
+      whatsapp: whatsappResult,
     });
   } catch (error) {
     console.error('Error closing shift:', error);
     res.status(500).json({ success: false, message: 'Server error closing shift', error: error.message });
+  }
+};
+
+/**
+ * POST /api/pos-shifts/shifts/:id/send-whatsapp
+ * Manually trigger or re-send End of Shift Z-Report PDF & Summary to Owner or custom number
+ */
+exports.sendZReportWhatsApp = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { phone } = req.body || {};
+
+    const metrics = await computeShiftMetrics(id);
+    if (!metrics) {
+      return res.status(404).json({ success: false, message: 'Shift not found' });
+    }
+
+    const result = await whatsappService.sendZReportToOwner(metrics, { recipientPhone: phone });
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.error || result.reason || 'Failed to send WhatsApp Z-Report',
+        result,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Z-Report successfully dispatched via WhatsApp to ${result.recipient}`,
+      result,
+    });
+  } catch (error) {
+    console.error('Error sending Z-Report via WhatsApp:', error);
+    res.status(500).json({ success: false, message: 'Server error sending WhatsApp Z-Report', error: error.message });
   }
 };
 

@@ -218,6 +218,77 @@ class WhatsAppBusinessProvider extends BaseWhatsAppProvider {
     }
   }
 
+  async sendDocument({ to, document, fileName, caption = '', mimetype = 'application/pdf' }) {
+    const creds = this.getCredentials();
+    const recipientPhone = this.formatPhoneNumber(to, creds.defaultCountryCode);
+
+    if (!recipientPhone) {
+      return { success: false, error: 'Recipient phone number is invalid.' };
+    }
+
+    const docFilename = fileName || 'document.pdf';
+
+    if (!creds.phoneNumberId || !creds.accessToken) {
+      console.log(`[WhatsApp Business API Simulation] Document (${docFilename}) to ${recipientPhone}, caption: ${caption}`);
+      logMessage({
+        recipientPhone,
+        provider: this.name,
+        type: 'document',
+        status: 'simulated',
+      });
+      return {
+        success: true,
+        simulated: true,
+        recipient: recipientPhone,
+        message: 'Document simulated (Meta credentials not provided).',
+      };
+    }
+
+    try {
+      const mediaId = await this.uploadPdfMediaToMeta({
+        pdfBuffer: document,
+        filename: docFilename,
+        creds,
+      });
+
+      const docPayload = {
+        type: 'document',
+        document: {
+          id: mediaId,
+          filename: docFilename,
+          caption,
+        },
+      };
+
+      const result = await this.sendMetaWhatsAppApiRequest({
+        recipientPhone,
+        messagePayload: docPayload,
+        creds,
+      });
+
+      const messageId = result?.messages?.[0]?.id;
+      logMessage({
+        recipientPhone,
+        provider: this.name,
+        type: 'document',
+        status: 'sent',
+        messageId,
+      });
+
+      return { success: true, recipient: recipientPhone, messageId, result };
+    } catch (err) {
+      console.error(`[WhatsApp Business API Error] Failed to send document to ${recipientPhone}:`, err.message);
+      logMessage({
+        recipientPhone,
+        provider: this.name,
+        type: 'document',
+        status: 'failed',
+        error: err.message,
+      });
+      return { success: false, recipient: recipientPhone, error: err.message };
+    }
+  }
+
   async sendInvoice(bill, options = {}) {
     const creds = this.getCredentials();
 

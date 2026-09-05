@@ -377,6 +377,9 @@ const checkout = async (req, res) => {
       allowOutOfStockCheckout,
       couponId,
       couponCode,
+      voucherId,
+      voucherCode,
+      voucherDiscountAmount,
       posTerminalId,
       posShiftId,
     } = req.body;
@@ -595,6 +598,9 @@ const checkout = async (req, res) => {
         status: billStatus,
         coupon_id: couponId || null,
         coupon_code: couponCode || null,
+        voucher_id: voucherId || null,
+        voucher_code: voucherCode || null,
+        voucher_discount_amount: voucherDiscountAmount || 0,
         pos_terminal_id: posTerminalId || req.body.pos_terminal_id || null,
         pos_shift_id: posShiftId || req.body.pos_shift_id || null,
         created_by: req.user?.id || req.admin?.id || req.body.createdBy || null,
@@ -605,6 +611,35 @@ const checkout = async (req, res) => {
     if (couponId) {
       const Coupon = require('../models/Coupon');
       await Coupon.increment('used_count', { by: 1, where: { id: couponId }, transaction });
+    }
+
+    if (voucherId) {
+      const CustomerVoucher = require('../models/CustomerVoucher');
+      const v = await CustomerVoucher.findByPk(voucherId, { transaction });
+      if (v) {
+        const discAmt = parseFloat(voucherDiscountAmount || 0);
+        const newBal = Math.max(0, parseFloat(v.balance_value || 0) - discAmt);
+        v.balance_value = newBal;
+        if (newBal <= 0 || v.voucher_type !== 'cash') {
+          v.status = 'redeemed';
+        }
+        v.redeemed_at = new Date();
+        v.redeemed_bill_id = bill.id;
+        await v.save({ transaction });
+      }
+    }
+
+    // Auto-award next-visit reward voucher based on bill total & active rules
+    try {
+      const { awardBillVoucher } = require('./voucherController');
+      await awardBillVoucher({
+        bill,
+        customer: targetCustomer,
+        userId: req.user?.id || req.admin?.id || req.body.createdBy || null,
+        transaction,
+      });
+    } catch (vAwardErr) {
+      console.warn('[Checkout] Auto-award voucher error (non-blocking):', vAwardErr.message);
     }
 
     // Create line items
@@ -830,6 +865,21 @@ const checkout = async (req, res) => {
       discountType: completeBill.discount_type,
       discountValue: Number(completeBill.discount_value),
       discountAmount: Number(completeBill.discount_amount),
+      couponId: completeBill.coupon_id,
+      couponCode: completeBill.coupon_code,
+      voucherId: completeBill.voucher_id,
+      voucherCode: completeBill.voucher_code,
+      voucherDiscountAmount: Number(completeBill.voucher_discount_amount || 0),
+      awardedVoucherId: completeBill.awarded_voucher_id || null,
+      awardedVoucherCode: completeBill.awarded_voucher_code || null,
+      awardedVoucherAmount: Number(completeBill.awarded_voucher_amount || 0),
+      awarded_voucher_code: completeBill.awarded_voucher_code || null,
+      awarded_voucher_amount: Number(completeBill.awarded_voucher_amount || 0),
+      awardedVoucher: completeBill.awarded_voucher_code ? {
+        id: completeBill.awarded_voucher_id,
+        code: completeBill.awarded_voucher_code,
+        amount: Number(completeBill.awarded_voucher_amount || 0),
+      } : null,
       tax: Number(completeBill.tax),
       total: Number(completeBill.total),
       lineItems: completeBill.lineItems.map((li) => ({
@@ -954,6 +1004,19 @@ const getBills = async (req, res) => {
       discountAmount: Number(bill.discount_amount),
       couponId: bill.coupon_id,
       couponCode: bill.coupon_code,
+      voucherId: bill.voucher_id,
+      voucherCode: bill.voucher_code,
+      voucherDiscountAmount: Number(bill.voucher_discount_amount || 0),
+      awardedVoucherId: bill.awarded_voucher_id || null,
+      awardedVoucherCode: bill.awarded_voucher_code || null,
+      awardedVoucherAmount: Number(bill.awarded_voucher_amount || 0),
+      awarded_voucher_code: bill.awarded_voucher_code || null,
+      awarded_voucher_amount: Number(bill.awarded_voucher_amount || 0),
+      awardedVoucher: bill.awarded_voucher_code ? {
+        id: bill.awarded_voucher_id,
+        code: bill.awarded_voucher_code,
+        amount: Number(bill.awarded_voucher_amount || 0),
+      } : null,
       tax: Number(bill.tax),
       total: Number(bill.total),
       lineItems: bill.lineItems.map((li) => ({
@@ -1024,6 +1087,19 @@ const getBillById = async (req, res) => {
       discountAmount: Number(bill.discount_amount),
       couponId: bill.coupon_id,
       couponCode: bill.coupon_code,
+      voucherId: bill.voucher_id,
+      voucherCode: bill.voucher_code,
+      voucherDiscountAmount: Number(bill.voucher_discount_amount || 0),
+      awardedVoucherId: bill.awarded_voucher_id || null,
+      awardedVoucherCode: bill.awarded_voucher_code || null,
+      awardedVoucherAmount: Number(bill.awarded_voucher_amount || 0),
+      awarded_voucher_code: bill.awarded_voucher_code || null,
+      awarded_voucher_amount: Number(bill.awarded_voucher_amount || 0),
+      awardedVoucher: bill.awarded_voucher_code ? {
+        id: bill.awarded_voucher_id,
+        code: bill.awarded_voucher_code,
+        amount: Number(bill.awarded_voucher_amount || 0),
+      } : null,
       tax: Number(bill.tax),
       total: Number(bill.total),
       lineItems: bill.lineItems.map((li) => ({
@@ -1214,6 +1290,19 @@ const addBillPayment = async (req, res) => {
       discountAmount: Number(completeBill.discount_amount),
       couponId: completeBill.coupon_id,
       couponCode: completeBill.coupon_code,
+      voucherId: completeBill.voucher_id,
+      voucherCode: completeBill.voucher_code,
+      voucherDiscountAmount: Number(completeBill.voucher_discount_amount || 0),
+      awardedVoucherId: completeBill.awarded_voucher_id || null,
+      awardedVoucherCode: completeBill.awarded_voucher_code || null,
+      awardedVoucherAmount: Number(completeBill.awarded_voucher_amount || 0),
+      awarded_voucher_code: completeBill.awarded_voucher_code || null,
+      awarded_voucher_amount: Number(completeBill.awarded_voucher_amount || 0),
+      awardedVoucher: completeBill.awarded_voucher_code ? {
+        id: completeBill.awarded_voucher_id,
+        code: completeBill.awarded_voucher_code,
+        amount: Number(completeBill.awarded_voucher_amount || 0),
+      } : null,
       tax: Number(completeBill.tax),
       total: Number(completeBill.total),
       lineItems: completeBill.lineItems.map((li) => ({
@@ -1573,6 +1662,19 @@ const updateBill = async (req, res) => {
       discountAmount: Number(completeBill.discount_amount),
       couponId: completeBill.coupon_id,
       couponCode: completeBill.coupon_code,
+      voucherId: completeBill.voucher_id,
+      voucherCode: completeBill.voucher_code,
+      voucherDiscountAmount: Number(completeBill.voucher_discount_amount || 0),
+      awardedVoucherId: completeBill.awarded_voucher_id || null,
+      awardedVoucherCode: completeBill.awarded_voucher_code || null,
+      awardedVoucherAmount: Number(completeBill.awarded_voucher_amount || 0),
+      awarded_voucher_code: completeBill.awarded_voucher_code || null,
+      awarded_voucher_amount: Number(completeBill.awarded_voucher_amount || 0),
+      awardedVoucher: completeBill.awarded_voucher_code ? {
+        id: completeBill.awarded_voucher_id,
+        code: completeBill.awarded_voucher_code,
+        amount: Number(completeBill.awarded_voucher_amount || 0),
+      } : null,
       tax: Number(completeBill.tax),
       total: Number(completeBill.total),
       lineItems: completeBill.lineItems.map((li) => ({

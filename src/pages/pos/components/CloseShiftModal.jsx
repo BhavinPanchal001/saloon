@@ -58,7 +58,7 @@ export function CloseShiftModal({
         closing_notes: closingNotes.trim(),
       });
       if (res.success) {
-        onShiftClosed(res.report);
+        onShiftClosed({ ...res.report, whatsapp: res.whatsapp });
       }
     } catch (err) {
       setError(err.message || "Failed to close shift");

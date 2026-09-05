@@ -265,12 +265,35 @@ export function BillDetailModal({ bill, onClose }) {
 
         {/* Totals Footer */}
         <div className="mt-4 rounded-3xl bg-navy-900 p-6 text-white shadow-2xl shadow-navy-900/20">
-          <div className="flex justify-between items-center">
-            <div className="grid grid-cols-2 gap-8">
+          <div className="flex flex-wrap justify-between items-center gap-4">
+            <div className="flex flex-wrap gap-8">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Subtotal</p>
                 <p className="mt-1 font-bold">{formatCurrency(bill.subtotal)}</p>
               </div>
+              {bill.discountAmount > 0 && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Discount</p>
+                  <p className="mt-1 font-bold text-gold-400">−{formatCurrency(bill.discountAmount)}</p>
+                </div>
+              )}
+              {Number(bill.voucherDiscountAmount || bill.voucher_discount_amount || 0) > 0 && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Voucher</p>
+                  <p className="mt-1 font-bold text-gold-400">−{formatCurrency(bill.voucherDiscountAmount || bill.voucher_discount_amount)}</p>
+                </div>
+              )}
+              {(bill.awardedVoucherCode || bill.awarded_voucher_code) && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Awarded Voucher</p>
+                  <p className="mt-1 font-bold text-emerald-300">
+                    +{formatCurrency(bill.awardedVoucherAmount || bill.awarded_voucher_amount || 0)}
+                    <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-200">
+                      {bill.awardedVoucherCode || bill.awarded_voucher_code}
+                    </span>
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Tax (8%)</p>
                 <p className="mt-1 font-bold">{formatCurrency(bill.tax)}</p>

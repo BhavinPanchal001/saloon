@@ -18,6 +18,7 @@ router.get('/', authenticate, customerController.getCustomers);
 router.get('/:id', authenticate, customerController.getCustomerById);
 router.get('/:id/ledger', authenticate, customerController.getCustomerLedger);
 router.post('/:id/settle', authenticate, customerController.settleCustomerBalance);
+router.post('/:id/send-whatsapp-reminder', authenticate, customerController.sendCustomerDueReminder);
 router.post('/', authenticate, customerController.createCustomer);
 router.put('/:id', authenticate, customerController.updateCustomer);
 router.delete('/:id', authenticate, customerController.deleteCustomer);

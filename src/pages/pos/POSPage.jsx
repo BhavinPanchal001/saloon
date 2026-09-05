@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchStaff, fetchSettings, fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI, validateCouponAPI, fetchCustomersAPI, fetchBillByIdFromAPI, updateBillAPI, fetchWhatsAppStatusAPI } from "../../services/api";
+import { fetchStaff, fetchSettings, fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI, validateCouponAPI, fetchCustomerVouchersAPI, validateVoucherAPI, fetchCustomersAPI, fetchBillByIdFromAPI, updateBillAPI, fetchWhatsAppStatusAPI, fetchVoucherRewardRulesAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
@@ -14,7 +14,7 @@ import { XReportModal } from "./components/XReportModal";
 import { CloseShiftModal } from "./components/CloseShiftModal";
 import { ZReportPrintModal } from "./components/ZReportPrintModal";
 import { fetchTerminalsAPI, createTerminalAPI, fetchActiveShiftAPI, openShiftAPI, addCashMovementAPI } from "../../services/posShiftApi";
-import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, AlertCircle, CreditCard, Keyboard, HelpCircle, X, User, Edit, ChevronDown, ChevronUp, Monitor, PlayCircle, StopCircle, CheckCircle2, FileText, MessageCircle } from "lucide-react";
+import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, Ticket, AlertCircle, CreditCard, Keyboard, HelpCircle, X, User, Edit, ChevronDown, ChevronUp, Monitor, PlayCircle, StopCircle, CheckCircle2, FileText, MessageCircle, Gift } from "lucide-react";
 import BankSelector from "../../modules/bank/components/BankSelector";
 
 const paymentMethods = ["Cash", "Card", "UPI", "Store Credit", "Split"];
@@ -33,10 +33,27 @@ export function POSPage() {
   const [selectedCrmCustomer, setSelectedCrmCustomer] = useState(null);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
 
+  const [customerVouchers, setCustomerVouchers] = useState([]);
+  const [voucherCodeInput, setVoucherCodeInput] = useState("");
+  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherRewardRules, setVoucherRewardRules] = useState(null);
+
+  useEffect(() => {
+    fetchVoucherRewardRulesAPI()
+      .then((res) => {
+        if (res?.success && res?.data) setVoucherRewardRules(res.data);
+      })
+      .catch(() => {});
+  }, []);
+
   const resetCustomerFields = () => {
     setSelectedCrmCustomer(null);
     setCustomer({ name: "", phone: "" });
     setPointsToRedeem(0);
+    setCustomerVouchers([]);
+    setAppliedVoucher(null);
+    setVoucherCodeInput("");
   };
 
   const handleCustomerSearch = async (query) => {
@@ -791,11 +808,48 @@ export function POSPage() {
     }
   };
 
-  const handleRemoveCoupon = () => {
-    setAppliedCoupon(null);
-    setCouponCodeInput("");
-    setDiscountValue("");
-    toast.info("Coupon removed");
+  // Load active vouchers when customer is selected
+  useEffect(() => {
+    if (selectedCrmCustomer?.id) {
+      fetchCustomerVouchersAPI(selectedCrmCustomer.id, { active_only: "true" })
+        .then((res) => {
+          if (res.success) {
+            setCustomerVouchers(res.data?.filter((v) => v.status === "active") || []);
+          }
+        })
+        .catch(() => setCustomerVouchers([]));
+    } else {
+      setCustomerVouchers([]);
+      setAppliedVoucher(null);
+      setVoucherCodeInput("");
+    }
+  }, [selectedCrmCustomer?.id]);
+
+  const handleApplyVoucher = async (codeToUse) => {
+    const code = (codeToUse || voucherCodeInput).trim();
+    if (!code) {
+      toast.error("Please enter a voucher code");
+      return;
+    }
+    try {
+      setVoucherLoading(true);
+      const res = await validateVoucherAPI(code, subtotal, selectedCrmCustomer?.id);
+      if (res.success) {
+        setAppliedVoucher(res.data);
+        setVoucherCodeInput(res.data.code);
+        toast.success(`Voucher ${res.data.code} applied! Saved ${formatCurrency(res.data.discount_amount)}`);
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to apply voucher");
+    } finally {
+      setVoucherLoading(false);
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherCodeInput("");
+    toast.info("Voucher removed");
   };
 
   const subtotal = cart.reduce((sum, line) => sum + getLinePrice(line) * line.quantity, 0);
@@ -808,9 +862,31 @@ export function POSPage() {
         : Math.min(subtotal, Number(discountValue))
       : 0;
 
-  const discountedSubtotal = subtotal - discountAmount;
+  const voucherDiscountAmount = appliedVoucher
+    ? Math.min(Number(appliedVoucher.discount_amount), Math.max(0, subtotal - discountAmount))
+    : 0;
+
+  const discountedSubtotal = Math.max(0, subtotal - discountAmount - voucherDiscountAmount);
   const tax = Math.round((discountedSubtotal * 0.08) * 100) / 100;
-  const total = Math.round((discountedSubtotal + tax) * 100) / 100;
+  const total = Math.max(0, Math.round((discountedSubtotal + tax) * 100) / 100);
+
+  const estimatedAwardedVoucher = useMemo(() => {
+    if (!voucherRewardRules || !voucherRewardRules.enabled || total <= 0) return null;
+    if (total < (Number(voucherRewardRules.min_bill_amount) || 0)) return null;
+
+    if (voucherRewardRules.mode === "percentage") {
+      const pct = Number(voucherRewardRules.percentage) || 0;
+      let val = Math.round((total * pct) / 100);
+      const cap = Number(voucherRewardRules.max_voucher_amount) || 0;
+      if (cap > 0 && val > cap) val = cap;
+      return val > 0 ? val : null;
+    } else {
+      const tiers = Array.isArray(voucherRewardRules.tiers) ? [...voucherRewardRules.tiers] : [];
+      tiers.sort((a, b) => Number(b.min_spend) - Number(a.min_spend));
+      const match = tiers.find((t) => total >= Number(t.min_spend));
+      return match ? Number(match.voucher_amount) : null;
+    }
+  }, [voucherRewardRules, total]);
 
   const hasUnassignedService = cart.some(
     (line) =>
@@ -1017,6 +1093,9 @@ export function POSPage() {
       pointsToRedeem: Number(pointsToRedeem) || 0,
       couponId: appliedCoupon?.coupon_id || undefined,
       couponCode: appliedCoupon?.code || undefined,
+      voucherId: appliedVoucher?.voucher_id || undefined,
+      voucherCode: appliedVoucher?.code || undefined,
+      voucherDiscountAmount: voucherDiscountAmount || 0,
       posTerminalId: selectedTerminal?.id || undefined,
       posShiftId: activeShift?.id || undefined,
       createdBy: user?.id || undefined,
@@ -1095,7 +1174,20 @@ export function POSPage() {
         toast.success(`Bill ${result.billNumber} created successfully!`);
       }
 
-      setCurrentBill(result);
+      const finalBill = {
+        ...result,
+        voucherId: result.voucherId || result.voucher_id || appliedVoucher?.voucher_id || undefined,
+        voucherCode: result.voucherCode || result.voucher_code || appliedVoucher?.code || undefined,
+        voucherDiscountAmount: Number(result.voucherDiscountAmount || result.voucher_discount_amount || voucherDiscountAmount || 0),
+        awardedVoucherId: result.awardedVoucherId || result.awarded_voucher_id || null,
+        awardedVoucherCode: result.awardedVoucherCode || result.awarded_voucher_code || null,
+        awardedVoucherAmount: Number(result.awardedVoucherAmount || result.awarded_voucher_amount || 0),
+        awardedVoucher: result.awardedVoucher || (result.awardedVoucherCode ? {
+          code: result.awardedVoucherCode,
+          amount: result.awardedVoucherAmount,
+        } : null),
+      };
+      setCurrentBill(finalBill);
       setShowInvoice(true);
       setCart([]);
       setPaymentMethod("");
@@ -1992,6 +2084,10 @@ export function POSPage() {
                   <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700">
                     Coupon: {appliedCoupon.code} (−{formatCurrency(appliedCoupon.discount_amount)})
                   </span>
+                ) : appliedVoucher ? (
+                  <span className="rounded-md bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">
+                    Voucher: {appliedVoucher.code} (−{formatCurrency(voucherDiscountAmount)})
+                  </span>
                 ) : discountAmount > 0 ? (
                   <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700">
                     Disc (−{formatCurrency(discountAmount)})
@@ -2012,6 +2108,70 @@ export function POSPage() {
             {/* Collapsible Section */}
             {showBillBreakdown && (
               <div className="space-y-3 mb-3 rounded-xl border border-navy-100 bg-white p-3 shadow-xs transition-all">
+                {/* Voucher Code Row */}
+                <div className="pt-1">
+                  {/* Active Customer Vouchers Suggestion Bar */}
+                  {customerVouchers.length > 0 && !appliedVoucher && (
+                    <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-800 mb-1">
+                        <Gift className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Customer has {customerVouchers.length} active voucher(s):</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {customerVouchers.map((cv) => (
+                          <button
+                            key={cv.id}
+                            type="button"
+                            onClick={() => handleApplyVoucher(cv.code)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-amber-300 rounded text-[10px] font-bold text-amber-900 hover:bg-amber-100 transition shadow-2xs"
+                          >
+                            <span>{cv.code}</span>
+                            <span className="text-emerald-700">
+                              (₹{Number(cv.balance_value || cv.initial_value).toFixed(0)} OFF)
+                            </span>
+                            <span className="text-amber-600 font-extrabold ml-0.5">Apply</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Voucher Code (e.g. VCH-...)"
+                      value={voucherCodeInput}
+                      onChange={(e) => setVoucherCodeInput(e.target.value.toUpperCase())}
+                      disabled={Boolean(appliedVoucher)}
+                      className="flex-1 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-xs font-mono font-bold uppercase text-navy-800 focus:outline-none focus:border-amber-400 disabled:bg-gray-100"
+                    />
+                    {appliedVoucher ? (
+                      <button
+                        type="button"
+                        onClick={handleRemoveVoucher}
+                        className="rounded-lg bg-red-100 text-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-red-200 transition"
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleApplyVoucher()}
+                        disabled={voucherLoading || !voucherCodeInput.trim()}
+                        className="rounded-lg bg-amber-500 text-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition disabled:opacity-50"
+                      >
+                        {voucherLoading ? "..." : "Apply Voucher"}
+                      </button>
+                    )}
+                  </div>
+                  {appliedVoucher && (
+                    <div className="mt-1 text-[10px] font-bold text-amber-800 flex items-center justify-between px-0.5">
+                      <span>Voucher '{appliedVoucher.code}' Applied</span>
+                      <span>- {formatCurrency(voucherDiscountAmount)}</span>
+                    </div>
+                  )}
+                </div>
+
                 {/* Coupon Code Row */}
                 <div>
                   <div className="flex items-center gap-1.5">
@@ -2114,6 +2274,18 @@ export function POSPage() {
               <span>Total Due</span>
               <span className="text-xl text-navy-950 font-black">{formatCurrency(total)}</span>
             </div>
+
+            {estimatedAwardedVoucher > 0 && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-amber-50 to-amber-100/80 border border-amber-200 rounded-xl text-xs text-amber-900 font-semibold my-1 shadow-sm animate-fadeIn">
+                <span className="flex items-center gap-1.5">
+                  <Gift className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                  <span>Next-Visit Voucher Reward:</span>
+                </span>
+                <span className="font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded-lg text-xs">
+                  +{formatCurrency(estimatedAwardedVoucher)}
+                </span>
+              </div>
+            )}
 
             <div className="mt-3 grid grid-cols-5 gap-1 shadow-sm">
               {paymentMethods.map((method) => {
@@ -2380,13 +2552,6 @@ export function POSPage() {
             </button>
           </div>
         </div>
-
-      {showInvoice && (
-        <InvoiceModal
-          bill={currentBill}
-          onClose={() => setShowInvoice(false)}
-        />
-      )}
 
       {/* Keyboard Shortcuts Reference Guide Modal */}
       {showShortcutGuide && (

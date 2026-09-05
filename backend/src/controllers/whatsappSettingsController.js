@@ -31,6 +31,8 @@ const getSettings = async (req, res) => {
     return res.json({
       success: true,
       provider: config.provider || 'business_api',
+      ownerPhone: config.ownerPhone || '',
+      sendShiftReportToOwner: config.sendShiftReportToOwner !== false,
       businessApi: safeBusinessApi,
       baileys: config.baileys || {},
       status,
@@ -46,11 +48,19 @@ const getSettings = async (req, res) => {
  */
 const updateSettings = async (req, res) => {
   try {
-    const { provider, businessApi, baileys } = req.body;
+    const { provider, businessApi, baileys, ownerPhone, sendShiftReportToOwner } = req.body;
     const currentConfig = getWhatsAppConfig();
     const updates = {};
 
-    // 1. Handle Business API config updates
+    // 1. Handle Owner Notification settings
+    if (ownerPhone !== undefined) {
+      updates.ownerPhone = String(ownerPhone).trim();
+    }
+    if (sendShiftReportToOwner !== undefined) {
+      updates.sendShiftReportToOwner = Boolean(sendShiftReportToOwner);
+    }
+
+    // 2. Handle Business API config updates
     if (businessApi) {
       const nextAccessToken = (businessApi.accessToken && !businessApi.accessToken.includes('•••'))
         ? businessApi.accessToken.trim()
@@ -66,7 +76,7 @@ const updateSettings = async (req, res) => {
       };
     }
 
-    // 2. Handle Baileys config updates
+    // 3. Handle Baileys config updates
     if (baileys) {
       updates.baileys = {
         ...currentConfig.baileys,
@@ -79,7 +89,7 @@ const updateSettings = async (req, res) => {
       updateWhatsAppConfig(updates);
     }
 
-    // 3. Handle Provider Switch
+    // 4. Handle Provider Switch
     if (provider && provider !== currentConfig.provider) {
       try {
         await whatsappService.setActiveProvider(provider);
@@ -92,11 +102,14 @@ const updateSettings = async (req, res) => {
     }
 
     const updatedStatus = await whatsappService.getStatus();
+    const freshConfig = getWhatsAppConfig();
 
     return res.json({
       success: true,
       message: 'WhatsApp settings updated successfully.',
       provider: whatsappService.getActiveProviderName(),
+      ownerPhone: freshConfig.ownerPhone || '',
+      sendShiftReportToOwner: freshConfig.sendShiftReportToOwner !== false,
       status: updatedStatus,
     });
   } catch (err) {

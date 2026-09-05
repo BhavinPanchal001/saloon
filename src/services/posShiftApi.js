@@ -107,6 +107,15 @@ export const closeShiftAPI = async (shiftId, payload) => {
   return handleResponse(res);
 };
 
+export const sendZReportWhatsAppAPI = async (shiftId, payload = {}) => {
+  const res = await fetch(`${API_BASE}/pos-shifts/shifts/${shiftId}/send-whatsapp`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
 export const fetchShiftHistoryAPI = async (params = {}) => {
   const query = new URLSearchParams(params).toString();
   const res = await fetch(`${API_BASE}/pos-shifts/shifts/history${query ? `?${query}` : ""}`, {

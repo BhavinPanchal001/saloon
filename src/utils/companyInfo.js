@@ -7,6 +7,8 @@
 const DEFAULT_COMPANY_INFO = {
   name: "Glowy",
   tagline: "Glow to go with Glowy",
+  logoUrl: "",
+  showLogoOnReceipt: true,
   address: "Kuala Lumpur, Malaysia",
   phone: "+60 12-345 6789",
   email: "hello@glowy.my",
@@ -17,6 +19,24 @@ const DEFAULT_COMPANY_INFO = {
   receiptHeader: "Welcome to Glowy",
   receiptFooter: "Thank you for visiting! Glow to go with Glowy ✨",
   terms: "Services and products once rendered/sold are non-refundable. Computer generated invoice.",
+};
+
+/**
+ * Resolves a full, usable image URL from relative upload paths, full URLs, or base64 data URIs
+ */
+export const getFullImageUrl = (url) => {
+  if (!url) return "";
+  if (
+    url.startsWith("data:") ||
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("blob:")
+  ) {
+    return url;
+  }
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
+  const backendBase = apiBase.replace(/\/api\/?$/, "");
+  return `${backendBase}${url.startsWith("/") ? "" : "/"}${url}`;
 };
 
 export const getCompanyInfo = () => {

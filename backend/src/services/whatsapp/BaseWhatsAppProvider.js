@@ -50,6 +50,15 @@ class BaseWhatsAppProvider {
   }
 
   /**
+   * Send document attachment (PDF, etc.) to recipient
+   * @param {{ to: string, document: Buffer, fileName: string, caption?: string, mimetype?: string }} params
+   * @returns {Promise<{ success: boolean, recipient?: string, messageId?: string, error?: string }>}
+   */
+  async sendDocument({ to, document, fileName, caption = '', mimetype = 'application/pdf' }) {
+    throw new Error('sendDocument() must be implemented by subclass.');
+  }
+
+  /**
    * Format phone number to international E.164 without leading '+' or special chars
    * @param {string} phone
    * @param {string} defaultCountryCode
@@ -126,6 +135,7 @@ class BaseWhatsAppProvider {
 
     const subtotal = Number(bill.subtotal) || 0;
     const discountAmount = Number(bill.discountAmount || bill.discount_amount) || 0;
+    const voucherDiscount = Number(bill.voucherDiscountAmount || bill.voucher_discount_amount || bill.voucherDiscount || 0);
     const tax = Number(bill.tax) || 0;
     const grandTotal = Number(bill.total) || 0;
     const paymentMethod = (bill.paymentMethod || bill.payment_method || 'CASH').toUpperCase();
@@ -143,6 +153,14 @@ class BaseWhatsAppProvider {
         (totalPoints !== undefined ? `• Total Loyalty Balance: ${totalPoints} Pts\n` : '');
     }
 
+    const awardedCode = bill.awardedVoucherCode || bill.awarded_voucher_code || bill.awardedVoucher?.code;
+    const awardedAmt = Number(bill.awardedVoucherAmount || bill.awarded_voucher_amount || bill.awardedVoucher?.amount || 0);
+
+    let voucherRewardSection = '';
+    if (awardedCode && awardedAmt > 0) {
+      voucherRewardSection = `\n\n🎉 *SPECIAL GIFT FOR YOUR NEXT VISIT!* 🎁\nYou have received a reward voucher of *${fmt(awardedAmt)} OFF*!\n🎫 *Voucher Code:* *${awardedCode}*\n_Present this code during your next appointment to redeem!_`;
+    }
+
     const message = `🧾 *INVOICE RECEIPT* - ${outletName}
 
 Hello *${customerName}*, thank you for choosing ${outletName}! Here is your bill details:
@@ -155,9 +173,9 @@ ${itemsText}
 
 ──────────────────
 *Subtotal:* ${fmt(subtotal)}
-${discountAmount > 0 ? `*Discount:* -${fmt(discountAmount)}\n` : ''}*Tax:* ${fmt(tax)}
+${discountAmount > 0 ? `*Discount:* -${fmt(discountAmount)}\n` : ''}${voucherDiscount > 0 ? `*Voucher Discount:* -${fmt(voucherDiscount)}\n` : ''}*Tax:* ${fmt(tax)}
 💳 *GRAND TOTAL:* *${fmt(grandTotal)}*
-💳 *Payment Mode:* ${paymentMethod}${loyaltySection}
+💳 *Payment Mode:* ${paymentMethod}${loyaltySection}${voucherRewardSection}
 
 ✨ Thank you for visiting us! We hope to see you again soon.
 For any queries, please contact ${outletName}.`;

@@ -873,8 +873,260 @@ function generateReportPDFBuffer(type, data, metadata = {}) {
   return Buffer.from(pdfParts.join(''));
 }
 
+/**
+ * Generate End of Shift Z-Report PDF Buffer
+ * @param {Object} reportData - Output of computeShiftMetrics
+ * @returns {Buffer} PDF binary buffer
+ */
+function generateZReportPDFBuffer(reportData) {
+  const COMPANY_INFO = getCompanyInfo();
+  const shift = reportData?.shift || {};
+  const terminal = shift.terminal || {};
+  const user = shift.user || {};
+  const outlet = shift.outlet || {};
+
+  const outletName = sanitizeText(outlet.name || COMPANY_INFO.name || 'Glowy Saloon', 35);
+  const shiftId = shift.id || 'N/A';
+  const terminalName = sanitizeText(terminal.name || terminal.code || 'Counter 1', 25);
+  const cashierName = sanitizeText(user.name || 'Staff Member', 30);
+
+  const openedDate = shift.opened_at ? new Date(shift.opened_at) : new Date();
+  const closedDate = shift.closed_at ? new Date(shift.closed_at) : new Date();
+  const openedStr = sanitizeText(openedDate.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }));
+  const closedStr = sanitizeText(closedDate.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }));
+  const generatedStr = sanitizeText(new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }));
+
+  const cur = sanitizeText(COMPANY_INFO.currency || 'RM');
+  const fmt = (val) => `${cur} ${(Number(val) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const billsCount = Number(reportData.billsCount) || 0;
+  const grossSales = fmt(reportData.totalSales);
+  const cashSales = fmt(reportData.cashSales);
+  const cardSales = fmt(reportData.cardSales);
+  const upiSales = fmt(reportData.upiSales);
+  const creditOtherSales = fmt((Number(reportData.creditSales) || 0) + (Number(reportData.otherSales) || 0));
+  const totalDiscounts = fmt(reportData.totalDiscount);
+  const totalTax = fmt(reportData.totalTax);
+
+  const openingFloat = fmt(reportData.openingCash);
+  const cashSalesPlus = `+${fmt(reportData.cashSales)}`;
+  const cashIn = `+${fmt(reportData.totalCashIn)}`;
+  const cashOut = `-${fmt(reportData.totalCashOut)}`;
+  const expectedCash = fmt(reportData.expectedCash);
+  const actualCash = fmt(shift.actual_closing_cash || 0);
+  const varianceNum = Number(shift.variance) || 0;
+  const varianceStr = fmt(varianceNum);
+
+  const commands = [];
+
+  // --- BRAND HEADER ---
+  commands.push('0.12 0.23 0.54 rg');
+  commands.push(`BT /F2 22 Tf 40 782 Td (${sanitizeText(COMPANY_INFO.name)}) Tj ET`);
+
+  commands.push('0.8 0.6 0.15 rg');
+  commands.push(`BT /F1 9 Tf 40 768 Td (${sanitizeText(COMPANY_INFO.tagline)}) Tj ET`);
+
+  commands.push('0.4 0.45 0.55 rg');
+  commands.push(`BT /F1 8 Tf 340 785 Td (${sanitizeText(COMPANY_INFO.address)}) Tj ET`);
+  commands.push(`BT /F1 8 Tf 370 773 Td (${sanitizeText(COMPANY_INFO.phone)}  .  ${sanitizeText(COMPANY_INFO.email)}) Tj ET`);
+  if (COMPANY_INFO.gstin) {
+    commands.push(`BT /F1 8 Tf 435 761 Td (Tax/SST: ${sanitizeText(COMPANY_INFO.gstin)}) Tj ET`);
+  }
+
+  // Gold accent divider
+  commands.push('0.85 0.65 0.13 RG 1.5 w');
+  commands.push('40 750 m 555 750 l S');
+
+  // --- REPORT TITLE & BADGE ---
+  commands.push('0.1 0.15 0.28 rg');
+  commands.push('BT /F2 17 Tf 40 720 Td (END OF SHIFT Z-REPORT) Tj ET');
+
+  // Shift Closed Badge
+  commands.push('0.88 0.96 0.92 rg');
+  commands.push('445 714 110 20 re f');
+  commands.push('0.1 0.5 0.3 RG 1 w');
+  commands.push('445 714 110 20 re s');
+  commands.push('0.08 0.45 0.25 rg');
+  commands.push('BT /F2 8.5 Tf 455 720 Td (STATUS: SHIFT CLOSED) Tj ET');
+
+  commands.push('0.45 0.5 0.6 rg');
+  commands.push(`BT /F1 9 Tf 40 705 Td (Official Terminal Cash Reconciliation & Sales Audit Slip  .  Generated ${generatedStr}) Tj ET`);
+
+  // --- METADATA CARD ---
+  commands.push('0.96 0.97 0.99 rg');
+  commands.push('40 640 515 52 re f');
+  commands.push('0.88 0.9 0.94 RG 1 w');
+  commands.push('40 640 515 52 re s');
+
+  commands.push('0.2 0.25 0.35 rg');
+  commands.push(`BT /F2 8.5 Tf 52 675 Td (OUTLET:) Tj ET`);
+  commands.push(`BT /F1 8.5 Tf 95 675 Td (${outletName}) Tj ET`);
+  commands.push(`BT /F2 8.5 Tf 220 675 Td (SHIFT #:) Tj ET`);
+  commands.push(`BT /F2 8.5 Tf 265 675 Td (#${shiftId}) Tj ET`);
+  commands.push(`BT /F2 8.5 Tf 380 675 Td (TERMINAL:) Tj ET`);
+  commands.push(`BT /F1 8.5 Tf 435 675 Td (${terminalName}) Tj ET`);
+
+  commands.push(`BT /F2 8.5 Tf 52 650 Td (CASHIER:) Tj ET`);
+  commands.push(`BT /F1 8.5 Tf 95 650 Td (${cashierName}) Tj ET`);
+  commands.push(`BT /F2 8.5 Tf 220 650 Td (OPENED:) Tj ET`);
+  commands.push(`BT /F1 8 Tf 265 650 Td (${openedStr}) Tj ET`);
+  commands.push(`BT /F2 8.5 Tf 380 650 Td (CLOSED:) Tj ET`);
+  commands.push(`BT /F1 8 Tf 435 650 Td (${closedStr}) Tj ET`);
+
+  let currentY = 615;
+
+  // --- SECTION 1: SALES SUMMARY ---
+  commands.push('0.12 0.23 0.54 rg');
+  commands.push(`BT /F2 11 Tf 40 ${currentY} Td (1. SALES PERFORMANCE SUMMARY) Tj ET`);
+  currentY -= 12;
+
+  commands.push('0.96 0.97 0.99 rg');
+  commands.push(`40 ${currentY - 142} 515 142 re f`);
+  commands.push('0.88 0.9 0.94 RG 1 w');
+  commands.push(`40 ${currentY - 142} 515 142 re s`);
+
+  const salesRows = [
+    { label: 'Total Completed Bills', val: `${billsCount}`, bold: false },
+    { label: 'GROSS SALES TOTAL', val: grossSales, bold: true, highlight: true },
+    { label: 'Cash Sales Collected', val: cashSales, bold: false },
+    { label: 'Card / Debit / Credit Sales', val: cardSales, bold: false },
+    { label: 'UPI / QR / Online Sales', val: upiSales, bold: false },
+    { label: 'Store Credit / Other Sales', val: creditOtherSales, bold: false },
+    { label: 'Total Discounts Given', val: totalDiscounts, bold: false },
+    { label: 'Total Taxes / GST Applicable', val: totalTax, bold: false },
+  ];
+
+  let sRowY = currentY - 16;
+  salesRows.forEach((r, idx) => {
+    if (r.highlight) {
+      commands.push('0.92 0.95 0.99 rg');
+      commands.push(`41 ${sRowY - 4} 513 16 re f`);
+      commands.push('0.12 0.23 0.54 rg');
+      commands.push(`BT /F2 8.5 Tf 52 ${sRowY} Td (${r.label}) Tj ET`);
+      commands.push(`BT /F2 9 Tf 460 ${sRowY} Td (${r.val}) Tj ET`);
+    } else {
+      commands.push('0.25 0.3 0.4 rg');
+      commands.push(`BT /F1 8.5 Tf 52 ${sRowY} Td (${r.label}) Tj ET`);
+      commands.push(`BT /F1 8.5 Tf 460 ${sRowY} Td (${r.val}) Tj ET`);
+    }
+
+    if (idx < salesRows.length - 1) {
+      commands.push('0.9 0.92 0.95 RG 0.5 w');
+      commands.push(`45 ${sRowY - 5} m 550 ${sRowY - 5} l S`);
+    }
+    sRowY -= 17;
+  });
+
+  currentY -= 168;
+
+  // --- SECTION 2: DRAWER RECONCILIATION ---
+  commands.push('0.12 0.23 0.54 rg');
+  commands.push(`BT /F2 11 Tf 40 ${currentY} Td (2. DRAWER CASH RECONCILIATION) Tj ET`);
+  currentY -= 12;
+
+  commands.push('0.96 0.97 0.99 rg');
+  commands.push(`40 ${currentY - 148} 515 148 re f`);
+  commands.push('0.88 0.9 0.94 RG 1 w');
+  commands.push(`40 ${currentY - 148} 515 148 re s`);
+
+  const drawerRows = [
+    { label: 'Opening Cash Float', val: openingFloat, color: '0.3 0.35 0.45 rg', font: '/F1' },
+    { label: 'Cash Sales (Drawer Addition)', val: cashSalesPlus, color: '0.08 0.5 0.25 rg', font: '/F2' },
+    { label: 'Manual Cash In (Petty/Change Addition)', val: cashIn, color: '0.08 0.5 0.25 rg', font: '/F2' },
+    { label: 'Manual Cash Out (Vendor/Expense Paid)', val: cashOut, color: '0.8 0.45 0.1 rg', font: '/F2' },
+    { label: 'EXPECTED CASH IN DRAWER', val: expectedCash, color: '0.1 0.15 0.28 rg', font: '/F2', bg: true },
+    { label: 'ACTUAL PHYSICAL CASH COUNTED', val: actualCash, color: '0.12 0.23 0.54 rg', font: '/F2', bg: true },
+    {
+      label: 'VARIANCE (OVER / SHORT)',
+      val: `${varianceStr} ${varianceNum === 0 ? '(Balanced)' : varianceNum > 0 ? '(Over)' : '(Short)'}`,
+      color: varianceNum < 0 ? '0.8 0.15 0.15 rg' : '0.08 0.5 0.25 rg',
+      font: '/F2',
+      bg: true,
+    },
+  ];
+
+  let dRowY = currentY - 16;
+  drawerRows.forEach((r, idx) => {
+    if (r.bg) {
+      commands.push(idx === 6 ? (varianceNum < 0 ? '0.99 0.94 0.94 rg' : '0.92 0.98 0.94 rg') : '0.92 0.94 0.97 rg');
+      commands.push(`41 ${dRowY - 4} 513 17 re f`);
+    }
+
+    commands.push(r.color);
+    commands.push(`BT ${r.font} 8.5 Tf 52 ${dRowY} Td (${r.label}) Tj ET`);
+    commands.push(`BT ${r.font} 9 Tf 430 ${dRowY} Td (${r.val}) Tj ET`);
+
+    if (idx < drawerRows.length - 1) {
+      commands.push('0.9 0.92 0.95 RG 0.5 w');
+      commands.push(`45 ${dRowY - 5} m 550 ${dRowY - 5} l S`);
+    }
+    dRowY -= 19;
+  });
+
+  currentY -= 175;
+
+  // --- CLOSING NOTES (IF ANY) ---
+  if (shift.closing_notes) {
+    const notesStr = sanitizeText(shift.closing_notes, 90);
+    commands.push('0.12 0.23 0.54 rg');
+    commands.push(`BT /F2 9.5 Tf 40 ${currentY} Td (3. CASHIER / CLOSING NOTES) Tj ET`);
+    currentY -= 10;
+
+    commands.push('0.98 0.98 0.99 rg');
+    commands.push(`40 ${currentY - 24} 515 24 re f`);
+    commands.push('0.88 0.9 0.94 RG 0.8 w');
+    commands.push(`40 ${currentY - 24} 515 24 re s`);
+
+    commands.push('0.3 0.35 0.45 rg');
+    commands.push(`BT /F1 8 Tf 50 ${currentY - 15} Td (Note: ${notesStr}) Tj ET`);
+    currentY -= 35;
+  }
+
+  // --- FOOTER ---
+  const footerY = 45;
+  commands.push('0.85 0.65 0.13 RG 1 w');
+  commands.push(`40 ${footerY + 22} m 555 ${footerY + 22} l S`);
+
+  commands.push('0.4 0.45 0.55 rg');
+  commands.push(`BT /F2 8 Tf 220 ${footerY + 10} Td (*** END OF SHIFT REPORT ***) Tj ET`);
+  commands.push(`BT /F1 7.5 Tf 145 ${footerY - 2} Td (Generated by Glowy Saloon OS  .  Confidential Management Document  .  Page 1 of 1) Tj ET`);
+
+  const streamContent = commands.join('\n');
+  const streamLength = Buffer.byteLength(streamContent);
+
+  const pdfParts = [];
+  pdfParts.push('%PDF-1.4\n');
+
+  const offsets = [0];
+
+  function addObj(str) {
+    offsets.push(pdfParts.reduce((acc, p) => acc + Buffer.byteLength(p), 0));
+    pdfParts.push(str);
+  }
+
+  addObj('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+  addObj('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
+  addObj(
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>\nendobj\n'
+  );
+  addObj('4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n');
+  addObj('5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n');
+  addObj(`6 0 obj\n<< /Length ${streamLength} >>\nstream\n${streamContent}\nendstream\nendobj\n`);
+
+  const xrefOffset = pdfParts.reduce((acc, p) => acc + Buffer.byteLength(p), 0);
+  pdfParts.push(`xref\n0 7\n0000000000 65535 f \n`);
+  for (let i = 1; i <= 6; i++) {
+    pdfParts.push(String(offsets[i]).padStart(10, '0') + ' 00000 n \n');
+  }
+  pdfParts.push(`trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
+
+  return Buffer.from(pdfParts.join(''));
+}
+
 module.exports = {
   generateInvoicePDFBuffer,
   generateReportPDFBuffer,
+  generateZReportPDFBuffer,
 };
+
 

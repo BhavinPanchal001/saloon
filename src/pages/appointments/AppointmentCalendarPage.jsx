@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -15,6 +15,7 @@ import {
   Check,
   Filter,
   Edit2,
+  Search,
 } from "lucide-react";
 import {
   fetchAppointmentsAPI,
@@ -31,10 +32,19 @@ import { useAuthStore } from "../../stores/authStore";
 
 export function AppointmentCalendarPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryDate = searchParams.get("date");
+  const queryOutletId = searchParams.get("outletId");
+  const queryAppointmentId = searchParams.get("appointmentId");
+  const querySearch = searchParams.get("search");
+
   const user = useAuthStore((state) => state.user);
   const [outlets, setOutlets] = useState([]);
-  const [selectedOutlet, setSelectedOutlet] = useState(user?.outlet_id || "");
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedOutlet, setSelectedOutlet] = useState(queryOutletId || user?.outlet_id || "");
+  const [selectedDate, setSelectedDate] = useState(queryDate || new Date().toISOString().split("T")[0]);
+  const [searchTerm, setSearchTerm] = useState(querySearch || "");
+  const [highlightedAppointmentId, setHighlightedAppointmentId] = useState(queryAppointmentId ? Number(queryAppointmentId) : null);
+  const [otherDatesMatch, setOtherDatesMatch] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [appointments, setAppointments] = useState([]);
   const [services, setServices] = useState([]);
@@ -75,6 +85,19 @@ export function AppointmentCalendarPage() {
     }
   };
 
+  // Sync with URL query parameter changes
+  useEffect(() => {
+    const qDate = searchParams.get("date");
+    const qOutlet = searchParams.get("outletId");
+    const qAppt = searchParams.get("appointmentId");
+    const qSearch = searchParams.get("search");
+
+    if (qDate && qDate !== selectedDate) setSelectedDate(qDate);
+    if (qOutlet && String(qOutlet) !== String(selectedOutlet)) setSelectedOutlet(qOutlet);
+    if (qAppt) setHighlightedAppointmentId(Number(qAppt));
+    if (qSearch !== null && qSearch !== searchTerm) setSearchTerm(qSearch);
+  }, [searchParams]);
+
   useEffect(() => {
     const initData = async () => {
       try {
@@ -85,7 +108,7 @@ export function AppointmentCalendarPage() {
         ]);
         setOutlets(outletsRes || []);
         if (outletsRes?.length > 0) {
-          const defaultOutlet = selectedOutlet || user?.outlet_id || outletsRes[0].id;
+          const defaultOutlet = queryOutletId || selectedOutlet || user?.outlet_id || outletsRes[0].id;
           setSelectedOutlet(defaultOutlet);
           setFormData((prev) => ({ ...prev, outletId: defaultOutlet }));
         }
@@ -101,9 +124,29 @@ export function AppointmentCalendarPage() {
   const loadAppointments = async () => {
     if (!selectedOutlet) return;
     setLoading(true);
+    setOtherDatesMatch(null);
     try {
-      const data = await fetchAppointmentsAPI({ outletId: selectedOutlet, date: selectedDate });
+      const params = { outletId: selectedOutlet, date: selectedDate };
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim();
+      }
+      const data = await fetchAppointmentsAPI(params);
       setAppointments(data || []);
+
+      // If no appointments on selected date, but searchTerm is provided, check if client has appointments on other dates
+      if ((!data || data.length === 0) && searchTerm.trim()) {
+        try {
+          const allDatesData = await fetchAppointmentsAPI({
+            outletId: selectedOutlet,
+            search: searchTerm.trim(),
+          });
+          if (allDatesData && allDatesData.length > 0) {
+            setOtherDatesMatch(allDatesData[0]);
+          }
+        } catch {
+          // ignore
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -113,7 +156,19 @@ export function AppointmentCalendarPage() {
 
   useEffect(() => {
     loadAppointments();
-  }, [selectedOutlet, selectedDate]);
+  }, [selectedOutlet, selectedDate, searchTerm]);
+
+  // Smooth scroll to highlighted appointment if present
+  useEffect(() => {
+    if (highlightedAppointmentId && appointments.length > 0) {
+      setTimeout(() => {
+        const el = document.getElementById(`appointment-${highlightedAppointmentId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 300);
+    }
+  }, [highlightedAppointmentId, appointments]);
 
   // Filter staff by selected outlet
   const filteredStaff = useMemo(() => {
@@ -278,9 +333,21 @@ export function AppointmentCalendarPage() {
   };
 
   const filteredAppointments = useMemo(() => {
-    if (statusFilter === "all") return appointments;
-    return appointments.filter((a) => a.status === statusFilter);
-  }, [appointments, statusFilter]);
+    let result = appointments;
+    if (statusFilter !== "all") {
+      result = result.filter((a) => a.status === statusFilter);
+    }
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      result = result.filter(
+        (a) =>
+          (a.customer_name && a.customer_name.toLowerCase().includes(q)) ||
+          (a.customer_phone && a.customer_phone.toLowerCase().includes(q)) ||
+          (a.service?.service_name && a.service.service_name.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [appointments, statusFilter, searchTerm]);
 
   const requestedCount = useMemo(
     () => appointments.filter((a) => a.status === "requested").length,
@@ -333,9 +400,38 @@ export function AppointmentCalendarPage() {
             <input
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(e) => {
+                setSelectedDate(e.target.value);
+                setHighlightedAppointmentId(null);
+              }}
               className="px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:border-indigo-500"
             />
+          </div>
+
+          {/* Search Filter by Client Name/Phone */}
+          <div className="min-w-[200px] flex-1 max-w-xs">
+            <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+              Search Client
+            </label>
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Name or phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:border-indigo-500"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -364,6 +460,29 @@ export function AppointmentCalendarPage() {
         </div>
       </div>
 
+      {/* Suggested Appointment on Another Date Banner */}
+      {otherDatesMatch && (
+        <div className="flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl p-4 text-sm text-indigo-950 shadow-xs animate-fade-in">
+          <div className="flex items-center gap-3 min-w-0">
+            <CalendarIcon className="w-5 h-5 text-indigo-600 shrink-0" />
+            <span className="truncate">
+              Found booking for <strong>{otherDatesMatch.customer_name}</strong> on{" "}
+              <strong>{otherDatesMatch.appointment_date}</strong> (current view is {selectedDate}).
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedDate(otherDatesMatch.appointment_date);
+              setHighlightedAppointmentId(otherDatesMatch.id);
+            }}
+            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs transition-colors shrink-0 shadow-xs"
+          >
+            Switch to {otherDatesMatch.appointment_date}
+          </button>
+        </div>
+      )}
+
       {/* Appointment Grid */}
       {loading ? (
         <div className="text-center py-12 text-slate-400 font-medium">Loading appointments...</div>
@@ -372,25 +491,48 @@ export function AppointmentCalendarPage() {
           <CalendarIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="text-lg font-bold text-slate-700">No Appointments Found</h3>
           <p className="text-slate-400 text-sm mt-1">
-            There are no bookings matching the selected date, outlet, and status.
+            There are no bookings matching the selected date, outlet, and filters.
           </p>
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm("")}
+              className="mt-3 text-xs text-indigo-600 font-semibold hover:underline"
+            >
+              Clear Search Filter
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredAppointments.map((apt) => (
+          {filteredAppointments.map((apt) => {
+            const isHighlighted = highlightedAppointmentId === apt.id;
+            return (
             <div
               key={apt.id}
-              className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow"
+              id={`appointment-${apt.id}`}
+              className={`bg-white rounded-2xl p-5 shadow-sm border flex flex-col justify-between space-y-4 transition-all ${
+                isHighlighted
+                  ? "ring-2 ring-indigo-600 border-indigo-300 shadow-md bg-indigo-50/20"
+                  : "border-slate-100 hover:shadow-md"
+              }`}
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-xs font-bold border uppercase tracking-wider ${getStatusColor(
-                      apt.status
-                    )}`}
-                  >
-                    {apt.status.replace("_", " ")}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold border uppercase tracking-wider ${getStatusColor(
+                        apt.status
+                      )}`}
+                    >
+                      {apt.status.replace("_", " ")}
+                    </span>
+                    {isHighlighted && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-600 text-white uppercase tracking-wider animate-pulse">
+                        Selected
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1 text-slate-700 font-semibold text-sm">
                     <Clock className="w-4 h-4 text-indigo-500" />
                     <span>{apt.start_time}</span>
@@ -498,7 +640,8 @@ export function AppointmentCalendarPage() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

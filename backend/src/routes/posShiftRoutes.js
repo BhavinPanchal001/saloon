@@ -16,6 +16,7 @@ router.put('/shifts/:id', authenticateToken, posShiftController.updateActiveShif
 router.post('/shifts/:id/cash-movement', authenticateToken, posShiftController.addCashMovement);
 router.get('/shifts/:id/x-report', authenticateToken, posShiftController.getXReport);
 router.post('/shifts/:id/close', authenticateToken, posShiftController.closeShift);
+router.post('/shifts/:id/send-whatsapp', authenticateToken, posShiftController.sendZReportWhatsApp);
 router.get('/shifts/history', authenticateToken, posShiftController.getShiftHistory);
 
 module.exports = router;

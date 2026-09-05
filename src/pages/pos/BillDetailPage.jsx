@@ -346,6 +346,30 @@ export default function BillDetailPage() {
                 </div>
               </div>
             )}
+            {Number(bill.voucherDiscountAmount || 0) > 0 && (
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Voucher</p>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="font-bold text-gold-400">−{formatCurrency(bill.voucherDiscountAmount)}</span>
+                  {bill.voucherCode && (
+                    <span className="rounded bg-amber-400/20 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-300 border border-amber-400/30 uppercase tracking-wider">
+                      {bill.voucherCode}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            {(bill.awardedVoucherCode || bill.awarded_voucher_code) && (
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Awarded Next-Visit Voucher</p>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="font-bold text-emerald-300">+{formatCurrency(bill.awardedVoucherAmount || bill.awarded_voucher_amount || 0)}</span>
+                  <span className="rounded bg-emerald-400/20 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-300 border border-emerald-400/30 uppercase tracking-wider">
+                    {bill.awardedVoucherCode || bill.awarded_voucher_code}
+                  </span>
+                </div>
+              </div>
+            )}
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Tax (8%)</p>
               <p className="mt-1 font-bold">{formatCurrency(bill.tax)}</p>

@@ -78,6 +78,30 @@ const Bill = sequelize.define('Bill', {
     type: DataTypes.STRING(50),
     allowNull: true,
   },
+  voucher_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+  },
+  voucher_code: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
+  voucher_discount_amount: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0,
+  },
+  awarded_voucher_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+  },
+  awarded_voucher_code: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
+  awarded_voucher_amount: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0,
+  },
   points_earned: {
     type: DataTypes.INTEGER,
     defaultValue: 0,

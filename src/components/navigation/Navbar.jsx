@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { LogOut, Menu, Sparkles, Bell, Settings, User } from "lucide-react";
+import { LogOut, Menu, Sparkles, Bell, Settings, User, Search } from "lucide-react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
+import { useSearchStore } from "../../stores/searchStore";
 import { ConfirmModal } from "../ui/Modal";
 import { fetchOutletsFromAPI, fetchNotificationsAPI } from "../../services/api";
 
@@ -45,6 +46,7 @@ export function Navbar({ onOpenSidebar }) {
   const [outletName, setOutletName] = useState("");
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const openSearch = useSearchStore((state) => state.openSearch);
 
   useEffect(() => {
     const loadUnreadCount = async () => {
@@ -124,6 +126,30 @@ export function Navbar({ onOpenSidebar }) {
                 Salon OS
               </div>
             </div>
+          </div>
+
+          {/* Global Search Bar Trigger */}
+          <div className="flex-1 max-w-md mx-2 sm:mx-6">
+            <button
+              type="button"
+              onClick={() => openSearch()}
+              className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-3.5 py-2 text-left shadow-xs transition-all hover:border-gold-400 hover:bg-white hover:shadow-sm"
+              aria-label="Open global search"
+            >
+              <div className="flex items-center gap-2.5 text-slate-400 group-hover:text-slate-600 min-w-0">
+                <Search size={16} className="text-gold-600 group-hover:text-gold-700 shrink-0" />
+                <span className="text-xs font-medium text-slate-500 group-hover:text-slate-700 truncate hidden sm:inline">
+                  Search customers, services, bills, staff...
+                </span>
+                <span className="text-xs font-medium text-slate-500 sm:hidden">
+                  Search...
+                </span>
+              </div>
+              <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 group-hover:border-gold-300 group-hover:text-gold-700 transition-colors shrink-0">
+                <span>Ctrl</span>
+                <span>K</span>
+              </kbd>
+            </button>
           </div>
 
           <div className="flex items-center gap-3">

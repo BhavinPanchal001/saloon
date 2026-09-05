@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
-import { Building2, Phone, Mail, Globe, FileText, Receipt, Save, Sparkles, Check, MapPin, Hash, DollarSign } from "lucide-react";
-import { fetchBusinessSettingsAPI, saveBusinessSettingsAPI, DEFAULT_BUSINESS_INFO } from "../../services/api";
+import { Building2, Phone, Mail, Globe, FileText, Receipt, Save, Sparkles, Check, MapPin, Hash, DollarSign, Upload, Trash2, Image as ImageIcon } from "lucide-react";
+import { fetchBusinessSettingsAPI, saveBusinessSettingsAPI, uploadBusinessLogoAPI, DEFAULT_BUSINESS_INFO } from "../../services/api";
+import { getFullImageUrl } from "../../utils/companyInfo";
 import { useToastStore } from "../../stores/toastStore";
 
 export function BusinessInfoTab() {
   const toast = useToastStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [formData, setFormData] = useState(DEFAULT_BUSINESS_INFO);
 
   useEffect(() => {
@@ -32,6 +34,48 @@ export function BusinessInfoTab() {
       ...prev,
       [field]: value,
     }));
+  };
+
+  const handleLogoFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload a valid image file (PNG, JPG, WebP, SVG)");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image file size must be less than 5MB");
+      return;
+    }
+
+    // Instant local preview
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      handleChange("logoUrl", event.target?.result);
+    };
+    reader.readAsDataURL(file);
+
+    setUploadingLogo(true);
+    try {
+      const res = await uploadBusinessLogoAPI(file);
+      if (res?.data?.logoUrl) {
+        handleChange("logoUrl", res.data.logoUrl);
+        toast.success("Logo uploaded successfully! Preview updated.");
+      }
+    } catch (err) {
+      console.error("Upload logo failed:", err);
+      toast.error("Could not upload logo to server, but preview saved locally.");
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    handleChange("logoUrl", "");
+    toast.success("Logo removed. Receipts will print text header.");
   };
 
   const handleSubmit = async (e) => {
@@ -91,6 +135,107 @@ export function BusinessInfoTab() {
         {/* ─── Left Column: Input Form (7 cols) ─── */}
         <div className="lg:col-span-7 space-y-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Salon Logo & Thermal Receipt Branding Card */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4 text-indigo-600" /> Salon Logo & Receipt Branding
+                </h3>
+                {formData.logoUrl && (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
+                    <Check className="h-3 w-3" /> Logo Active
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
+                {/* Current Logo Preview */}
+                <div className="sm:col-span-4 flex flex-col items-center justify-center p-3 rounded-2xl border border-slate-200/80 bg-slate-50/70 text-center min-h-[140px] relative group">
+                  {formData.logoUrl ? (
+                    <div className="space-y-2 flex flex-col items-center">
+                      <div className="h-20 w-full flex items-center justify-center bg-white rounded-xl p-2 border border-slate-200 shadow-sm overflow-hidden">
+                        <img
+                          src={getFullImageUrl(formData.logoUrl)}
+                          alt="Salon Logo"
+                          className="max-h-full max-w-full object-contain filter grayscale contrast-125"
+                        />
+                      </div>
+                      <span className="text-[10px] font-medium text-slate-500">Thermal receipt preview</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-400 p-3">
+                      <div className="h-12 w-12 rounded-xl bg-slate-100 flex items-center justify-center mb-2 border border-slate-200/60">
+                        <ImageIcon className="h-6 w-6 text-slate-300" />
+                      </div>
+                      <span className="text-[11px] font-semibold text-slate-500">No logo uploaded</span>
+                      <span className="text-[9.5px] text-slate-400">Default text header used</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload Actions & Controls */}
+                <div className="sm:col-span-8 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <label className={`cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-98 transition shadow-sm ${uploadingLogo ? 'opacity-70 pointer-events-none' : ''}`}>
+                      {uploadingLogo ? (
+                        <>
+                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                          <span>Uploading Logo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-3.5 w-3.5" />
+                          <span>{formData.logoUrl ? "Replace Logo" : "Upload Salon Logo"}</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                        onChange={handleLogoFileSelect}
+                        disabled={uploadingLogo}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {formData.logoUrl && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveLogo}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Remove Logo
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-slate-600 font-medium">
+                      Supported: <span className="font-semibold text-slate-700">PNG, JPG, WebP, SVG</span> (Max 5MB).
+                    </p>
+                    <p className="text-[10.5px] text-slate-400 leading-normal">
+                      💡 <span className="font-semibold text-slate-600">Tip for Thermal Printers:</span> Transparent PNG logos with solid black outlines/graphics print clearest on 80mm & 58mm thermal heat rolls.
+                    </p>
+                  </div>
+
+                  {/* Show Logo on Receipt Toggle */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <label className="text-xs font-bold text-navy-800 flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={formData.showLogoOnReceipt !== false}
+                        onChange={(e) => handleChange("showLogoOnReceipt", e.target.checked)}
+                        className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                      />
+                      Print Logo on POS Thermal Receipt
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {formData.showLogoOnReceipt !== false ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Brand Identity Card */}
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm space-y-4">
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
@@ -182,6 +327,24 @@ export function BusinessInfoTab() {
                       onChange={(e) => handleChange("phone", e.target.value)}
                       placeholder="e.g. +60 3-2282 1234 / +60 12-345 6789"
                       className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-navy-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-emerald-600" /> Owner WhatsApp Number
+                      </span>
+                      <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                        Shift Z-Reports
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.ownerPhone || ""}
+                      onChange={(e) => handleChange("ownerPhone", e.target.value)}
+                      placeholder="e.g. +60123456789 (receives shift Z-reports)"
+                      className="w-full rounded-xl border border-emerald-200 px-3.5 py-2.5 text-xs font-medium text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 bg-emerald-50/20"
                     />
                   </div>
 
@@ -301,6 +464,15 @@ export function BusinessInfoTab() {
               >
                 {/* Header */}
                 <div className="text-center pb-1 space-y-0.5">
+                  {formData.logoUrl && formData.showLogoOnReceipt !== false && (
+                    <div className="flex justify-center pb-1.5">
+                      <img
+                        src={getFullImageUrl(formData.logoUrl)}
+                        alt="Salon Logo Preview"
+                        className="max-h-12 max-w-[140px] object-contain filter grayscale contrast-125"
+                      />
+                    </div>
+                  )}
                   <h4 className="text-sm font-black tracking-widest uppercase">
                     {formData.name || "GLOWY"}
                   </h4>

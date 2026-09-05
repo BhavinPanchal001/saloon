@@ -1,17 +1,31 @@
 import React, { useState, useEffect } from "react";
-import { Users, Search, Plus, Phone, Mail, Award, DollarSign, Calendar, Eye, Edit2, Trash2, Wallet } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Users, Search, Plus, Phone, Mail, Award, DollarSign, Calendar, Eye, Edit2, Trash2, Wallet, Ticket, MessageCircle } from "lucide-react";
 import { fetchCustomersAPI, createCustomerAPI, updateCustomerAPI, deleteCustomerAPI } from "../../services/api";
 import { CustomerLedgerModal } from "../../components/customers/CustomerLedgerModal";
 import { CustomerLoyaltyModal } from "../../components/customers/CustomerLoyaltyModal";
+import { CustomerVouchersModal } from "../../components/customers/CustomerVouchersModal";
+import { WhatsAppReminderModal } from "../../components/customers/WhatsAppReminderModal";
 
 export function CustomerListPage() {
+  const [searchParams] = useSearchParams();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
+
+  useEffect(() => {
+    const urlSearch = searchParams.get("search");
+    if (urlSearch !== null && urlSearch !== searchTerm) {
+      setSearchTerm(urlSearch);
+    }
+  }, [searchParams]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState(null);
   const [selectedLedgerCustomer, setSelectedLedgerCustomer] = useState(null);
   const [selectedLoyaltyCustomer, setSelectedLoyaltyCustomer] = useState(null);
+  const [selectedVoucherCustomer, setSelectedVoucherCustomer] = useState(null);
+  const [selectedReminderCustomer, setSelectedReminderCustomer] = useState(null);
+  const [dueFilter, setDueFilter] = useState("all"); // "all" | "dues"
 
   const [formData, setFormData] = useState({
     name: "",
@@ -125,15 +139,50 @@ export function CustomerListPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center gap-3">
-        <Search className="w-5 h-5 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Search by name, phone, or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-transparent outline-none text-slate-700 placeholder-slate-400 text-sm"
-        />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="bg-white p-3 px-4 rounded-xl shadow-sm border border-slate-100 flex items-center gap-3 flex-1">
+          <Search className="w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by name, phone, or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-transparent outline-none text-slate-700 placeholder-slate-400 text-sm"
+          />
+        </div>
+
+        {/* Filter Tabs: All vs Pending Dues */}
+        <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-xl shadow-sm border border-slate-100 self-start md:self-auto text-xs font-bold">
+          <button
+            onClick={() => setDueFilter("all")}
+            className={`px-3.5 py-2 rounded-lg transition-all ${
+              dueFilter === "all"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            }`}
+          >
+            All Customers ({customers.length})
+          </button>
+          <button
+            onClick={() => setDueFilter("dues")}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg transition-all ${
+              dueFilter === "dues"
+                ? "bg-rose-600 text-white shadow-xs"
+                : "text-rose-600 hover:bg-rose-50"
+            }`}
+          >
+            <span>Pending Dues</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                dueFilter === "dues"
+                  ? "bg-white text-rose-600"
+                  : "bg-rose-100 text-rose-700"
+              }`}
+            >
+              {customers.filter((c) => Number(c.credit_balance || 0) < 0).length}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Customer Grid / Table */}
@@ -144,6 +193,12 @@ export function CustomerListPage() {
           <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="text-lg font-bold text-slate-700">No Customers Found</h3>
           <p className="text-slate-400 text-sm mt-1">Get started by creating your first client profile.</p>
+        </div>
+      ) : customers.filter((c) => dueFilter !== "dues" || Number(c.credit_balance || 0) < 0).length === 0 ? (
+        <div className="bg-white p-12 rounded-2xl text-center border border-slate-100">
+          <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+          <h3 className="text-lg font-bold text-slate-700">No Pending Dues</h3>
+          <p className="text-slate-400 text-sm mt-1">All customers currently have zero outstanding bills!</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -162,7 +217,9 @@ export function CustomerListPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {customers.map((c) => (
+                {customers
+                  .filter((c) => dueFilter !== "dues" || Number(c.credit_balance || 0) < 0)
+                  .map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-6 py-4 font-semibold text-slate-800">
                       <div className="flex items-center gap-2">
@@ -217,9 +274,15 @@ export function CustomerListPage() {
                           +₹{Number(c.credit_balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })} Credit
                         </span>
                       ) : Number(c.credit_balance || 0) < 0 ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 font-bold text-xs border border-rose-200">
-                          -₹{Math.abs(Number(c.credit_balance)).toLocaleString("en-IN", { minimumFractionDigits: 2 })} Due
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedReminderCustomer(c)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-all shadow-2xs group"
+                          title="Click to send WhatsApp payment reminder"
+                        >
+                          <span>-₹{Math.abs(Number(c.credit_balance)).toLocaleString("en-IN", { minimumFractionDigits: 2 })} Due</span>
+                          <MessageCircle className="w-3.5 h-3.5 text-rose-500 group-hover:text-emerald-600 transition-colors" />
+                        </button>
                       ) : (
                         <span className="text-xs font-semibold text-slate-400">₹0.00</span>
                       )}
@@ -227,11 +290,34 @@ export function CustomerListPage() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
+                          type="button"
+                          onClick={() => setSelectedReminderCustomer(c)}
+                          className={`p-2 rounded-lg transition-all ${
+                            Number(c.credit_balance || 0) < 0
+                              ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 shadow-2xs"
+                              : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
+                          }`}
+                          title={
+                            Number(c.credit_balance || 0) < 0
+                              ? "Send WhatsApp Pending Bill Reminder"
+                              : "Send WhatsApp Reminder"
+                          }
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => setSelectedLoyaltyCustomer(c)}
                           className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                           title="Loyalty Points & History"
                         >
                           <Award className="w-4 h-4 text-amber-500" />
+                        </button>
+                        <button
+                          onClick={() => setSelectedVoucherCustomer(c)}
+                          className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                          title="Customer Vouchers & Gift Cards"
+                        >
+                          <Ticket className="w-4 h-4 text-amber-600" />
                         </button>
                         <button
                           onClick={() => setSelectedLedgerCustomer(c)}
@@ -368,6 +454,28 @@ export function CustomerListPage() {
           customerId={selectedLoyaltyCustomer.id}
           onClose={() => setSelectedLoyaltyCustomer(null)}
           onCustomerUpdated={() => {
+            loadCustomers();
+          }}
+        />
+      )}
+
+      {/* Customer Vouchers Modal */}
+      {selectedVoucherCustomer && (
+        <CustomerVouchersModal
+          customer={selectedVoucherCustomer}
+          onClose={() => setSelectedVoucherCustomer(null)}
+          onVoucherIssued={() => {
+            loadCustomers();
+          }}
+        />
+      )}
+
+      {/* WhatsApp Payment Reminder Modal */}
+      {selectedReminderCustomer && (
+        <WhatsAppReminderModal
+          customer={selectedReminderCustomer}
+          onClose={() => setSelectedReminderCustomer(null)}
+          onSent={() => {
             loadCustomers();
           }}
         />
