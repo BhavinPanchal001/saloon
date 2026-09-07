@@ -73,7 +73,7 @@ const globalSearch = async (req, res) => {
               category: 'customers',
               badge: c.loyaltyTier?.name || null,
               badgeColor: c.loyaltyTier?.badge_color || null,
-              url: `/customers?search=${encodeURIComponent(c.phone || c.name || '')}`,
+              url: `/customers?search=${encodeURIComponent(c.name || c.phone || '')}&customerId=${c.id}`,
               metadata: {
                 phone: c.phone,
                 email: c.email,
@@ -175,7 +175,7 @@ const globalSearch = async (req, res) => {
       tasks.push(
         Bill.findAll({
           where: billWhere,
-          attributes: ['id', 'bill_number', 'customer_name', 'customer_phone', 'grand_total', 'payment_method', 'createdAt', 'outlet_id'],
+          attributes: ['id', 'bill_number', 'customer_name', 'customer_phone', 'total', 'payment_method', 'createdAt', 'outlet_id'],
           limit,
           order: [['createdAt', 'DESC']],
         })
@@ -186,11 +186,11 @@ const globalSearch = async (req, res) => {
               title: b.bill_number || `Bill #${b.id}`,
               subtitle: `${b.customer_name || 'Walk-in'} • ${b.payment_method || 'Unpaid'}`,
               category: 'bills',
-              badge: `₹${Number(b.grand_total || 0).toLocaleString('en-IN')}`,
+              badge: `₹${Number(b.total || 0).toLocaleString('en-IN')}`,
               badgeColor: 'amber',
               url: `/pos/bills/${b.id}`,
               metadata: {
-                grandTotal: b.grand_total,
+                grandTotal: b.total,
                 date: b.createdAt,
                 customerPhone: b.customer_phone,
               },
@@ -213,11 +213,12 @@ const globalSearch = async (req, res) => {
               { last_name: { [Op.like]: searchPattern } },
               { phone: { [Op.like]: searchPattern } },
               { employee_code: { [Op.like]: searchPattern } },
+              { email: { [Op.like]: searchPattern } },
               { personal_email: { [Op.like]: searchPattern } },
             ],
           },
           include: [{ model: Role, as: 'role', attributes: ['id', 'name'] }],
-          attributes: ['id', 'first_name', 'last_name', 'phone', 'employee_code', 'personal_email'],
+          attributes: ['id', 'first_name', 'last_name', 'phone', 'employee_code', 'email', 'personal_email'],
           limit,
           order: [['first_name', 'ASC']],
         })
@@ -235,7 +236,7 @@ const globalSearch = async (req, res) => {
                 url: `/staff/${st.id}`,
                 metadata: {
                   phone: st.phone,
-                  email: st.personal_email,
+                  email: st.email || st.personal_email,
                   code: st.employee_code,
                 },
               };

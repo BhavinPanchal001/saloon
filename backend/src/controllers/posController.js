@@ -918,7 +918,12 @@ const checkout = async (req, res) => {
     const shouldSendWhatsApp = req.body.sendWhatsApp !== undefined ? Boolean(req.body.sendWhatsApp) : true;
     if (shouldSendWhatsApp) {
       try {
-        const waResult = await sendBillWhatsAppReceipt(response);
+        const waFormat = req.body.printTemplate || req.body.format || 'thermal';
+        const waPaperWidth = req.body.paperWidth || 48;
+        const waResult = await sendBillWhatsAppReceipt(response, {
+          format: waFormat,
+          paperWidth: waPaperWidth,
+        });
         response.whatsapp = waResult;
       } catch (waErr) {
         console.warn('[Checkout] WhatsApp receipt failed (non-blocking):', waErr.message);
@@ -1766,19 +1771,61 @@ const sendWhatsAppBill = async (req, res) => {
       discountType: bill.discount_type,
       discountValue: Number(bill.discount_value),
       discountAmount: Number(bill.discount_amount),
+      couponId: bill.coupon_id,
+      couponCode: bill.coupon_code,
+      voucherId: bill.voucher_id,
+      voucherCode: bill.voucher_code,
+      voucherDiscountAmount: Number(bill.voucher_discount_amount || 0),
+      awardedVoucherId: bill.awarded_voucher_id || null,
+      awardedVoucherCode: bill.awarded_voucher_code || null,
+      awardedVoucherAmount: Number(bill.awarded_voucher_amount || 0),
+      awarded_voucher_code: bill.awarded_voucher_code || null,
+      awarded_voucher_amount: Number(bill.awarded_voucher_amount || 0),
+      awardedVoucher: bill.awarded_voucher_code ? {
+        id: bill.awarded_voucher_id,
+        code: bill.awarded_voucher_code,
+        amount: Number(bill.awarded_voucher_amount || 0),
+      } : null,
+      pointsEarned: bill.points_earned,
+      pointsRedeemed: bill.points_redeemed,
+      pointsDiscountAmount: Number(bill.points_discount_amount || 0),
       tax: Number(bill.tax),
       total: Number(bill.total),
-      lineItems: bill.lineItems.map((li) => ({
+      lineItems: (bill.lineItems || []).map((li) => ({
         id: li.id,
         itemId: li.item_id,
         itemType: li.item_type,
         itemName: li.item_name,
         qty: li.qty,
         price: Number(li.price),
+        staffAssigned: li.staff_assigned,
+        staff_assigned: li.staff_assigned,
+        productConsumption: li.product_consumption,
+        product_consumption: li.product_consumption,
+        includedServices: li.included_services,
+      })),
+      payments: (bill.payments || []).map((p) => ({
+        id: p.id,
+        totalAmount: Number(p.total_amount),
+        status: p.status,
+        transactionReference: p.transaction_reference || '',
+        notes: p.notes || '',
+        paymentDate: p.payment_date,
+        details: (p.details || []).map((d) => ({
+          id: d.id,
+          paymentMode: d.payment_mode,
+          amount: Number(d.amount),
+          bankAccountId: d.bank_account_id || null,
+        })),
       })),
     };
 
-    const result = await sendBillWhatsAppReceipt(billData);
+    const waFormat = req.body?.format || 'thermal';
+    const waPaperWidth = req.body?.paperWidth || 48;
+    const result = await sendBillWhatsAppReceipt(billData, {
+      format: waFormat,
+      paperWidth: waPaperWidth,
+    });
 
     if (result.success) {
       return res.status(200).json({

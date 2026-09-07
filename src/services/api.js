@@ -654,10 +654,11 @@ export const printReceiptAPI = async (billId) => {
 };
 
 // Send WhatsApp receipt for a specific bill
-export const sendWhatsAppBillAPI = async (billId) => {
+export const sendWhatsAppBillAPI = async (billId, options = {}) => {
   const res = await fetch(`${API_BASE}/pos/bills/${billId}/send-whatsapp`, {
     method: "POST",
     headers: authHeaders(),
+    body: JSON.stringify(options),
   });
   return handleResponse(res);
 };
@@ -2252,6 +2253,23 @@ export const connectBaileysAPI = async () => {
 
 export const disconnectBaileysAPI = async () => {
   const res = await fetch(`${API_BASE}/whatsapp/baileys/disconnect`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const requestBaileysPairingCodeAPI = async (phoneNumber) => {
+  const res = await fetch(`${API_BASE}/whatsapp/baileys/pairing-code`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ phoneNumber }),
+  });
+  return handleResponse(res);
+};
+
+export const resetBaileysAPI = async () => {
+  const res = await fetch(`${API_BASE}/whatsapp/baileys/reset`, {
     method: "POST",
     headers: authHeaders(),
   });

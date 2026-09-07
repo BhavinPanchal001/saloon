@@ -77,7 +77,9 @@ export default function BillingListPage() {
   const handleWhatsAppSend = async (billId) => {
     setSendingWaId(billId);
     try {
-      const res = await sendWhatsAppBillAPI(billId);
+      const template = localStorage.getItem("glowy_print_template") || "thermal";
+      const paperWidth = localStorage.getItem("glowy_printer_paper_width") ? parseInt(localStorage.getItem("glowy_printer_paper_width"), 10) : 48;
+      const res = await sendWhatsAppBillAPI(billId, { format: template, paperWidth });
       toast.success(res.message || "WhatsApp receipt sent successfully!");
     } catch (err) {
       toast.error(err.message || "Failed to send WhatsApp message");

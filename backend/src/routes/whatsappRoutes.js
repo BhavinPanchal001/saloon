@@ -18,6 +18,12 @@ router.post('/baileys/connect', authenticate, requireAdmin, whatsappSettingsCont
 // POST /api/whatsapp/baileys/disconnect
 router.post('/baileys/disconnect', authenticate, requireAdmin, whatsappSettingsController.disconnectBaileys);
 
+// POST /api/whatsapp/baileys/pairing-code
+router.post('/baileys/pairing-code', authenticate, requireAdmin, whatsappSettingsController.requestPairingCode);
+
+// POST /api/whatsapp/baileys/reset
+router.post('/baileys/reset', authenticate, requireAdmin, whatsappSettingsController.resetBaileys);
+
 // POST /api/whatsapp/test-message
 router.post('/test-message', authenticate, requireAdmin, whatsappSettingsController.sendTestMessage);
 

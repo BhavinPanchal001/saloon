@@ -18,6 +18,9 @@ function sanitizeText(str, maxLength = 0) {
     .replace(/\)/g, '\\)');
 }
 
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
 const { getRuntimeBusinessInfo } = require('../controllers/businessSettingsController');
 
 const getCompanyInfo = () => {
@@ -29,8 +32,165 @@ const getCompanyInfo = () => {
     phone: biz.phone || "+60 12-345 6789",
     email: biz.email || "hello@glowy.my",
     gstin: biz.taxNumber || "",
+    taxNumber: biz.taxNumber || "",
+    logoUrl: biz.logoUrl || "",
+    showLogoOnReceipt: biz.showLogoOnReceipt !== false,
+    receiptFooter: biz.receiptFooter || "THANK YOU FOR VISITING! GLOW TO GO WITH GLOWY",
+    terms: biz.terms || "Services and products once rendered/sold are non-refundable. Computer generated invoice.",
   };
 };
+
+/**
+ * Native PNG / JPEG image decoder for pure JavaScript PDF image embedding (XObject).
+ */
+function decodePNG(buf) {
+  try {
+    let offset = 8;
+    let width, height, bitDepth, colorType;
+    const idats = [];
+    while (offset < buf.length) {
+      const len = buf.readUInt32BE(offset);
+      const type = buf.toString('ascii', offset + 4, offset + 8);
+      const data = buf.slice(offset + 8, offset + 8 + len);
+      if (type === 'IHDR') {
+        width = data.readUInt32BE(0);
+        height = data.readUInt32BE(4);
+        bitDepth = data[8];
+        colorType = data[9];
+      } else if (type === 'IDAT') {
+        idats.push(data);
+      }
+      offset += 12 + len;
+    }
+    if (!idats.length || !width || !height) return null;
+    const raw = zlib.inflateSync(Buffer.concat(idats));
+
+    const bpp = colorType === 6 ? 4 : colorType === 2 ? 3 : colorType === 0 ? 1 : 4;
+    const stride = width * bpp;
+    const uncompressed = Buffer.alloc(width * height * bpp);
+
+    let srcPos = 0;
+    let dstPos = 0;
+    for (let y = 0; y < height; y++) {
+      const filter = raw[srcPos++];
+      for (let x = 0; x < stride; x++) {
+        const b = raw[srcPos++];
+        let left = x >= bpp ? uncompressed[dstPos - bpp] : 0;
+        let up = y > 0 ? uncompressed[dstPos - stride] : 0;
+        let upLeft = (y > 0 && x >= bpp) ? uncompressed[dstPos - stride - bpp] : 0;
+        let val = b;
+        if (filter === 1) val = (val + left) & 0xff;
+        else if (filter === 2) val = (val + up) & 0xff;
+        else if (filter === 3) val = (val + Math.floor((left + up) / 2)) & 0xff;
+        else if (filter === 4) {
+          const p = left + up - upLeft;
+          const pa = Math.abs(p - left);
+          const pb = Math.abs(p - up);
+          const pc = Math.abs(p - upLeft);
+          let pr = left;
+          if (pb < pa && pb <= pc) pr = up;
+          else if (pc < pa) pr = upLeft;
+          val = (val + pr) & 0xff;
+        }
+        uncompressed[dstPos++] = val;
+      }
+    }
+
+    const rgb = Buffer.alloc(width * height * 3);
+    let p = 0;
+    for (let i = 0; i < width * height; i++) {
+      let r, g, b, a = 255;
+      if (colorType === 6) {
+        r = uncompressed[i * 4];
+        g = uncompressed[i * 4 + 1];
+        b = uncompressed[i * 4 + 2];
+        a = uncompressed[i * 4 + 3];
+      } else if (colorType === 2) {
+        r = uncompressed[i * 3];
+        g = uncompressed[i * 3 + 1];
+        b = uncompressed[i * 3 + 2];
+      } else {
+        r = g = b = uncompressed[i];
+      }
+      const alpha = a / 255;
+      rgb[p++] = Math.round(r * alpha + 255 * (1 - alpha));
+      rgb[p++] = Math.round(g * alpha + 255 * (1 - alpha));
+      rgb[p++] = Math.round(b * alpha + 255 * (1 - alpha));
+    }
+
+    return {
+      width,
+      height,
+      colorSpace: '/DeviceRGB',
+      filter: '/FlateDecode',
+      data: zlib.deflateSync(rgb),
+    };
+  } catch (err) {
+    console.warn('[PDF] Failed decoding PNG logo:', err.message);
+    return null;
+  }
+}
+
+function decodeJPEG(buf) {
+  try {
+    let offset = 2;
+    while (offset < buf.length) {
+      if (buf[offset] !== 0xFF) break;
+      const marker = buf[offset + 1];
+      if (marker === 0xD9 || marker === 0xDA) break;
+      const len = buf.readUInt16BE(offset + 2);
+      if (marker === 0xC0 || marker === 0xC1 || marker === 0xC2) {
+        const height = buf.readUInt16BE(offset + 5);
+        const width = buf.readUInt16BE(offset + 7);
+        const components = buf[offset + 9];
+        return {
+          width,
+          height,
+          colorSpace: components === 1 ? '/DeviceGray' : '/DeviceRGB',
+          filter: '/DCTDecode',
+          data: buf,
+        };
+      }
+      offset += 2 + len;
+    }
+  } catch (err) {
+    console.warn('[PDF] Failed decoding JPEG logo:', err.message);
+  }
+  return null;
+}
+
+let cachedLogoInfo = null;
+function getCachedLogo(logoUrl) {
+  if (!logoUrl) return null;
+  if (cachedLogoInfo && cachedLogoInfo.url === logoUrl) return cachedLogoInfo;
+
+  try {
+    let clean = String(logoUrl).trim();
+    clean = clean.replace(/^https?:\/\/[^\/]+/, '').replace(/^\/+/, '');
+    const backendDir = path.join(__dirname, '..', '..');
+    const absPath = path.join(backendDir, clean);
+
+    if (fs.existsSync(absPath)) {
+      const fileBuf = fs.readFileSync(absPath);
+      let decoded = null;
+      if (clean.toLowerCase().endsWith('.png')) {
+        decoded = decodePNG(fileBuf);
+      } else if (clean.toLowerCase().endsWith('.jpg') || clean.toLowerCase().endsWith('.jpeg')) {
+        decoded = decodeJPEG(fileBuf);
+      } else {
+        decoded = decodePNG(fileBuf) || decodeJPEG(fileBuf);
+      }
+
+      if (decoded) {
+        cachedLogoInfo = { url: logoUrl, ...decoded };
+        return cachedLogoInfo;
+      }
+    }
+  } catch (err) {
+    console.warn('[PDF] Could not load logo image:', err.message);
+  }
+  return null;
+}
 
 function generateInvoicePDFBuffer(bill) {
   const COMPANY_INFO = getCompanyInfo();
@@ -355,6 +515,427 @@ function generateInvoicePDFBuffer(bill) {
   pdfParts.push(`trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
 
   return Buffer.from(pdfParts.join(''));
+}
+
+/**
+ * Pure JavaScript PDF Thermal Receipt Generator for Glowy Saloon POS Bills.
+ * Matches the exact thermal receipt format (80mm/58mm roll), monospace typography, and dashed dividers.
+ */
+function generateThermalInvoicePDFBuffer(bill, options = {}) {
+  const COMPANY_INFO = getCompanyInfo();
+  const is58mm = Number(options.paperWidth) === 32 || String(options.paperWidth || '').includes('58');
+  const pageWidth = is58mm ? 164 : 226; // 58mm (164pt) vs 80mm (226pt)
+  const leftX = 10;
+  const rightX = pageWidth - 10;
+  const contentWidth = rightX - leftX;
+
+  const outletName = sanitizeText(bill.outletName || bill.outlet_name || bill.Outlet?.name || 'Outlet 1');
+  const billNumber = sanitizeText(bill.billNumber || bill.bill_number || 'N/A');
+  const customerName = sanitizeText(bill.customer?.name || bill.customer_name || 'Walk-in Guest');
+  const customerPhone = sanitizeText(bill.customer?.phone || bill.customer_phone || '');
+
+  const createdDate = bill.createdAt ? new Date(bill.createdAt) : new Date();
+  const dateStr = sanitizeText(createdDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }));
+  const timeStr = sanitizeText(createdDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase());
+
+  let curSymbol = sanitizeText(bill.currency || 'RM ');
+  if (!curSymbol.trim()) curSymbol = 'RM ';
+  if (!curSymbol.endsWith(' ')) curSymbol += ' ';
+
+  const formatCur = (num) => {
+    const n = Number(num) || 0;
+    return `${curSymbol}${n.toFixed(2)}`;
+  };
+
+  const lineItems = bill.lineItems || bill.line_items || [];
+  const talents = [
+    ...new Set(
+      [
+        bill.servedBy,
+        bill.served_by,
+        bill.staffName,
+        ...lineItems.map((it) => it.staffAssigned || it.staff_assigned || it.staffName),
+      ].filter(Boolean)
+    ),
+  ];
+  const servedBy = talents.join(', ');
+
+  const voucherCode = bill.awardedVoucherCode || bill.awarded_voucher_code || bill.awardedVoucher?.code || (bill.awardedVoucher && bill.awardedVoucher.code);
+  const voucherAmt = Number(bill.awardedVoucherAmount || bill.awarded_voucher_amount || bill.awardedVoucher?.amount || (bill.awardedVoucher && bill.awardedVoucher.amount) || 0);
+
+  // Logo setup
+  const logoInfo = COMPANY_INFO.showLogoOnReceipt !== false ? getCachedLogo(COMPANY_INFO.logoUrl) : null;
+  const showLogo = !!logoInfo;
+  const logoDisplayW = is58mm ? 36 : 42;
+  const logoDisplayH = logoInfo ? (logoDisplayW * (logoInfo.height / logoInfo.width)) : 0;
+
+  // Split string into wrapped lines respecting word boundaries
+  const wrapText = (text, maxChars) => {
+    if (!text) return [];
+    const words = String(text).split(' ');
+    const lines = [];
+    let currentLine = '';
+    words.forEach((w) => {
+      if (!currentLine) {
+        currentLine = w;
+      } else if ((currentLine + ' ' + w).length <= maxChars) {
+        currentLine += ' ' + w;
+      } else {
+        lines.push(currentLine);
+        currentLine = w;
+      }
+    });
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  };
+
+  // Pre-calculate items lines for height
+  const itemColChars = is58mm ? 12 : 16;
+  let itemsHeight = 0;
+  const processedItems = lineItems.map((item, idx) => {
+    const rawName = item.itemName || item.item_name || 'Item';
+    const nameLines = wrapText(rawName, itemColChars);
+    const qty = String(item.qty || 1);
+    const price = Number(item.price) || 0;
+    const amount = qty * price;
+    const talent = item.staffAssigned || item.staff_assigned || item.staffName;
+
+    let unitAbbr = item.productConsumption?.abbr || item.product_consumption?.abbr || '';
+    if (!unitAbbr && item.itemType === 'product') {
+      unitAbbr = 'PC';
+    }
+
+    let h = Math.max(1, nameLines.length) * 9.5;
+    if (unitAbbr) h += 8.5;
+    if (talent) h += 8.5;
+    itemsHeight += h + 3;
+
+    return {
+      index: idx + 1,
+      nameLines,
+      qty,
+      price,
+      amount,
+      unitAbbr,
+      talent,
+    };
+  });
+
+  // Calculate dynamic page height
+  let estimatedHeight = 20;
+  if (showLogo) estimatedHeight += logoDisplayH + 22;
+  estimatedHeight += 70; // Header text
+  estimatedHeight += 50; // Metadata
+  if (servedBy) estimatedHeight += 10;
+  estimatedHeight += 20; // Table header
+  estimatedHeight += itemsHeight;
+  estimatedHeight += 55; // Subtotals
+  estimatedHeight += 30; // Grand total
+  estimatedHeight += 25; // Payment info
+  if (voucherCode && voucherAmt > 0) estimatedHeight += 84; // Next visit voucher box
+  estimatedHeight += 45; // Footer
+  estimatedHeight += 25; // Bottom padding
+
+  const pageHeight = Math.ceil(estimatedHeight);
+  let currentY = pageHeight - 16;
+
+  const commands = [];
+  commands.push('0 0 0 rg 0 0 0 RG');
+
+  const centerText = (str, y, size = 8, bold = false) => {
+    const text = sanitizeText(str);
+    if (!text) return;
+    const font = bold ? '/F2' : '/F1';
+    const approxWidth = text.length * size * 0.6;
+    const x = Math.max(leftX, (pageWidth - approxWidth) / 2);
+    commands.push(`BT ${font} ${size} Tf ${x.toFixed(1)} ${y.toFixed(1)} Td (${text}) Tj ET`);
+  };
+
+  const drawDashed = (y) => {
+    commands.push('[2 2] 0 d 0.5 w');
+    commands.push(`${leftX} ${y.toFixed(1)} m ${rightX} ${y.toFixed(1)} l S`);
+    commands.push('[] 0 d');
+  };
+
+  // 1. Logo
+  if (showLogo) {
+    const logoX = (pageWidth - logoDisplayW) / 2;
+    const logoY = currentY - logoDisplayH;
+    commands.push(`q ${logoDisplayW.toFixed(1)} 0 0 ${logoDisplayH.toFixed(1)} ${logoX.toFixed(1)} ${logoY.toFixed(1)} cm /Im1 Do Q`);
+    currentY = logoY - 22;
+  }
+
+  // 2. Business Header
+  centerText((COMPANY_INFO.name || 'GLOWY').toUpperCase(), currentY, 13, true);
+  currentY -= 12;
+
+  if (COMPANY_INFO.tagline) {
+    centerText(COMPANY_INFO.tagline, currentY, 7.5, false);
+    currentY -= 9.5;
+  }
+
+  if (COMPANY_INFO.address) {
+    centerText(COMPANY_INFO.address, currentY, 7, false);
+    currentY -= 9;
+  }
+
+  if (COMPANY_INFO.phone) {
+    centerText(`Ph: ${COMPANY_INFO.phone}`, currentY, 7, false);
+    currentY -= 9;
+  }
+
+  if (COMPANY_INFO.taxNumber || COMPANY_INFO.gstin) {
+    centerText(`SST/Reg: ${COMPANY_INFO.taxNumber || COMPANY_INFO.gstin}`, currentY, 7, false);
+    currentY -= 9;
+  }
+
+  centerText(`OUTLET: ${outletName.toUpperCase()}`, currentY, 7.5, true);
+  currentY -= 11;
+
+  // Divider
+  drawDashed(currentY);
+  currentY -= 10;
+
+  // 3. Receipt Metadata
+  const metaRow = (label, val, boldVal = false) => {
+    commands.push(`BT /F1 7.5 Tf ${leftX} ${currentY.toFixed(1)} Td (${sanitizeText(label)}) Tj ET`);
+    const valText = sanitizeText(val);
+    const font = boldVal ? '/F2' : '/F1';
+    const valWidth = valText.length * 7.5 * 0.6;
+    const x = Math.max(leftX + 45, rightX - valWidth);
+    commands.push(`BT ${font} 7.5 Tf ${x.toFixed(1)} ${currentY.toFixed(1)} Td (${valText}) Tj ET`);
+    currentY -= 9.5;
+  };
+
+  metaRow('Bill No:', billNumber, true);
+  metaRow('Date & Time:', `${dateStr} ${timeStr}`);
+  metaRow('Customer:', customerName, true);
+  if (customerPhone) metaRow('Phone:', customerPhone);
+  if (servedBy) metaRow('Served by:', servedBy, true);
+
+  // Divider
+  drawDashed(currentY);
+  currentY -= 9.5;
+
+  // 4. Line Items Table
+  const colItemX = leftX + 13;
+  const colQtyX = rightX - 58;
+
+  // Headers
+  commands.push(`BT /F2 7.5 Tf ${leftX} ${currentY.toFixed(1)} Td (#) Tj ET`);
+  commands.push(`BT /F2 7.5 Tf ${colItemX} ${currentY.toFixed(1)} Td (ITEM) Tj ET`);
+  const qtyHdrWidth = 3 * 7.5 * 0.6;
+  commands.push(`BT /F2 7.5 Tf ${(colQtyX - qtyHdrWidth).toFixed(1)} ${currentY.toFixed(1)} Td (QTY) Tj ET`);
+  const amtHdrWidth = 6 * 7.5 * 0.6;
+  commands.push(`BT /F2 7.5 Tf ${(rightX - amtHdrWidth).toFixed(1)} ${currentY.toFixed(1)} Td (AMOUNT) Tj ET`);
+  currentY -= 6;
+  drawDashed(currentY);
+  currentY -= 9.5;
+
+  // Rows
+  processedItems.forEach((item) => {
+    const firstLineName = item.nameLines[0] || 'Item';
+    const amtStr = sanitizeText(formatCur(item.amount));
+    const amtWidth = amtStr.length * 7.5 * 0.6;
+    const qtyStr = item.qty;
+    const qtyWidth = qtyStr.length * 7.5 * 0.6;
+
+    // First line: Index, First Line Name, Qty, Amount
+    commands.push(`BT /F1 7.5 Tf ${leftX} ${currentY.toFixed(1)} Td (${item.index}.) Tj ET`);
+    commands.push(`BT /F2 7.5 Tf ${colItemX} ${currentY.toFixed(1)} Td (${sanitizeText(firstLineName)}) Tj ET`);
+    commands.push(`BT /F1 7.5 Tf ${(colQtyX - qtyWidth).toFixed(1)} ${currentY.toFixed(1)} Td (${qtyStr}) Tj ET`);
+    commands.push(`BT /F2 7.5 Tf ${(rightX - amtWidth).toFixed(1)} ${currentY.toFixed(1)} Td (${amtStr}) Tj ET`);
+    currentY -= 9;
+
+    // Remaining name lines (wrapping)
+    for (let i = 1; i < item.nameLines.length; i++) {
+      commands.push(`BT /F2 7.5 Tf ${colItemX} ${currentY.toFixed(1)} Td (${sanitizeText(item.nameLines[i])}) Tj ET`);
+      currentY -= 9;
+    }
+
+    // Talent note
+    if (item.talent) {
+      commands.push(`BT /F1 6.5 Tf ${colItemX} ${currentY.toFixed(1)} Td (Served by: ${sanitizeText(item.talent)}) Tj ET`);
+      currentY -= 8;
+    }
+
+    // Unit rate
+    if (item.unitAbbr) {
+      commands.push(`BT /F1 6.5 Tf ${colItemX} ${currentY.toFixed(1)} Td (@ ${formatCur(item.price)}/${item.unitAbbr}) Tj ET`);
+      currentY -= 8;
+    }
+
+    currentY -= 1.5;
+  });
+
+  // Divider
+  drawDashed(currentY);
+  currentY -= 9.5;
+
+  // 5. Totals
+  const totalRow = (label, val, boldLabel = false, boldVal = false) => {
+    const fontL = boldLabel ? '/F2' : '/F1';
+    const fontV = boldVal ? '/F2' : '/F1';
+    commands.push(`BT ${fontL} 7.5 Tf ${leftX} ${currentY.toFixed(1)} Td (${sanitizeText(label)}) Tj ET`);
+    const valText = sanitizeText(val);
+    const valWidth = valText.length * 7.5 * 0.6;
+    const x = rightX - valWidth;
+    commands.push(`BT ${fontV} 7.5 Tf ${x.toFixed(1)} ${currentY.toFixed(1)} Td (${valText}) Tj ET`);
+    currentY -= 9.5;
+  };
+
+  totalRow('Subtotal:', formatCur(bill.subtotal));
+
+  const discountVal = Number(bill.discountAmount || bill.discount_amount) || 0;
+  if (discountVal > 0) {
+    const coupon = bill.couponCode || bill.coupon_code ? ` (${bill.couponCode || bill.coupon_code})` : '';
+    totalRow(`Discount${coupon}:`, `- ${formatCur(discountVal)}`);
+  }
+
+  const voucherDisc = Number(bill.voucherDiscountAmount || bill.voucher_discount_amount) || 0;
+  if (voucherDisc > 0) {
+    const vCode = bill.voucherCode || bill.voucher_code ? ` (${bill.voucherCode || bill.voucher_code})` : '';
+    totalRow(`Voucher${vCode}:`, `- ${formatCur(voucherDisc)}`);
+  }
+
+  const ptsRedeemed = Number(bill.pointsRedeemed || bill.points_redeemed) || 0;
+  const ptsDisc = Number(bill.pointsDiscountAmount || bill.points_discount_amount) || 0;
+  if (ptsRedeemed > 0) {
+    totalRow(`Points Redeemed (${ptsRedeemed}):`, `- ${formatCur(ptsDisc)}`);
+  }
+
+  const taxVal = Number(bill.tax) || 0;
+  if (taxVal > 0) {
+    totalRow('Tax (GST 8%):', formatCur(taxVal));
+  }
+
+  // 6. Double Line Grand Total
+  currentY -= 2;
+  commands.push('0 0 0 RG 1 w');
+  commands.push(`${leftX} ${currentY.toFixed(1)} m ${rightX} ${currentY.toFixed(1)} l S`);
+  currentY -= 11.5;
+
+  commands.push(`BT /F2 10.5 Tf ${leftX} ${currentY.toFixed(1)} Td (TOTAL:) Tj ET`);
+  const grandTotalStr = formatCur(bill.total);
+  const grandTotalWidth = grandTotalStr.length * 11 * 0.6;
+  commands.push(`BT /F2 11 Tf ${(rightX - grandTotalWidth).toFixed(1)} ${currentY.toFixed(1)} Td (${grandTotalStr}) Tj ET`);
+  currentY -= 4.5;
+
+  commands.push('0 0 0 RG 1 w');
+  commands.push(`${leftX} ${currentY.toFixed(1)} m ${rightX} ${currentY.toFixed(1)} l S`);
+  currentY -= 10;
+
+  // 7. Payment Info
+  const paymentMethod = sanitizeText((bill.paymentMethod || bill.payment_method || 'UNPAID').toUpperCase(), 20);
+  metaRow('Payment Method:', paymentMethod, true);
+
+  if (bill.payments && bill.payments.length > 0) {
+    bill.payments.forEach((p) => {
+      (p.details || []).forEach((d) => {
+        const mode = (d.paymentMode || d.payment_mode || 'Cash').toUpperCase();
+        commands.push(`BT /F1 7 Tf ${leftX + 8} ${currentY.toFixed(1)} Td (${sanitizeText(mode)}:) Tj ET`);
+        const amtStr = formatCur(d.amount);
+        const w = amtStr.length * 7 * 0.6;
+        commands.push(`BT /F1 7 Tf ${(rightX - w).toFixed(1)} ${currentY.toFixed(1)} Td (${amtStr}) Tj ET`);
+        currentY -= 8.5;
+      });
+    });
+  }
+
+  const pointsEarned = Number(bill.pointsEarned || bill.points_earned) || 0;
+  if (pointsEarned > 0) {
+    commands.push(`BT /F2 7.5 Tf ${leftX} ${currentY.toFixed(1)} Td (Points Earned Today:) Tj ET`);
+    const ptsStr = `+${pointsEarned} pts`;
+    const w = ptsStr.length * 7.5 * 0.6;
+    commands.push(`BT /F2 7.5 Tf ${(rightX - w).toFixed(1)} ${currentY.toFixed(1)} Td (${ptsStr}) Tj ET`);
+    currentY -= 9.5;
+  }
+
+  // 8. Next Visit Voucher Box (matching preview)
+  if (voucherCode && voucherAmt > 0) {
+    currentY -= 2;
+    drawDashed(currentY);
+    currentY -= 8;
+
+    const boxX = leftX + 2;
+    const boxW = contentWidth - 4;
+    const boxH = 76;
+    const boxBottomY = currentY - boxH;
+
+    // Draw box border
+    commands.push('0 0 0 RG 0.8 w');
+    commands.push(`${boxX.toFixed(1)} ${boxBottomY.toFixed(1)} ${boxW.toFixed(1)} ${boxH.toFixed(1)} re s`);
+
+    centerText('* * * NEXT VISIT VOUCHER * * *', currentY - 11, 8, true);
+    centerText('Special Gift for Your Next Visit!', currentY - 21, 6.5, false);
+
+    // Inner discount badge
+    const badgeText = `${formatCur(voucherAmt)} OFF`;
+    const badgeTextW = badgeText.length * 8.5 * 0.6;
+    const badgeW = badgeTextW + 16;
+    const badgeH = 13;
+    const badgeX = (pageWidth - badgeW) / 2;
+    const badgeY = currentY - 41;
+
+    commands.push('0 0 0 RG 0.8 w');
+    commands.push(`${badgeX.toFixed(1)} ${badgeY.toFixed(1)} ${badgeW.toFixed(1)} ${badgeH.toFixed(1)} re s`);
+    centerText(badgeText, currentY - 37.5, 8.5, true);
+
+    centerText(`CODE: ${voucherCode}`, currentY - 51, 8, true);
+    centerText('Present receipt or code on your next visit', currentY - 61, 5.5, false);
+    centerText('to redeem discount.', currentY - 68, 5.5, false);
+
+    currentY = boxBottomY - 6;
+  }
+
+  // 9. Footer
+  drawDashed(currentY);
+  currentY -= 11;
+
+  centerText('THANK YOU FOR VISITING! GLOW TO GO WITH GLOWY', currentY, 7.5, true);
+  currentY -= 9;
+
+  centerText('Services and products once rendered/sold are non-refundable.', currentY, 6, false);
+  currentY -= 8;
+  centerText('Computer generated invoice.', currentY, 6, false);
+
+  const streamContent = commands.join('\n');
+  const streamBuf = Buffer.from(streamContent);
+
+  // PDF Binary Structure
+  const pdfParts = [];
+  pdfParts.push(Buffer.from('%PDF-1.4\n'));
+  const offsets = [0];
+  function addPart(b) {
+    offsets.push(pdfParts.reduce((acc, p) => acc + p.length, 0));
+    pdfParts.push(b);
+  }
+
+  addPart(Buffer.from('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n'));
+  addPart(Buffer.from('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n'));
+
+  const xObjRes = showLogo ? ' /XObject << /Im1 7 0 R >>' : '';
+  addPart(Buffer.from(`3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >>${xObjRes} >> /Contents 6 0 R >>\nendobj\n`));
+  addPart(Buffer.from('4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>\nendobj\n'));
+  addPart(Buffer.from('5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>\nendobj\n'));
+  addPart(Buffer.from(`6 0 obj\n<< /Length ${streamBuf.length} >>\nstream\n${streamContent}\nendstream\nendobj\n`));
+
+  if (showLogo) {
+    const imgHeader = Buffer.from(`7 0 obj\n<< /Type /XObject /Subtype /Image /Width ${logoInfo.width} /Height ${logoInfo.height} /ColorSpace ${logoInfo.colorSpace} /BitsPerComponent 8 /Filter ${logoInfo.filter} /Length ${logoInfo.data.length} >>\nstream\n`);
+    const imgFooter = Buffer.from('\nendstream\nendobj\n');
+    addPart(Buffer.concat([imgHeader, logoInfo.data, imgFooter]));
+  }
+
+  const objCount = showLogo ? 8 : 7;
+  const xrefOffset = pdfParts.reduce((acc, p) => acc + p.length, 0);
+  let xref = `xref\n0 ${objCount}\n0000000000 65535 f \n`;
+  for (let i = 1; i < objCount; i++) {
+    xref += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+  }
+  pdfParts.push(Buffer.from(xref));
+  pdfParts.push(Buffer.from(`trailer\n<< /Size ${objCount} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`));
+
+  return Buffer.concat(pdfParts);
 }
 
 function generateReportPDFBuffer(type, data, metadata = {}) {
@@ -1125,6 +1706,7 @@ function generateZReportPDFBuffer(reportData) {
 
 module.exports = {
   generateInvoicePDFBuffer,
+  generateThermalInvoicePDFBuffer,
   generateReportPDFBuffer,
   generateZReportPDFBuffer,
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Users, Search, Plus, Phone, Mail, Award, DollarSign, Calendar, Eye, Edit2, Trash2, Wallet, Ticket, MessageCircle } from "lucide-react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Users, Search, Plus, Phone, Mail, Award, DollarSign, Calendar, Eye, Edit2, Trash2, Wallet, Ticket, MessageCircle, X } from "lucide-react";
 import { fetchCustomersAPI, createCustomerAPI, updateCustomerAPI, deleteCustomerAPI } from "../../services/api";
 import { CustomerLedgerModal } from "../../components/customers/CustomerLedgerModal";
 import { CustomerLoyaltyModal } from "../../components/customers/CustomerLoyaltyModal";
@@ -8,7 +8,9 @@ import { CustomerVouchersModal } from "../../components/customers/CustomerVouche
 import { WhatsAppReminderModal } from "../../components/customers/WhatsAppReminderModal";
 
 export function CustomerListPage() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const customerIdParam = searchParams.get("customerId");
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
@@ -19,6 +21,18 @@ export function CustomerListPage() {
       setSearchTerm(urlSearch);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (customerIdParam && customers.length > 0) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`customer-row-${customerIdParam}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [customerIdParam, customers]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState(null);
   const [selectedLedgerCustomer, setSelectedLedgerCustomer] = useState(null);
@@ -141,7 +155,7 @@ export function CustomerListPage() {
       {/* Filter Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="bg-white p-3 px-4 rounded-xl shadow-sm border border-slate-100 flex items-center gap-3 flex-1">
-          <Search className="w-5 h-5 text-slate-400" />
+          <Search className="w-5 h-5 text-slate-400 shrink-0" />
           <input
             type="text"
             placeholder="Search by name, phone, or email..."
@@ -149,6 +163,19 @@ export function CustomerListPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-transparent outline-none text-slate-700 placeholder-slate-400 text-sm"
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm("");
+                navigate("/customers", { replace: true });
+              }}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              title="Clear search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Filter Tabs: All vs Pending Dues */}
@@ -219,22 +246,37 @@ export function CustomerListPage() {
               <tbody className="divide-y divide-slate-100">
                 {customers
                   .filter((c) => dueFilter !== "dues" || Number(c.credit_balance || 0) < 0)
-                  .map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="px-6 py-4 font-semibold text-slate-800">
-                      <div className="flex items-center gap-2">
-                        <span>{c.name}</span>
-                        {c.loyaltyTier && (
-                          <span
-                            className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-xs"
-                            style={{ backgroundColor: c.loyaltyTier.badge_color || "#b45309" }}
-                          >
-                            {c.loyaltyTier.name}
-                          </span>
-                        )}
-                      </div>
-                      {c.notes && <p className="text-xs text-slate-400 font-normal truncate max-w-xs">{c.notes}</p>}
-                    </td>
+                  .map((c) => {
+                    const isHighlighted = customerIdParam && String(c.id) === String(customerIdParam);
+                    return (
+                      <tr
+                        key={c.id}
+                        id={`customer-row-${c.id}`}
+                        className={`transition-all duration-300 ${
+                          isHighlighted
+                            ? "bg-amber-50/90 ring-2 ring-gold-500/70 border-l-4 border-l-gold-500 shadow-sm"
+                            : "hover:bg-slate-50/60"
+                        }`}
+                      >
+                        <td className="px-6 py-4 font-semibold text-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span>{c.name}</span>
+                            {isHighlighted && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-gold-500 text-navy-950 animate-pulse">
+                                Selected
+                              </span>
+                            )}
+                            {c.loyaltyTier && (
+                              <span
+                                className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-xs"
+                                style={{ backgroundColor: c.loyaltyTier.badge_color || "#b45309" }}
+                              >
+                                {c.loyaltyTier.name}
+                              </span>
+                            )}
+                          </div>
+                          {c.notes && <p className="text-xs text-slate-400 font-normal truncate max-w-xs">{c.notes}</p>}
+                        </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5 text-slate-700">
                         <Phone className="w-3.5 h-3.5 text-indigo-500" /> {c.phone}
@@ -342,8 +384,9 @@ export function CustomerListPage() {
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
+                    </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>

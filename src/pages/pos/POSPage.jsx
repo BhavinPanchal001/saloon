@@ -1079,6 +1079,8 @@ export function POSPage() {
       customer,
       paymentMethod: paymentMethod || "Unpaid",
       sendWhatsApp: autoSendWhatsAppOnPOS,
+      printTemplate: localStorage.getItem("glowy_print_template") || "thermal",
+      paperWidth: localStorage.getItem("glowy_printer_paper_width") ? parseInt(localStorage.getItem("glowy_printer_paper_width"), 10) : 48,
       bankId: primaryBankAccountId,
       bankAccountId: primaryBankAccountId,
 

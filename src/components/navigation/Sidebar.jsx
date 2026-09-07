@@ -47,6 +47,7 @@ const posNav = [
       { label: "Point of Sale", to: "/pos", icon: CreditCard, exact: true },
       { label: "Billing History", to: "/pos/bills", icon: Receipt },
       { label: "Coupons", to: "/coupons", icon: Tag },
+      { label: "Vouchers", to: "/vouchers", icon: Ticket },
       { label: "Terminals", to: "/pos-management/terminals", icon: Monitor },
       { label: "Shift History", to: "/pos-management/shift-history", icon: History },
     ],

@@ -190,6 +190,69 @@ const disconnectBaileys = async (req, res) => {
 };
 
 /**
+ * POST /api/whatsapp/baileys/pairing-code
+ * Requests an 8-character pairing code for "Link with phone number instead"
+ */
+const requestPairingCode = async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    const baileysProvider = whatsappService.getProvider('baileys');
+    if (!baileysProvider) {
+      return res.status(400).json({ success: false, message: 'Baileys provider not available' });
+    }
+
+    if (!phoneNumber || !String(phoneNumber).trim()) {
+      return res.status(400).json({ success: false, message: 'Phone number with country code is required.' });
+    }
+
+    const result = await baileysProvider.requestPairingCode(phoneNumber.trim());
+    if (result.success) {
+      return res.json({
+        success: true,
+        pairingCode: result.pairingCode,
+        message: 'Pairing code generated successfully.',
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: result.error || 'Failed to generate pairing code.',
+      });
+    }
+  } catch (err) {
+    console.error('[WhatsAppSettings] requestPairingCode error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * POST /api/whatsapp/baileys/reset
+ * Cleans temporary auth credentials and resets connection state
+ */
+const resetBaileys = async (req, res) => {
+  try {
+    const baileysProvider = whatsappService.getProvider('baileys');
+    if (!baileysProvider) {
+      return res.status(400).json({ success: false, message: 'Baileys provider not available' });
+    }
+
+    await baileysProvider.disconnect().catch(() => {});
+    baileysProvider.cleanAuthFiles();
+    const connectResult = await baileysProvider.connect({ forceClean: true });
+    const status = await baileysProvider.getStatus();
+
+    return res.json({
+      success: true,
+      message: 'Baileys session reset. A fresh QR code is being generated.',
+      status,
+      connectResult,
+    });
+  } catch (err) {
+    console.error('[WhatsAppSettings] resetBaileys error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
  * POST /api/whatsapp/test-message
  * Send a test text message to verify connectivity
  */
@@ -251,6 +314,8 @@ module.exports = {
   getStatus,
   connectBaileys,
   disconnectBaileys,
+  requestPairingCode,
+  resetBaileys,
   sendTestMessage,
   getLogs,
 };

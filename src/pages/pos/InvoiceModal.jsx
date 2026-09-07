@@ -125,10 +125,14 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
     if (!bill?.id) return;
     setSendingWa(true);
     try {
-      const res = await sendWhatsAppBillAPI(bill.id);
-      const delivery = res.result || { success: true, message: res.message };
+      const res = await sendWhatsAppBillAPI(bill.id, {
+        format: templateMode, // 'thermal' or 'a4'
+        paperWidth: paperWidth, // 48 (80mm) or 32 (58mm)
+      });
+      const delivery = res.result || { success: true, message: res.message, format: templateMode };
+      if (!delivery.format) delivery.format = templateMode;
       setWaDeliveryStatus(delivery);
-      toast.success(res.message || "WhatsApp receipt sent successfully!");
+      toast.success(res.message || `${templateMode === 'thermal' ? 'Thermal' : 'A4 Tax'} receipt sent via WhatsApp!`);
     } catch (err) {
       setWaDeliveryStatus({ success: false, error: err.message || "Failed to send WhatsApp message" });
       toast.error(err.message || "Failed to send WhatsApp message");
@@ -245,9 +249,13 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
               type="button"
               onClick={handleSendWhatsApp}
               disabled={sendingWa}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all shadow-sm"
+              title={`Send ${templateMode === 'thermal' ? 'Thermal Receipt (80/58mm)' : 'A4 Tax Invoice'} via WhatsApp`}
             >
-              <MessageCircle size={14} /> {sendingWa ? "Sending..." : "WhatsApp"}
+              <MessageCircle size={14} />
+              {sendingWa
+                ? "Sending..."
+                : `WhatsApp (${templateMode === "thermal" ? "Thermal" : "A4"})`}
             </button>
 
             <button
@@ -268,7 +276,7 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span>
-                    WhatsApp: <strong>Invoice sent successfully</strong>
+                    WhatsApp: <strong>{waDeliveryStatus.format === 'a4' ? 'A4 Tax Invoice' : 'Thermal Receipt'} sent successfully</strong>
                     {waDeliveryStatus.provider ? ` via ${waDeliveryStatus.provider === 'baileys' ? 'Baileys' : 'WhatsApp Business API'}` : ''}
                     {waDeliveryStatus.recipient ? ` to ${waDeliveryStatus.recipient}` : ''}
                     {waDeliveryStatus.simulated ? ' (Simulation Mode)' : ''}
@@ -280,7 +288,7 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
                   disabled={sendingWa}
                   className="px-2.5 py-1 rounded-lg bg-emerald-700/60 hover:bg-emerald-600 text-emerald-100 text-[11px] font-bold transition-all"
                 >
-                  {sendingWa ? 'Sending...' : 'Resend'}
+                  {sendingWa ? 'Sending...' : `Resend (${templateMode === 'thermal' ? 'Thermal' : 'A4'})`}
                 </button>
               </div>
             ) : (

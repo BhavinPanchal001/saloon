@@ -5,6 +5,8 @@ import {
   fetchWhatsAppStatusAPI,
   connectBaileysAPI,
   disconnectBaileysAPI,
+  requestBaileysPairingCodeAPI,
+  resetBaileysAPI,
   sendWhatsAppTestMessageAPI,
   fetchWhatsAppLogsAPI,
 } from "../../services/api";
@@ -29,6 +31,9 @@ import {
   Check,
   X,
   FileText,
+  RotateCcw,
+  Copy,
+  Hash,
 } from "lucide-react";
 
 export function WhatsAppSettingsTab() {
@@ -60,6 +65,14 @@ export function WhatsAppSettingsTab() {
   });
   const [connectingBaileys, setConnectingBaileys] = useState(false);
   const [disconnectingBaileys, setDisconnectingBaileys] = useState(false);
+  const [resettingBaileys, setResettingBaileys] = useState(false);
+
+  // Pairing Mode: 'qr' vs 'code'
+  const [pairingMode, setPairingMode] = useState("qr");
+  const [pairingPhone, setPairingPhone] = useState("");
+  const [pairingCode, setPairingCode] = useState(null);
+  const [requestingCode, setRequestingCode] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   // Owner Shift Notification (Z-Report)
   const [ownerPhone, setOwnerPhone] = useState("");
@@ -130,6 +143,9 @@ export function WhatsAppSettingsTab() {
         } else if (statusData?.provider === "baileys") {
           setBaileysStatus(statusData);
         }
+        if (statusData?.pairingCode) {
+          setPairingCode(statusData.pairingCode);
+        }
         if (statusData?.activeProvider) {
           setActiveProvider(statusData.activeProvider);
         }
@@ -142,6 +158,12 @@ export function WhatsAppSettingsTab() {
           qrDataUrl: qrData.qrDataUrl,
         }));
       },
+      onPairingCode: (data) => {
+        if (data?.code) {
+          setPairingCode(data.code);
+          toast.info(`WhatsApp pairing code: ${data.code}`);
+        }
+      },
       onDisconnected: () => {
         setBaileysStatus((prev) => ({
           ...prev,
@@ -150,6 +172,7 @@ export function WhatsAppSettingsTab() {
           phoneNumber: null,
           qrDataUrl: null,
         }));
+        setPairingCode(null);
         toast.info("WhatsApp Web session disconnected.");
       },
     });
@@ -166,6 +189,9 @@ export function WhatsAppSettingsTab() {
           const res = await fetchWhatsAppStatusAPI();
           if (res?.providers?.baileys) {
             setBaileysStatus(res.providers.baileys);
+            if (res.providers.baileys.pairingCode) {
+              setPairingCode(res.providers.baileys.pairingCode);
+            }
           }
           if (res?.activeProvider) {
             setActiveProvider(res.activeProvider);
@@ -257,6 +283,7 @@ export function WhatsAppSettingsTab() {
           qrDataUrl: null,
         });
       }
+      setPairingCode(null);
       if (res.status?.activeProvider) {
         setActiveProvider(res.status.activeProvider);
       }
@@ -267,6 +294,55 @@ export function WhatsAppSettingsTab() {
     } finally {
       setDisconnectingBaileys(false);
     }
+  };
+
+  const handleResetBaileys = async () => {
+    if (!window.confirm("This will clean any previous session attempts and start a fresh pairing connection. Continue?")) {
+      return;
+    }
+
+    setResettingBaileys(true);
+    try {
+      const res = await resetBaileysAPI();
+      if (res.status) {
+        setBaileysStatus(res.status);
+      }
+      setPairingCode(null);
+      toast.info("Session reset. Generating fresh connection...");
+    } catch (err) {
+      toast.error(err.message || "Failed to reset session");
+    } finally {
+      setResettingBaileys(false);
+    }
+  };
+
+  const handleRequestPairingCode = async (e) => {
+    e?.preventDefault();
+    if (!pairingPhone || !pairingPhone.trim()) {
+      toast.error("Please enter your phone number with country code (e.g., 919876543210)");
+      return;
+    }
+
+    setRequestingCode(true);
+    try {
+      const res = await requestBaileysPairingCodeAPI(pairingPhone.trim());
+      if (res.pairingCode) {
+        setPairingCode(res.pairingCode);
+        toast.success("Pairing code generated! Enter it on WhatsApp.");
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to generate pairing code");
+    } finally {
+      setRequestingCode(false);
+    }
+  };
+
+  const handleCopyCode = () => {
+    if (!pairingCode) return;
+    navigator.clipboard.writeText(pairingCode.replace(/-/g, ""));
+    setCopiedCode(true);
+    toast.success("Code copied to clipboard!");
+    setTimeout(() => setCopiedCode(false), 2000);
   };
 
   const handleSaveOwnerNotificationSettings = async (e) => {
@@ -505,11 +581,24 @@ export function WhatsAppSettingsTab() {
             </div>
             <div>
               <h4 className="font-bold text-navy-900 text-base">Baileys WhatsApp Web Connection</h4>
-              <p className="text-xs text-slate-500">Pair your salon WhatsApp number by scanning the QR code</p>
+              <p className="text-xs text-slate-500">Pair your salon WhatsApp number via QR code or 8-digit pairing code</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {!baileysStatus.connected && (
+              <button
+                type="button"
+                onClick={handleResetBaileys}
+                disabled={resettingBaileys || connectingBaileys}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors disabled:opacity-50"
+                title="Wipe previous handshake attempts and restart clean"
+              >
+                <RotateCcw className={`h-3.5 w-3.5 ${resettingBaileys ? "animate-spin" : ""}`} />
+                {resettingBaileys ? "Resetting..." : "Reset Session"}
+              </button>
+            )}
+
             {baileysStatus.connected ? (
               <button
                 type="button"
@@ -563,53 +652,177 @@ export function WhatsAppSettingsTab() {
               </span>
             </div>
           </div>
-        ) : baileysStatus.status === "auth_required" && baileysStatus.qrDataUrl ? (
-          <div className="rounded-xl border-2 border-amber-200 bg-amber-50/40 p-6 flex flex-col md:flex-row items-center gap-6">
-            <div className="flex flex-col items-center bg-white p-4 rounded-2xl shadow-md border border-amber-200/80">
-              <img
-                src={baileysStatus.qrDataUrl}
-                alt="Baileys WhatsApp QR Code"
-                className="h-60 w-60 rounded-xl"
-              />
-              <p className="text-[11px] text-slate-400 mt-2 font-medium">QR code refreshes automatically</p>
+        ) : (
+          <div className="space-y-4">
+            {/* Pairing Method Switcher */}
+            <div className="flex items-center gap-2 bg-slate-100/80 p-1 rounded-xl w-fit">
+              <button
+                type="button"
+                onClick={() => setPairingMode("qr")}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  pairingMode === "qr"
+                    ? "bg-white text-navy-900 shadow-sm"
+                    : "text-slate-600 hover:text-navy-900"
+                }`}
+              >
+                <QrCode className="h-3.5 w-3.5" />
+                Method 1: Scan QR Code
+              </button>
+              <button
+                type="button"
+                onClick={() => setPairingMode("code")}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  pairingMode === "code"
+                    ? "bg-white text-navy-900 shadow-sm"
+                    : "text-slate-600 hover:text-navy-900"
+                }`}
+              >
+                <Hash className="h-3.5 w-3.5" />
+                Method 2: Link with Phone Number (Code)
+              </button>
             </div>
 
-            <div className="space-y-3 flex-1 text-slate-700">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
-                <Clock className="h-3.5 w-3.5" /> Authentication Required
+            {/* Method 1: QR Code Scanner */}
+            {pairingMode === "qr" && (
+              baileysStatus.status === "auth_required" && baileysStatus.qrDataUrl ? (
+                <div className="rounded-xl border-2 border-amber-200 bg-amber-50/40 p-6 flex flex-col md:flex-row items-center gap-6">
+                  <div className="flex flex-col items-center bg-white p-4 rounded-2xl shadow-md border border-amber-200/80">
+                    <img
+                      src={baileysStatus.qrDataUrl}
+                      alt="Baileys WhatsApp QR Code"
+                      className="h-60 w-60 rounded-xl"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-2 font-medium">QR code refreshes automatically</p>
+                  </div>
+
+                  <div className="space-y-3 flex-1 text-slate-700">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
+                      <Clock className="h-3.5 w-3.5" /> Ready to Scan
+                    </div>
+                    <h5 className="font-bold text-navy-900 text-base">Scan this QR Code from WhatsApp</h5>
+                    <ol className="list-decimal list-inside space-y-2 text-xs text-slate-600 pl-1 leading-relaxed">
+                      <li>Open <strong>WhatsApp</strong> on your salon phone.</li>
+                      <li>Tap <strong>Menu (⋮)</strong> on Android or <strong>Settings (⚙️)</strong> on iPhone.</li>
+                      <li>Select <strong>Linked Devices</strong> &rarr; tap <strong>Link a Device</strong>.</li>
+                      <li>Point your camera at this QR code.</li>
+                    </ol>
+                    <div className="pt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleResetBaileys}
+                        disabled={resettingBaileys}
+                        className="text-xs text-amber-800 hover:text-amber-950 font-medium underline inline-flex items-center gap-1"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Code not scanning? Click to generate a fresh QR
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 text-center sm:text-left flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                      <p className="font-bold text-navy-900 text-sm">Baileys is currently Not Connected</p>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Click <strong>"Connect WhatsApp"</strong> to generate a pairing QR code and link your salon WhatsApp account.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleConnectBaileys}
+                    disabled={connectingBaileys}
+                    className="btn-premium-primary text-xs !py-2 !px-4 flex items-center gap-1.5 justify-center"
+                  >
+                    <QrCode className="h-4 w-4" />
+                    Start Connection
+                  </button>
+                </div>
+              )
+            )}
+
+            {/* Method 2: Pairing Code (Link with phone number instead) */}
+            {pairingMode === "code" && (
+              <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/30 p-6 space-y-5">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-2">
+                    <Hash className="h-3.5 w-3.5" /> Link with Phone Number (No Camera Needed)
+                  </div>
+                  <h5 className="font-bold text-navy-900 text-base">Enter Your WhatsApp Number to Receive Pairing Code</h5>
+                  <p className="text-xs text-slate-600 mt-1">
+                    This official WhatsApp feature lets you pair directly using an 8-character code without pointing your camera at the screen.
+                  </p>
+                </div>
+
+                <form onSubmit={handleRequestPairingCode} className="space-y-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <div className="flex-1 max-w-md">
+                      <input
+                        type="tel"
+                        value={pairingPhone}
+                        onChange={(e) => setPairingPhone(e.target.value)}
+                        placeholder="e.g. 919876543210 (or 10 digits in India)"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-medium text-navy-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={requestingCode || !pairingPhone.trim()}
+                      className="btn-premium-primary text-xs !py-2.5 !px-5 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {requestingCode ? (
+                        <>
+                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                          Generating Code...
+                        </>
+                      ) : (
+                        <>
+                          <Hash className="h-4 w-4" />
+                          Get Pairing Code
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    💡 <strong>Must be the exact WhatsApp number of this phone</strong> (e.g., if your Indian number is <code className="text-emerald-700 font-bold">9876543210</code>, country code <code className="text-emerald-700 font-bold">91</code> is automatically applied).
+                  </p>
+                </form>
+
+                {pairingCode && (
+                  <div className="rounded-xl border border-emerald-300 bg-white p-5 space-y-4 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Your Pairing Code</span>
+                        <div className="text-3xl font-black font-mono tracking-widest text-emerald-700 mt-0.5">
+                          {pairingCode}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCopyCode}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-colors"
+                      >
+                        {copiedCode ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                        {copiedCode ? "Copied!" : "Copy Code"}
+                      </button>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-3">
+                      <p className="text-xs font-bold text-navy-900 mb-2">How to enter this code on your phone:</p>
+                      <ol className="list-decimal list-inside space-y-1.5 text-xs text-slate-600 leading-relaxed">
+                        <li>Open <strong>WhatsApp</strong> on your phone.</li>
+                        <li>Tap <strong>Menu (⋮)</strong> &rarr; <strong>Linked Devices</strong> &rarr; <strong>Link a Device</strong>.</li>
+                        <li>At the bottom of your camera screen, tap <strong>"Link with phone number instead"</strong>.</li>
+                        <li>Type the 8-character code: <strong className="font-mono text-emerald-800">{pairingCode}</strong>.</li>
+                        <li>Your phone will link instantly!</li>
+                      </ol>
+                    </div>
+                  </div>
+                )}
               </div>
-              <h5 className="font-bold text-navy-900 text-base">Scan this QR Code from WhatsApp</h5>
-              <ol className="list-decimal list-inside space-y-2 text-xs text-slate-600 pl-1 leading-relaxed">
-                <li>Open <strong>WhatsApp</strong> on your salon phone.</li>
-                <li>Tap <strong>Menu (⋮)</strong> on Android or <strong>Settings (⚙️)</strong> on iPhone.</li>
-                <li>Select <strong>Linked Devices</strong>.</li>
-                <li>Tap <strong>Link a Device</strong> and point your camera at this QR code.</li>
-              </ol>
-              <p className="text-xs text-amber-700 bg-amber-100/60 p-2.5 rounded-lg border border-amber-200">
-                Once scanned, your session is saved securely on the server and will persist across restarts.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 text-center sm:text-left flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-                <p className="font-bold text-navy-900 text-sm">Baileys is currently Not Connected</p>
-              </div>
-              <p className="text-xs text-slate-500">
-                Click <strong>"Connect WhatsApp"</strong> to generate a pairing QR code and link your salon WhatsApp account.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleConnectBaileys}
-              disabled={connectingBaileys}
-              className="btn-premium-primary text-xs !py-2 !px-4 flex items-center gap-1.5 justify-center"
-            >
-              <QrCode className="h-4 w-4" />
-              Start Connection
-            </button>
+            )}
           </div>
         )}
       </div>

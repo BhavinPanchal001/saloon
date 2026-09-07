@@ -32,10 +32,10 @@ export const getWhatsAppSocket = () => {
 
 /**
  * Subscribe to real-time WhatsApp events
- * @param {Object} handlers - { onStatus, onQR, onDisconnected }
+ * @param {Object} handlers - { onStatus, onQR, onPairingCode, onDisconnected }
  * @returns {Function} unsubscribe function
  */
-export const subscribeToWhatsAppEvents = ({ onStatus, onQR, onDisconnected }) => {
+export const subscribeToWhatsAppEvents = ({ onStatus, onQR, onPairingCode, onDisconnected }) => {
   const s = getWhatsAppSocket();
 
   const statusListener = (status) => {
@@ -46,12 +46,17 @@ export const subscribeToWhatsAppEvents = ({ onStatus, onQR, onDisconnected }) =>
     if (onQR) onQR(data);
   };
 
+  const pairingCodeListener = (data) => {
+    if (onPairingCode) onPairingCode(data);
+  };
+
   const disconnectedListener = (data) => {
     if (onDisconnected) onDisconnected(data);
   };
 
   s.on('whatsapp:status', statusListener);
   s.on('whatsapp:qr', qrListener);
+  s.on('whatsapp:pairing_code', pairingCodeListener);
   s.on('whatsapp:disconnected', disconnectedListener);
 
   // Request fresh status immediately
@@ -60,6 +65,7 @@ export const subscribeToWhatsAppEvents = ({ onStatus, onQR, onDisconnected }) =>
   return () => {
     s.off('whatsapp:status', statusListener);
     s.off('whatsapp:qr', qrListener);
+    s.off('whatsapp:pairing_code', pairingCodeListener);
     s.off('whatsapp:disconnected', disconnectedListener);
   };
 };

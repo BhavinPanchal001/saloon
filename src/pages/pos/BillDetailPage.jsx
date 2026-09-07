@@ -40,7 +40,9 @@ export default function BillDetailPage() {
     if (!bill?.id) return;
     setSendingWa(true);
     try {
-      const res = await sendWhatsAppBillAPI(bill.id);
+      const template = localStorage.getItem("glowy_print_template") || "thermal";
+      const paperWidth = localStorage.getItem("glowy_printer_paper_width") ? parseInt(localStorage.getItem("glowy_printer_paper_width"), 10) : 48;
+      const res = await sendWhatsAppBillAPI(bill.id, { format: template, paperWidth });
       toast.success(res.message || "WhatsApp receipt sent successfully!");
     } catch (err) {
       toast.error(err.message || "Failed to send WhatsApp message");

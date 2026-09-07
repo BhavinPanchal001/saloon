@@ -82,6 +82,7 @@ const CATEGORY_CONFIG = {
   staff: { label: "Staff", icon: UserCheck },
   packages: { label: "Packages", icon: Boxes },
   appointments: { label: "Appointments", icon: Calendar },
+  outlets: { label: "Outlets", icon: Store },
 };
 
 export function GlobalSearchModal() {

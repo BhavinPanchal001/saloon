@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const BaseWhatsAppProvider = require('./BaseWhatsAppProvider');
-const { generateInvoicePDFBuffer } = require('../pdfService');
+const { generateInvoicePDFBuffer, generateThermalInvoicePDFBuffer } = require('../pdfService');
 const { emitWhatsAppEvent } = require('../socketService');
 const { logMessage } = require('./messageLogger');
 const { getWhatsAppConfig } = require('./config');
@@ -32,7 +32,9 @@ class BaileysProvider extends BaseWhatsAppProvider {
   hasSavedSession() {
     try {
       const credsPath = path.join(AUTH_DIR, 'creds.json');
-      return fs.existsSync(credsPath);
+      if (!fs.existsSync(credsPath)) return false;
+      const data = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+      return Boolean(data.registered && data.me && data.me.id);
     } catch (_) {
       return false;
     }
@@ -47,6 +49,7 @@ class BaileysProvider extends BaseWhatsAppProvider {
       phoneNumber: this.connectedUser?.phone || null,
       userName: this.connectedUser?.name || null,
       qrDataUrl: this.qrDataUrl,
+      pairingCode: this.pairingCode || null,
       hasSavedSession: this.hasSavedSession(),
       capabilities: this.getCapabilities(),
     };
@@ -63,7 +66,7 @@ class BaileysProvider extends BaseWhatsAppProvider {
    */
   async init() {
     if (this.hasSavedSession()) {
-      console.log('[Baileys] Found existing saved session. Reconnecting automatically...');
+      console.log('[Baileys] Found existing authenticated session. Reconnecting automatically...');
       await this.connect().catch((err) => {
         console.warn('[Baileys] Automatic reconnection note:', err.message);
       });
@@ -76,14 +79,20 @@ class BaileysProvider extends BaseWhatsAppProvider {
   /**
    * Connect to WhatsApp Web via Baileys socket
    */
-  async connect() {
+  async connect(options = {}) {
     if (this.isConnecting || this.status === 'connected') {
       return { status: this.status, alreadyConnecting: true };
+    }
+
+    // Only clean auth files if explicitly requested (e.g. manual reset)
+    if (options.forceClean) {
+      this.cleanAuthFiles();
     }
 
     this.isConnecting = true;
     this.status = 'connecting';
     this.reconnectAttempts = 0;
+    this.pairingCode = null;
     this.emitStatus();
 
     try {
@@ -91,26 +100,62 @@ class BaileysProvider extends BaseWhatsAppProvider {
         fs.mkdirSync(AUTH_DIR, { recursive: true });
       }
 
+      // Cleanup any previous socket event listeners
+      if (this.sock) {
+        try {
+          this.sock.ev.removeAllListeners();
+        } catch (_) {}
+        this.sock = null;
+      }
+
       const baileysPkg = require('@whiskeysockets/baileys');
       const makeWASocket = baileysPkg.default || baileysPkg;
-      const { useMultiFileAuthState, DisconnectReason, Browsers } = baileysPkg;
+      const {
+        useMultiFileAuthState,
+        DisconnectReason,
+        Browsers,
+        fetchLatestWaWebVersion,
+        fetchLatestBaileysVersion,
+      } = baileysPkg;
       const pino = require('pino');
       const qrcode = require('qrcode');
+
+      // Fetch latest WhatsApp Web version to avoid protocol version mismatch
+      let waVersion;
+      try {
+        if (typeof fetchLatestWaWebVersion === 'function') {
+          const waWeb = await fetchLatestWaWebVersion();
+          if (waWeb && waWeb.version) waVersion = waWeb.version;
+        }
+      } catch (_) {
+        try {
+          if (typeof fetchLatestBaileysVersion === 'function') {
+            const bVer = await fetchLatestBaileysVersion();
+            if (bVer && bVer.version) waVersion = bVer.version;
+          }
+        } catch (__) {}
+      }
 
       const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
       this.saveCreds = saveCreds;
 
-      const browserInfo = Browsers && Browsers.appropriate
-        ? Browsers.appropriate('Glowy POS')
-        : ['Glowy POS', 'Chrome', '1.0.0'];
+      // Use standard Ubuntu Chrome identifier recommended for Baileys pairing & QR
+      const browserInfo = Browsers?.ubuntu
+        ? Browsers.ubuntu('Chrome')
+        : ['Ubuntu', 'Chrome', '22.04.4'];
 
       this.sock = makeWASocket({
+        ...(waVersion ? { version: waVersion } : {}),
         auth: state,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
         browser: browserInfo,
+        syncFullHistory: false,
         connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
         keepAliveIntervalMs: 25000,
+        retryRequestDelayMs: 250,
+        maxMsgRetryCount: 5,
         emitOwnEvents: false,
         generateHighQualityLinkPreview: false,
       });
@@ -137,6 +182,7 @@ class BaileysProvider extends BaseWhatsAppProvider {
           this.status = 'connected';
           this.qrCode = null;
           this.qrDataUrl = null;
+          this.pairingCode = null;
           this.reconnectAttempts = 0;
           this.isConnecting = false;
 
@@ -159,17 +205,28 @@ class BaileysProvider extends BaseWhatsAppProvider {
         if (connection === 'close') {
           this.isConnecting = false;
           const statusCode = lastDisconnect?.error?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-          console.log(`[Baileys] Connection closed. Status code: ${statusCode}. Reconnecting: ${shouldReconnect}`);
+          // Code 515: Restart required during companion pairing handshake (crucial for QR & pairing code)
+          if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
+            console.log('[Baileys] WhatsApp pairing handshake: restart required (515). Reconnecting with preserved session...');
+            setTimeout(() => {
+              this.isConnecting = false;
+              this.connect().catch(() => {});
+            }, 500);
+            return;
+          }
 
-          if (!shouldReconnect) {
-            // User logged out from WhatsApp
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403;
+          console.log(`[Baileys] Connection closed. Status code: ${statusCode}. Logged out: ${isLoggedOut}`);
+
+          if (isLoggedOut) {
+            // User unlinked from WhatsApp
             this.cleanAuthFiles();
             this.status = 'disconnected';
             this.connectedUser = null;
             this.qrCode = null;
             this.qrDataUrl = null;
+            this.pairingCode = null;
             this.sock = null;
             this.emitStatus();
             emitWhatsAppEvent('whatsapp:disconnected', { reason: 'Logged out from mobile device' });
@@ -184,6 +241,7 @@ class BaileysProvider extends BaseWhatsAppProvider {
               const delay = Math.min(this.reconnectAttempts * 3000, 15000);
               console.log(`[Baileys] Reconnect attempt ${this.reconnectAttempts} in ${delay / 1000}s...`);
               setTimeout(() => {
+                this.isConnecting = false;
                 this.connect().catch(() => {});
               }, delay);
             }
@@ -197,6 +255,53 @@ class BaileysProvider extends BaseWhatsAppProvider {
       this.status = 'error';
       this.emitStatus();
       console.error('[Baileys] Error connecting:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Request pairing code for "Link with phone number" instead of QR code
+   */
+  async requestPairingCode(phoneNumber) {
+    if (this.status === 'connected') {
+      return { success: false, error: 'WhatsApp is already connected.' };
+    }
+
+    let cleanPhone = String(phoneNumber || '').replace(/\D/g, '');
+    const config = getWhatsAppConfig();
+    const defaultCountryCode = config?.baileys?.defaultCountryCode || '91';
+
+    // Auto prepend country code if 10 digits entered (common in India)
+    if (cleanPhone.length === 10) {
+      cleanPhone = `${defaultCountryCode}${cleanPhone}`;
+    } else if (cleanPhone.startsWith('0') && cleanPhone.length === 11) {
+      cleanPhone = `${defaultCountryCode}${cleanPhone.substring(1)}`;
+    }
+
+    if (!cleanPhone || cleanPhone.length < 10) {
+      return { success: false, error: 'Please enter a valid phone number with country code (e.g., 919876543210).' };
+    }
+
+    // Force a fresh socket for pairing code to ensure clean handshake
+    this.isConnecting = false;
+    await this.connect({ forceClean: true });
+    // Allow brief tick for socket connection to initialize
+    await new Promise((r) => setTimeout(r, 1500));
+
+    if (!this.sock || typeof this.sock.requestPairingCode !== 'function') {
+      return { success: false, error: 'Socket is still initializing. Please wait a moment and try again.' };
+    }
+
+    try {
+      const code = await this.sock.requestPairingCode(cleanPhone);
+      const formatted = code?.match(/.{1,4}/g)?.join('-') || code;
+      this.pairingCode = formatted;
+      emitWhatsAppEvent('whatsapp:pairing_code', { code: formatted });
+      this.emitStatus();
+      console.log(`[Baileys] Pairing code generated: ${formatted} for phone: ${cleanPhone}`);
+      return { success: true, pairingCode: formatted, targetPhone: cleanPhone };
+    } catch (err) {
+      console.error('[Baileys] Failed to generate pairing code:', err);
       return { success: false, error: err.message };
     }
   }
@@ -359,19 +464,31 @@ class BaileysProvider extends BaseWhatsAppProvider {
       const messageId = textMsg?.key?.id;
       console.log(`[Baileys] Text receipt sent for bill #${invoiceNum} to ${recipientPhone}. Message ID: ${messageId}`);
 
-      // 2. Generate and send PDF Invoice attachment
+      // 2. Generate and send PDF Invoice attachment (Thermal vs A4)
       try {
-        const pdfBuffer = generateInvoicePDFBuffer(bill);
+        const isThermal = options.format === 'thermal' || (!options.format && options.templateMode !== 'a4');
+        let pdfBuffer;
+        let pdfFilename;
+        let caption;
         const billNumClean = invoiceNum.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const pdfFilename = `Invoice_${billNumClean}.pdf`;
+
+        if (isThermal) {
+          pdfBuffer = generateThermalInvoicePDFBuffer(bill, options);
+          pdfFilename = `Receipt_${billNumClean}.pdf`;
+          caption = `🧾 Thermal Receipt #${invoiceNum}`;
+        } else {
+          pdfBuffer = generateInvoicePDFBuffer(bill);
+          pdfFilename = `Tax_Invoice_${billNumClean}.pdf`;
+          caption = `📄 Tax Invoice #${invoiceNum}`;
+        }
 
         await this.sock.sendMessage(jid, {
           document: pdfBuffer,
           mimetype: 'application/pdf',
           fileName: pdfFilename,
-          caption: `📄 PDF Invoice Receipt #${invoiceNum}`,
+          caption,
         });
-        console.log(`[Baileys] PDF invoice document sent for bill #${invoiceNum} to ${recipientPhone}.`);
+        console.log(`[Baileys] ${isThermal ? 'Thermal receipt' : 'A4 Tax Invoice'} PDF document sent for bill #${invoiceNum} to ${recipientPhone}.`);
       } catch (pdfErr) {
         console.warn('[Baileys] Non-blocking PDF sending note:', pdfErr.message);
       }
@@ -391,6 +508,7 @@ class BaileysProvider extends BaseWhatsAppProvider {
         provider: this.name,
         recipient: recipientPhone,
         messageId,
+        format: (options.format === 'a4' || options.templateMode === 'a4') ? 'a4' : 'thermal',
       };
     } catch (err) {
       console.error(`[Baileys Error] Failed to send bill #${invoiceNum} to ${recipientPhone}:`, err.message);

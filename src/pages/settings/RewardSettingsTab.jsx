@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   Award,
   Save,
@@ -17,7 +18,9 @@ import {
   TrendingUp,
   Gift,
   Check,
-  X
+  X,
+  Ticket,
+  ArrowRight,
 } from "lucide-react";
 import {
   fetchRewardSettingsAPI,
@@ -254,6 +257,26 @@ export function RewardSettingsTab() {
             </>
           )}
         </button>
+      </div>
+
+      {/* Quick link to Voucher Auto-Reward Rules */}
+      <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100/60 border border-amber-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center flex-shrink-0">
+            <Ticket className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-amber-950">Next-Visit Voucher Auto-Award Rules</h4>
+            <p className="text-xs text-amber-800/80">Configure threshold milestone spend rules, voucher cashback percentages, and thermal receipt print mockups.</p>
+          </div>
+        </div>
+        <Link
+          to="/vouchers"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all whitespace-nowrap"
+        >
+          <span>Manage Voucher Rules</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
       {/* Graceful error / connection notice */}

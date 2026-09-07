@@ -1,7 +1,7 @@
 const https = require('https');
 const { URL } = require('url');
 const BaseWhatsAppProvider = require('./BaseWhatsAppProvider');
-const { generateInvoicePDFBuffer } = require('../pdfService');
+const { generateInvoicePDFBuffer, generateThermalInvoicePDFBuffer } = require('../pdfService');
 const { getWhatsAppConfig } = require('./config');
 const { logMessage } = require('./messageLogger');
 
@@ -365,11 +365,19 @@ class WhatsAppBusinessProvider extends BaseWhatsAppProvider {
       const messageId = result?.messages?.[0]?.id;
       console.log(`[WhatsApp Business API] Receipt sent for bill #${invoiceNum} to ${recipientPhone}. Message ID: ${messageId}`);
 
-      // Attempt to send PDF Invoice attachment if possible
+      // Attempt to send PDF Invoice attachment if possible (Thermal vs A4)
       try {
-        const pdfBuffer = generateInvoicePDFBuffer(bill);
+        const isThermal = options.format === 'thermal' || (!options.format && options.templateMode !== 'a4');
         const billNumClean = invoiceNum.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const pdfFilename = `Invoice_${billNumClean}.pdf`;
+        const pdfBuffer = isThermal
+          ? generateThermalInvoicePDFBuffer(bill, options)
+          : generateInvoicePDFBuffer(bill);
+        const pdfFilename = isThermal
+          ? `Receipt_${billNumClean}.pdf`
+          : `Tax_Invoice_${billNumClean}.pdf`;
+        const caption = isThermal
+          ? `🧾 Thermal Receipt #${invoiceNum}`
+          : `📄 Tax Invoice #${invoiceNum}`;
 
         const mediaId = await this.uploadPdfMediaToMeta({
           pdfBuffer,
@@ -382,12 +390,12 @@ class WhatsAppBusinessProvider extends BaseWhatsAppProvider {
           document: {
             id: mediaId,
             filename: pdfFilename,
-            caption: `📄 PDF Invoice Receipt #${invoiceNum}`,
+            caption,
           },
         };
 
         await this.sendMetaWhatsAppApiRequest({ recipientPhone, messagePayload: docPayload, creds });
-        console.log(`[WhatsApp Business API] PDF document attached for bill #${invoiceNum}.`);
+        console.log(`[WhatsApp Business API] ${isThermal ? 'Thermal receipt' : 'A4 Tax Invoice'} PDF document attached for bill #${invoiceNum}.`);
       } catch (pdfErr) {
         console.warn('[WhatsApp Business API] Non-blocking PDF document upload note:', pdfErr.message);
       }
