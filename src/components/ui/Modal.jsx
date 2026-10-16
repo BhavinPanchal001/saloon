@@ -26,7 +26,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-premium-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? "modal-title" : undefined}
@@ -39,12 +39,12 @@ export function Modal({
 
       {/* Modal Content */}
       <div
-        className={`relative w-full ${sizeClasses[size]} max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl`}
+        className={`relative w-full ${sizeClasses[size]} max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         {(title || showCloseButton) && (
-          <div className="flex items-center justify-between border-b border-navy-100/50 px-6 py-4">
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-white border-b border-navy-100/50 px-6 py-4">
             {title && (
               <h2
                 id="modal-title"
@@ -56,7 +56,7 @@ export function Modal({
             {showCloseButton && (
               <button
                 onClick={onClose}
-                className="rounded-xl p-2 text-navy-400 hover:bg-navy-50 hover:text-navy-600 transition-colors"
+                className="shrink-0 rounded-xl p-2 text-navy-400 hover:bg-navy-50 hover:text-navy-600 transition-colors"
                 aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
@@ -66,7 +66,7 @@ export function Modal({
         )}
 
         {/* Body */}
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6">{children}</div>
       </div>
     </div>
   );

@@ -37,19 +37,20 @@ const createInitialLinkage = (): ProductLinkage => ({
   consumptionUnit: "primary",
 });
 
-const createInitialServiceForm = (): ServiceForm => ({
+const createInitialServiceForm = (defaultOutletId?: number): ServiceForm => ({
   serviceName: "",
-  category: "hair",
+  category: "",
   price: "",
   duration: "",
   images: [],
   productLinkages: [createInitialLinkage()],
-  assignedOutletIds: [],
+  assignedOutletIds: defaultOutletId ? [defaultOutletId] : [],
 });
 
 const ServiceFormPage: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const defaultOutletId = !isAdmin && user?.outlet_id ? Number(user.outlet_id) : undefined;
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -61,7 +62,7 @@ const ServiceFormPage: React.FC = () => {
   const [outlets, setOutlets] = useState<any[]>([]);
   const [selectedOutlet, setSelectedOutlet] = useState('');
   const [outletProductsLoading, setOutletProductsLoading] = useState(false);
-  const [form, setForm] = useState<ServiceForm>(createInitialServiceForm());
+  const [form, setForm] = useState<ServiceForm>(() => createInitialServiceForm(defaultOutletId));
 
   useEffect(() => {
     const loadData = async () => {
@@ -71,7 +72,6 @@ const ServiceFormPage: React.FC = () => {
         fetchOutletsFromAPI(),
       ]);
       setAllProducts(inventoryList);
-      setInventory(inventoryList);
       setCategories(categoryList);
       setOutlets(outletList);
 
@@ -80,7 +80,7 @@ const ServiceFormPage: React.FC = () => {
         const service = await fetchServiceByIdFromAPI(targetId);
         setForm({
           serviceName: duplicateId ? `${service.service_name || ''} (Copy)` : (service.service_name || ''),
-          category: service.category_id ? String(service.category_id) : '',
+          category: service.category_id ? String(service.category_id) : (categoryList[0]?.id ? String(categoryList[0].id) : ''),
           price: String(service.price || ''),
           duration: String(service.duration || ''),
           images: service.images || [],
@@ -93,36 +93,83 @@ const ServiceFormPage: React.FC = () => {
             : [createInitialLinkage()],
           assignedOutletIds: service.assigned_outlet_ids || [],
         });
+      } else {
+        setForm((prev) => ({
+          ...prev,
+          category: prev.category || (categoryList[0]?.id ? String(categoryList[0].id) : ''),
+          assignedOutletIds: prev.assignedOutletIds.length > 0 ? prev.assignedOutletIds : (defaultOutletId ? [defaultOutletId] : []),
+        }));
       }
     };
     loadData();
-  }, [id, duplicateId]);
+  }, [id, duplicateId, defaultOutletId]);
 
-  const handleOutletChange = async (outletId: string) => {
-    setSelectedOutlet(outletId);
-    if (!outletId) {
-      setInventory(allProducts);
+  // Only outlets that are selected for this service
+  const selectedOutlets = outlets.filter((o: any) => form.assignedOutletIds.includes(o.id));
+
+  // Automatically fetch products for selected outlets
+  useEffect(() => {
+    if (form.assignedOutletIds.length === 0) {
+      setInventory([]);
+      setSelectedOutlet('');
+      setOutletProductsLoading(false);
       return;
     }
-    setOutletProductsLoading(true);
-    try {
-      const outletItems = await fetchOutletInventoryFromAPI({ outletId });
-      // outletItems have { productId, itemName, unitPrice, unitMasterId, currentStock }
-      // Map to same shape as allProducts so the dropdown works
-      const mapped = outletItems.map((item: any) => ({
-        id: String(item.productId),
-        itemName: item.itemName,
-        unitPrice: item.unitPrice,
-        unitMasterId: item.unitMasterId,
-        currentStock: item.currentStock,
-      }));
-      setInventory(mapped);
-    } catch {
-      setInventory([]);
-    } finally {
-      setOutletProductsLoading(false);
+
+    // Reset selectedOutlet filter if it's no longer one of the assigned outlets
+    if (selectedOutlet && !form.assignedOutletIds.includes(Number(selectedOutlet))) {
+      setSelectedOutlet('');
+      return;
     }
-  };
+
+    let isMounted = true;
+    const fetchSelectedOutletProducts = async () => {
+      setOutletProductsLoading(true);
+      try {
+        let outletItems: any[] = [];
+        if (selectedOutlet) {
+          outletItems = await fetchOutletInventoryFromAPI({ outletId: selectedOutlet });
+        } else if (form.assignedOutletIds.length === 1) {
+          outletItems = await fetchOutletInventoryFromAPI({ outletId: String(form.assignedOutletIds[0]) });
+        } else {
+          // Fetch for all assigned outlets using comma-separated IDs
+          const res = await fetchOutletInventoryFromAPI({ outletId: form.assignedOutletIds.join(',') });
+          outletItems = res;
+        }
+
+        if (!isMounted) return;
+
+        // Map and deduplicate by productId
+        const productMap = new Map<string, any>();
+        for (const item of outletItems) {
+          const prodId = String(item.productId);
+          if (!productMap.has(prodId)) {
+            productMap.set(prodId, {
+              id: prodId,
+              itemName: item.itemName,
+              unitPrice: item.unitPrice,
+              unitMasterId: item.unitMasterId,
+              currentStock: item.currentStock,
+              unitMaster: item.unitMaster,
+              consumptionUnit: item.consumptionUnit,
+            });
+          }
+        }
+        setInventory(Array.from(productMap.values()));
+      } catch (err) {
+        console.error('Error fetching outlet inventory:', err);
+        if (isMounted) setInventory([]);
+      } finally {
+        if (isMounted) setOutletProductsLoading(false);
+      }
+    };
+
+    fetchSelectedOutletProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [form.assignedOutletIds, selectedOutlet]);
 
   const toggleOutlet = (outletId: number) => {
     setForm((current) => ({
@@ -227,7 +274,7 @@ const ServiceFormPage: React.FC = () => {
                     ))}
                   </select>
                 </div>
-                <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="form-field">
                     <label>Price (RM)</label>
                     <input
@@ -265,12 +312,31 @@ const ServiceFormPage: React.FC = () => {
 
                 {isAdmin && (
                   <div className="form-field">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                      <Store size={18} className="text-navy-600" />
-                      <label style={{ fontWeight: 600, color: 'var(--svc-text-main)', fontSize: '0.875rem' }}>Select Outlets</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Store size={18} className="text-navy-600" />
+                        <label style={{ fontWeight: 600, color: 'var(--svc-text-main)', fontSize: '0.875rem' }}>Select Outlets</label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="text-xs text-navy-600 hover:text-navy-800 font-medium cursor-pointer bg-transparent border-0 p-0"
+                          onClick={() => setForm((current) => ({ ...current, assignedOutletIds: outlets.map((o) => o.id) }))}
+                        >
+                          Select All
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          type="button"
+                          className="text-xs text-slate-500 hover:text-slate-700 font-medium cursor-pointer bg-transparent border-0 p-0"
+                          onClick={() => setForm((current) => ({ ...current, assignedOutletIds: [] }))}
+                        >
+                          Clear All
+                        </button>
+                      </div>
                     </div>
                     <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.75rem' }}>
-                      Select outlets where this service will be available. If none are selected, it will be available at all outlets.
+                      Select outlets where this service will be available.
                     </p>
                     <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))' }}>
                       {outlets.map((outlet) => {
@@ -328,25 +394,53 @@ const ServiceFormPage: React.FC = () => {
                 Specify the inventory items and quantities used during this service.
               </p>
 
-              <div className="form-field" style={{ marginBottom: '1.5rem' }}>
-                <label>Filter by Outlet <span style={{ fontWeight: 400, color: '#94a3b8' }}>(shows only products assigned to that outlet)</span></label>
-                <select
-                  className="premium-input"
-                  value={selectedOutlet}
-                  onChange={(e) => handleOutletChange(e.target.value)}
-                >
-                  <option value="">All Products (no outlet filter)</option>
-                  {outlets.map((o: any) => (
-                    <option key={o.id} value={o.id}>{o.name}</option>
-                  ))}
-                </select>
-                {outletProductsLoading && (
-                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>Loading outlet products...</p>
-                )}
-                {selectedOutlet && !outletProductsLoading && inventory.length === 0 && (
-                  <p style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '0.25rem' }}>No products assigned to this outlet yet.</p>
-                )}
-              </div>
+              {/* Outlet Scoped Products Information / Filter */}
+              {selectedOutlets.length === 0 ? (
+                <div className="p-3.5 mb-4 rounded-xl border border-amber-200 bg-amber-50/70 text-amber-800 text-xs flex items-center gap-2.5">
+                  <Store size={16} className="text-amber-600 shrink-0" />
+                  <span>Please select outlet(s) under <strong>Select Outlets</strong> above to view and link products for consumption.</span>
+                </div>
+              ) : selectedOutlets.length === 1 ? (
+                <div className="flex items-center justify-between p-3 mb-4 rounded-xl border border-slate-200 bg-slate-50/80">
+                  <div className="flex items-center gap-2">
+                    <Store size={16} className="text-navy-600" />
+                    <span className="text-xs text-slate-600">Products for selected outlet:</span>
+                    <span className="text-xs font-semibold text-navy-800 bg-navy-50 px-2 py-0.5 rounded border border-navy-200">
+                      {selectedOutlets[0].name}
+                    </span>
+                  </div>
+                  {outletProductsLoading && (
+                    <span className="text-xs text-slate-500 animate-pulse">Loading products...</span>
+                  )}
+                </div>
+              ) : (
+                <div className="form-field" style={{ marginBottom: '1.5rem' }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Filter Products by Selected Outlet
+                    </label>
+                    {outletProductsLoading && (
+                      <span className="text-xs text-slate-500 animate-pulse">Loading products...</span>
+                    )}
+                  </div>
+                  <select
+                    className="premium-input"
+                    value={selectedOutlet}
+                    onChange={(e) => setSelectedOutlet(e.target.value)}
+                  >
+                    <option value="">All Selected Outlets ({selectedOutlets.length})</option>
+                    {selectedOutlets.map((o: any) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {!outletProductsLoading && selectedOutlets.length > 0 && inventory.length === 0 && (
+                <div className="p-3 mb-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 text-xs">
+                  No products found in inventory for the selected outlet(s).
+                </div>
+              )}
 
               <div className="space-y-4">
                 {form.productLinkages.map((linkage, index) => {
@@ -363,12 +457,13 @@ const ServiceFormPage: React.FC = () => {
                     : null;
 
                   return (
-                    <div key={index} className="linkage-row" style={{ gridTemplateColumns: '1fr 100px 120px 45px' }}>
+                    <div key={index} className="linkage-row service-product-row">
                       <div className="form-field">
                         <label>Product</label>
                         <select
                           className="premium-input"
                           value={linkage.inventoryId}
+                          disabled={selectedOutlets.length === 0 || outletProductsLoading}
                           onChange={(e) => {
                             updateLinkage(index, "inventoryId", e.target.value);
                             // Reset unit to product's default consumption unit
@@ -378,12 +473,30 @@ const ServiceFormPage: React.FC = () => {
                             }
                           }}
                         >
-                          <option value="">Select Item</option>
+                          <option value="">
+                            {selectedOutlets.length === 0
+                              ? "Select outlet(s) above first"
+                              : outletProductsLoading
+                              ? "Loading products..."
+                              : inventory.length === 0
+                              ? "No products available"
+                              : "Select Item"}
+                          </option>
                           {inventory.map((item: any) => (
                             <option key={item.id} value={item.id}>
-                              {item.itemName}
+                              {item.itemName} {item.isStockable === false || item.is_stockable === false ? ' (Non-Stockable)' : ''}
                             </option>
                           ))}
+                          {linkage.inventoryId && !inventory.some((item: any) => String(item.id) === String(linkage.inventoryId)) && (
+                            (() => {
+                              const existingProd = allProducts.find((p: any) => String(p.id) === String(linkage.inventoryId));
+                              return existingProd ? (
+                                <option key={existingProd.id} value={existingProd.id}>
+                                  {existingProd.itemName} (Previously linked){existingProd.isStockable === false || existingProd.is_stockable === false ? ' (Non-Stockable)' : ''}
+                                </option>
+                              ) : null;
+                            })()
+                          )}
                         </select>
                       </div>
                       <div className="form-field">
@@ -438,9 +551,17 @@ const ServiceFormPage: React.FC = () => {
                       >
                         ×
                       </button>
-                      {showConversion && baseEquiv !== null ? (
-                        <div style={{ gridColumn: '1 / -1', fontSize: '0.75rem', color: '#64748b', padding: '0.25rem 0 0' }}>
-                          = {baseEquiv.toFixed(4).replace(/\.?0+$/, '')} {baseAbbr} (base unit)
+                      {selectedProduct && (selectedProduct.isStockable === false || selectedProduct.is_stockable === false) ? (
+                        <div style={{ gridColumn: '1 / -1', fontSize: '0.75rem', color: '#b45309', padding: '0.25rem 0 0', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span>⚠️ Non-stockable: Usage qty recorded for recipe, but inventory stock will <strong>not</strong> be deducted on checkout.</span>
+                        </div>
+                      ) : showConversion && baseEquiv !== null ? (
+                        <div style={{ gridColumn: '1 / -1', fontSize: '0.75rem', color: '#16a34a', padding: '0.25rem 0 0' }}>
+                          ✓ Stockable: {baseEquiv.toFixed(4).replace(/\.?0+$/, '')} {baseAbbr} (base unit) will be deducted on checkout.
+                        </div>
+                      ) : selectedProduct ? (
+                        <div style={{ gridColumn: '1 / -1', fontSize: '0.75rem', color: '#16a34a', padding: '0.25rem 0 0' }}>
+                          ✓ Stockable: Will deduct {linkage.quantityUsed || 1} {currentAbbr || 'units'} from outlet stock on checkout.
                         </div>
                       ) : null}
                     </div>

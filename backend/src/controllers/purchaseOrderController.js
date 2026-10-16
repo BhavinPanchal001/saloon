@@ -1,19 +1,16 @@
 const { Op } = require('sequelize');
-const { sequelize } = require('../models/db');
+const { 
+  sequelize,
+  PurchaseOrder,
+  PurchaseOrderItem,
+  Product,
+  Payment,
+  PaymentDetail,
+  Bank,
+  Outlet 
+} = require('../models');
 const fs = require('fs');
 const path = require('path');
-const PurchaseOrder = require('../models/PurchaseOrder');
-const PurchaseOrderItem = require('../models/PurchaseOrderItem');
-const Product = require('../models/Product');
-const Payment = require('../models/Payment');
-const PaymentDetail = require('../models/PaymentDetail');
-const Bank = require('../models/Bank');
-const Outlet = require('../models/Outlet');
-
-// Set up associations (idempotent)
-PurchaseOrder.hasMany(PurchaseOrderItem, { foreignKey: 'purchase_order_id', as: 'items' });
-PurchaseOrderItem.belongsTo(PurchaseOrder, { foreignKey: 'purchase_order_id' });
-PurchaseOrder.belongsTo(Outlet, { foreignKey: 'outlet_id' });
 
 const generatePoNumber = async (transaction) => {
   const today = new Date();
@@ -273,19 +270,27 @@ const create = async (req, res) => {
         }
         
         // Validate bank account requirement for bank_transfer and cheque
-        if ((d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && !d.bankAccountId) {
+        const itemBankAccountId = (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque')
+          ? (d.bankAccountId || payment.bankAccountId || null)
+          : null;
+
+        if ((d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && !itemBankAccountId) {
           throw new Error(`Bank account is required for ${d.paymentMode} payments.`);
         }
         
         return {
           amount,
           payment_mode: d.paymentMode,
+          bank_account_id: itemBankAccountId,
         };
       });
 
-      // Validate bank account exists if provided
-      if (payment.bankAccountId) {
-        const bank = await Bank.findByPk(payment.bankAccountId, { transaction: t });
+      // Only validate bank account if at least one payment method is bank_transfer or cheque and bankAccountId is provided
+      const hasBankMode = payment.details.some((d) => (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && Number(d.amount) > 0);
+      const resolvedBankAccountId = hasBankMode ? (payment.bankAccountId || null) : null;
+
+      if (resolvedBankAccountId) {
+        const bank = await Bank.findByPk(resolvedBankAccountId, { transaction: t });
         if (!bank) {
           await t.rollback();
           return res.status(400).json({ message: 'Selected bank account not found.' });
@@ -306,7 +311,7 @@ const create = async (req, res) => {
           transaction_reference: (payment.transactionReference || '').trim() || null,
           notes: (payment.notes || '').trim() || null,
           payment_date: payment.paymentDate || new Date().toISOString().split('T')[0],
-          bank_account_id: payment.bankAccountId || null,
+          bank_account_id: resolvedBankAccountId,
         }, { transaction: t });
 
         await PaymentDetail.bulkCreate(
@@ -333,12 +338,14 @@ const create = async (req, res) => {
     });
     return res.status(201).json(toResponse(created));
   } catch (err) {
-    await t.rollback();
+    if (t && !t.finished) {
+      await t.rollback();
+    }
     console.error(err);
     if (err.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({ message: 'PO number collision — please retry.' });
     }
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(500).json({ message: err.message || 'Server error.' });
   }
 };
 
@@ -564,19 +571,27 @@ const update = async (req, res) => {
         }
         
         // Validate bank account requirement for bank_transfer and cheque
-        if ((d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && !d.bankAccountId) {
+        const itemBankAccountId = (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque')
+          ? (d.bankAccountId || payment.bankAccountId || null)
+          : null;
+
+        if ((d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && !itemBankAccountId) {
           throw new Error(`Bank account is required for ${d.paymentMode} payments.`);
         }
         
         return {
           amount,
           payment_mode: d.paymentMode,
+          bank_account_id: itemBankAccountId,
         };
       });
 
-      // Validate bank account exists if provided
-      if (payment.bankAccountId) {
-        const bank = await Bank.findByPk(payment.bankAccountId, { transaction: t });
+      // Only validate bank account if at least one payment method is bank_transfer or cheque and bankAccountId is provided
+      const hasBankMode = payment.details.some((d) => (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && Number(d.amount) > 0);
+      const resolvedBankAccountId = hasBankMode ? (payment.bankAccountId || null) : null;
+
+      if (resolvedBankAccountId) {
+        const bank = await Bank.findByPk(resolvedBankAccountId, { transaction: t });
         if (!bank) {
           await t.rollback();
           return res.status(400).json({ message: 'Selected bank account not found.' });
@@ -594,7 +609,7 @@ const update = async (req, res) => {
           transaction_reference: (payment.transactionReference || '').trim() || null,
           notes: (payment.notes || '').trim() || null,
           payment_date: payment.paymentDate || new Date().toISOString().split('T')[0],
-          bank_account_id: payment.bankAccountId || null,
+          bank_account_id: resolvedBankAccountId,
         }, { transaction: t });
 
         await PaymentDetail.bulkCreate(
@@ -624,7 +639,9 @@ const update = async (req, res) => {
     });
     return res.json(toResponse(updated));
   } catch (err) {
-    await t.rollback();
+    if (t && !t.finished) {
+      await t.rollback();
+    }
     console.error(err);
     return res.status(500).json({ message: err.message || 'Server error.' });
   }

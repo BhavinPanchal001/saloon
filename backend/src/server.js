@@ -103,8 +103,15 @@ const startServer = async () => {
       await CustomerVoucher.sync({ force: true });
     }
 
-    // Ensure columns exist on customers and bills tables
+    // Ensure columns exist on customers, products, and bills tables
     try {
+      const [prodCols] = await sequelize.query("SHOW COLUMNS FROM products");
+      const prodColNames = prodCols.map(c => c.Field);
+      if (!prodColNames.includes('is_stockable')) {
+        console.log('[Migration] Adding is_stockable column to products table...');
+        await sequelize.query("ALTER TABLE products ADD COLUMN `is_stockable` TINYINT(1) NOT NULL DEFAULT 1");
+      }
+
       const [custCols] = await sequelize.query("SHOW COLUMNS FROM customers");
       const custColNames = custCols.map(c => c.Field);
       if (!custColNames.includes('loyalty_tier_id')) {
@@ -269,6 +276,19 @@ const startServer = async () => {
         defaultValue: null,
       });
       console.log('[Migration] Column outlet_id added successfully to admins.');
+    }
+
+    // Run migration check for products table barcode column
+    const productsTableInfo = await queryInterface.describeTable('products');
+    if (!productsTableInfo.barcode) {
+      console.log('[Migration] Adding column barcode to products...');
+      const { DataTypes } = require('sequelize');
+      await queryInterface.addColumn('products', 'barcode', {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        defaultValue: null,
+      });
+      console.log('[Migration] Column barcode added successfully to products.');
     }
 
     const server = http.createServer(app);

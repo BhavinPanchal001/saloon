@@ -56,6 +56,7 @@ const permissionCategories = [
     permissions: [
       { key: "expenses:view", label: "View Expenses & Outlet Budgets" },
       { key: "expenses:create", label: "Create & Record New Expenses" },
+      { key: "expenses:edit", label: "Edit Recorded Expenses" },
       { key: "expenses:delete", label: "Delete Recorded Expenses" },
     ],
   },

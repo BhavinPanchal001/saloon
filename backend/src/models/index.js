@@ -63,6 +63,7 @@ OutletInventory.belongsTo(Outlet, { foreignKey: 'outlet_id' });
 
 StockIssue.belongsTo(Product, { foreignKey: 'product_id' });
 StockIssue.belongsTo(Outlet, { foreignKey: 'outlet_id' });
+StockIssue.belongsTo(Admin, { foreignKey: 'issued_by', as: 'issuer' });
 
 OutletProductPrice.belongsTo(Product, { foreignKey: 'product_id' });
 OutletProductPrice.belongsTo(Outlet, { foreignKey: 'outlet_id' });
@@ -85,7 +86,9 @@ Payment.hasMany(PaymentDetail, { foreignKey: 'payment_id', as: 'details', onDele
 PaymentDetail.belongsTo(Payment, { foreignKey: 'payment_id' });
 
 Payment.belongsTo(PurchaseOrder, { foreignKey: 'purchase_order_id' });
-PurchaseOrder.hasMany(Payment, { foreignKey: 'purchase_order_id' });
+PurchaseOrder.hasMany(Payment, { foreignKey: 'purchase_order_id', as: 'Payments' });
+PurchaseOrder.hasMany(PurchaseOrderItem, { foreignKey: 'purchase_order_id', as: 'items' });
+PurchaseOrderItem.belongsTo(PurchaseOrder, { foreignKey: 'purchase_order_id' });
 PurchaseOrder.belongsTo(Outlet, { foreignKey: 'outlet_id' });
 Outlet.hasMany(PurchaseOrder, { foreignKey: 'outlet_id' });
 

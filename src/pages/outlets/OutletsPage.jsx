@@ -81,7 +81,14 @@ export function OutletsPage() {
           <tbody>
             {outlets.map((outlet) => (
               <tr key={outlet.id}>
-                <td className="font-bold text-navy-900">{outlet.name}</td>
+                <td className="font-bold text-navy-900">
+                  <Link
+                    to={`/outlets/${outlet.id}`}
+                    className="hover:text-gold-600 transition-colors cursor-pointer"
+                  >
+                    {outlet.name}
+                  </Link>
+                </td>
                 <td>
                   <span className="status-badge bg-navy-50 text-navy-600">{outlet.code || "N/A"}</span>
                 </td>
@@ -105,10 +112,10 @@ export function OutletsPage() {
                 <td>
                   <div className="flex items-center gap-3">
                     <Link
-                      to={`/outlets/transactions?outletId=${outlet.id}`}
+                      to={`/outlets/${outlet.id}`}
                       className="text-xs font-bold uppercase tracking-wider text-emerald-600 hover:text-emerald-800 flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200"
                     >
-                      Transactions
+                      Details & Hub
                       <ArrowUpRight size={12} />
                     </Link>
                     <button

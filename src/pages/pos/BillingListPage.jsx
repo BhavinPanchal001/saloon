@@ -175,8 +175,8 @@ export default function BillingListPage() {
 
       {/* Search + Filters */}
       <div className="glass-card !p-6 mb-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-0 basis-full xl:basis-64 xl:flex-1">
             <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-navy-300" />
             <input
               className="premium-input !pl-11 !py-3"
@@ -185,7 +185,7 @@ export default function BillingListPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex max-w-full flex-wrap items-center gap-3">
             {/* Date From */}
             <div className="relative">
               <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-400" />
@@ -218,7 +218,7 @@ export default function BillingListPage() {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center gap-2">
             {isAdmin && (
               <select
                 value={selectedOutlet}
@@ -275,27 +275,27 @@ export default function BillingListPage() {
           <table className="premium-table">
             <thead>
               <tr>
-                <th>Bill #</th>
-                <th>Date & Time</th>
+                <th className="text-left">Bill & Date</th>
                 <th>Customer</th>
                 <th>Items</th>
                 <th>Payment</th>
                 <th>Status</th>
-                <th className="text-right">Total</th>
+                <th className="text-center">Total</th>
                 <th className="text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((bill) => (
                 <tr key={bill.id}>
-                  <td>
-                    <span className="inline-flex items-center rounded-xl bg-navy-50 px-3 py-1.5 text-xs font-bold text-navy-700">
-                      {bill.billNumber}
-                    </span>
-                  </td>
-                  <td>
-                    <p className="text-sm font-semibold text-navy-800">{formatDate(bill.createdAt)}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">{formatTime(bill.createdAt)}</p>
+                  <td className="text-left">
+                    <div className="flex flex-col items-start justify-start text-left gap-1">
+                      <span className="inline-flex items-center rounded-xl bg-navy-50 px-2.5 py-1 text-xs font-bold text-navy-700 whitespace-nowrap text-left">
+                        {bill.billNumber}
+                      </span>
+                      <p className="mt-0.5 text-xs text-slate-400 whitespace-nowrap text-left">
+                        {formatDate(bill.createdAt)} {formatTime(bill.createdAt) && `• ${formatTime(bill.createdAt)}`}
+                      </p>
+                    </div>
                   </td>
                   <td>
                     <p className="font-semibold text-navy-900">{bill.customer?.name || "Walk-in"}</p>
@@ -333,7 +333,7 @@ export default function BillingListPage() {
                       {bill.status === "partially_paid" ? "Partial" : bill.status === "unpaid" ? "Unpaid" : bill.status}
                     </span>
                   </td>
-                  <td className="text-right">
+                  <td className="text-center">
                     <span className="text-sm font-black text-navy-900">{formatCurrency(bill.total)}</span>
                   </td>
                   <td className="text-center">
@@ -341,65 +341,58 @@ export default function BillingListPage() {
                       {bill.status !== "paid" && (
                         <button
                           onClick={() => setPaymentModalBill(bill)}
-                          className="group inline-flex items-center gap-1.5 rounded-xl border border-emerald-300/70 bg-emerald-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 whitespace-nowrap transition-all hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-md"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-300/70 bg-emerald-50 text-emerald-700 transition-all hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-md"
                           title="Collect / Add Payment"
                         >
-                          <CreditCard size={13} />
-                          + Payment
+                          <CreditCard size={15} />
                         </button>
                       )}
                       <button
                         onClick={() => navigate(`/pos/bills/${bill.id}`)}
-                        className="group inline-flex items-center gap-1.5 rounded-xl border border-navy-200 bg-white px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-navy-600 whitespace-nowrap transition-all hover:bg-navy-900 hover:text-white hover:border-navy-900"
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-navy-200 bg-white text-navy-600 transition-all hover:bg-navy-900 hover:text-white hover:border-navy-900 shadow-2xs"
                         title="View Details"
                       >
-                        <Eye size={13} />
-                        View
+                        <Eye size={15} />
                       </button>
                       <button
                         onClick={() => navigate(`/pos?editBillId=${bill.id}`, { state: { editBill: bill } })}
-                        className="group inline-flex items-center gap-1.5 rounded-xl border border-blue-300/60 bg-blue-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-blue-700 whitespace-nowrap transition-all hover:bg-blue-600 hover:text-white hover:border-blue-600 hover:shadow-md"
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-blue-300/60 bg-blue-50 text-blue-700 transition-all hover:bg-blue-600 hover:text-white hover:border-blue-600 hover:shadow-md"
                         title="Edit Invoice in POS"
                       >
-                        <Edit size={13} />
-                        Edit
+                        <Edit size={15} />
                       </button>
                       <button
                         onClick={() => handleDownload(bill)}
-                        className="group inline-flex items-center gap-1.5 rounded-xl border border-gold-300/50 bg-gold-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-gold-700 whitespace-nowrap transition-all hover:bg-gold-400 hover:text-navy-900 hover:shadow-gold"
-                        title="Print Invoice"
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-gold-300/50 bg-gold-50 text-gold-700 transition-all hover:bg-gold-400 hover:text-navy-900 hover:shadow-gold"
+                        title="Print / Download Invoice"
                       >
-                        <Download size={13} />
-                        Invoice
+                        <Download size={15} />
                       </button>
                       <button
                         onClick={() => handleThermalPrint(bill)}
                         disabled={printingBillId === bill.id}
-                        className="group inline-flex items-center gap-1.5 rounded-xl border border-purple-300/50 bg-purple-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-purple-700 whitespace-nowrap transition-all hover:bg-purple-500 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-purple-300/50 bg-purple-50 text-purple-700 transition-all hover:bg-purple-500 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Print to Thermal Printer"
                       >
                         {printingBillId === bill.id ? (
-                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-purple-300 border-t-purple-700" />
+                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-purple-300 border-t-purple-700" />
                         ) : (
-                          <Printer size={13} />
+                          <Printer size={15} />
                         )}
-                        Reprint
                       </button>
                       <button
                         onClick={() => handleWhatsAppSend(bill.id)}
                         disabled={sendingWaId === bill.id}
-                        className="group inline-flex items-center gap-1.5 rounded-xl border border-emerald-300/50 bg-emerald-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 whitespace-nowrap transition-all hover:bg-emerald-600 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-300/50 bg-emerald-50 text-emerald-700 transition-all hover:bg-emerald-600 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Send WhatsApp Receipt"
                       >
                         {sendingWaId === bill.id ? (
-                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-700" />
+                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-700" />
                         ) : (
-                          <MessageCircle size={13} />
+                          <MessageCircle size={15} />
                         )}
-                        WhatsApp
                       </button>
                     </div>
-
                   </td>
                 </tr>
               ))}

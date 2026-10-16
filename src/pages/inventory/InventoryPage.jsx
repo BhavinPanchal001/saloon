@@ -36,6 +36,7 @@ const initialProductForm = {
   consumptionUnit: "primary",
   productMeasure: 1,
   productMeasureUnit: "primary",
+  isStockable: true,
   images: [],
 };
 
@@ -239,6 +240,7 @@ export function InventoryPage() {
       consumptionUnit: item.consumptionUnit || "primary",
       productMeasure: item.productMeasure || 1,
       productMeasureUnit: item.productMeasureUnit || "primary",
+      isStockable: item.isStockable !== undefined ? Boolean(item.isStockable) : (item.is_stockable !== undefined ? Boolean(item.is_stockable) : true),
       images: Array.isArray(item.images) ? item.images : [],
     });
     setIsEditProductModalOpen(true);
@@ -263,6 +265,7 @@ export function InventoryPage() {
         consumption_unit: editProductForm.consumptionUnit,
         product_measure: editProductForm.productMeasure,
         product_measure_unit: editProductForm.productMeasureUnit,
+        is_stockable: editProductForm.isStockable !== false,
         images: editProductForm.images || [],
       });
       setIsEditProductModalOpen(false);
@@ -340,6 +343,7 @@ export function InventoryPage() {
         ...productForm,
         openingStock: baseOpeningStock,
         unitMasterId: productForm.unitMasterId || null,
+        is_stockable: productForm.isStockable !== false,
       });
       setProductForm(initialProductForm);
       setIsProductModalOpen(false);
@@ -413,6 +417,16 @@ export function InventoryPage() {
     if (!outletPriceFilter) return outletPrices;
     return outletPrices.filter((r) => String(r.outletId) === String(outletPriceFilter));
   }, [outletPrices, outletPriceFilter]);
+
+  const outletPriceMap = useMemo(() => {
+    const map = new Map();
+    outletPrices.forEach((p) => {
+      if (p.type === 'product' || !p.type) {
+        map.set(`${p.outletId}_${p.productId}`, Number(p.price));
+      }
+    });
+    return map;
+  }, [outletPrices]);
 
   const outletPriceFormItemId = outletPriceForm.type === "service"
     ? outletPriceForm.serviceId
@@ -739,16 +753,23 @@ export function InventoryPage() {
                               <Images size={14} className="text-navy-300" />
                             </div>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigate(`/inventory/products/${item.id}/sales`);
-                            }}
-                            className="font-bold text-navy-900 hover:text-gold-600 hover:underline transition-colors text-left"
-                            title="Click to view transaction history"
-                          >
-                            {item.itemName}
-                          </button>
+                          <div className="flex flex-col items-start gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigate(`/inventory/products/${item.id}/sales`);
+                              }}
+                              className="font-bold text-navy-900 hover:text-gold-600 hover:underline transition-colors text-left"
+                              title="Click to view transaction history"
+                            >
+                              {item.itemName}
+                            </button>
+                            {item.isStockable === false || item.is_stockable === false ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                Non-Stockable
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </td>
                       <td>
@@ -902,33 +923,60 @@ export function InventoryPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredInventory.map((item) => (
-                      <tr key={item.id}>
-                        <td className="font-bold text-navy-900">{item.itemName}</td>
-                        {isAdmin ? (
-                          <td>{outletNameById[item.outletId] || "Outlet"}</td>
-                        ) : null}
-                        <td>
-                          {item.unitMaster && item.consumptionUnit === 'secondary'
-                            ? (Number(item.currentStock) * item.unitMaster.conversionRatio).toFixed(4).replace(/\.?0+$/, "")
-                            : item.currentStock}
-                          {item.unitMaster ? (
-                            <span className="ml-1 text-xs text-slate-400">
-                              {item.consumptionUnit === 'secondary' ? item.unitMaster.secondaryAbbr : item.unitMaster.primaryAbbr}
-                            </span>
+                    {filteredInventory.map((item) => {
+                      const customPrice = outletPriceMap.get(`${item.outletId}_${item.productId}`);
+                      const displayPrice = customPrice !== undefined
+                        ? customPrice
+                        : (item.outletPrice !== null && item.outletPrice !== undefined ? item.outletPrice : item.unitPrice);
+                      const basePrice = item.basePrice || item.unitPrice;
+                      const hasCustomPrice = customPrice !== undefined || (item.outletPrice !== null && item.outletPrice !== undefined);
+
+                      return (
+                        <tr key={item.id}>
+                          <td>
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="font-bold text-navy-900">{item.itemName}</span>
+                              {item.isStockable === false || item.is_stockable === false ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                  Non-Stockable
+                                </span>
+                              ) : null}
+                            </div>
+                          </td>
+                          {isAdmin ? (
+                            <td>{outletNameById[item.outletId] || "Outlet"}</td>
                           ) : null}
-                        </td>
-                        <td>{formatCurrency(item.unitPrice)}</td>
-                        <td>
-                          <AuditHistoryButton
-                            onClick={() => openAuditHistory('outlet_inventory', item.id, item.itemName)}
-                            size="sm"
-                            variant="ghost"
-                            showText={false}
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                          <td>
+                            {item.unitMaster && item.consumptionUnit === 'secondary'
+                              ? (Number(item.currentStock) * item.unitMaster.conversionRatio).toFixed(4).replace(/\.?0+$/, "")
+                              : item.currentStock}
+                            {item.unitMaster ? (
+                              <span className="ml-1 text-xs text-slate-400">
+                                {item.consumptionUnit === 'secondary' ? item.unitMaster.secondaryAbbr : item.unitMaster.primaryAbbr}
+                              </span>
+                            ) : null}
+                          </td>
+                          <td>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-navy-900">{formatCurrency(displayPrice)}</span>
+                              {hasCustomPrice && displayPrice !== basePrice && (
+                                <span className="text-[11px] text-slate-400 line-through">
+                                  Base: {formatCurrency(basePrice)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <AuditHistoryButton
+                              onClick={() => openAuditHistory('outlet_inventory', item.id, item.itemName)}
+                              size="sm"
+                              variant="ghost"
+                              showText={false}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </>
@@ -1038,6 +1086,35 @@ export function InventoryPage() {
                   </div>
                 </>
               ) : null}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition-all hover:bg-slate-50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-navy-900">Stockable Product</span>
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider ${
+                        editProductForm.isStockable ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {editProductForm.isStockable ? 'Stock Deducted' : 'No Stock Deduction'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {editProductForm.isStockable
+                        ? 'Stock is tracked and automatically deducted when used in services or sold at POS.'
+                        : 'Stock is NOT deducted during service creation or POS checkout (ideal for non-stockable/consumable service items).'}
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={editProductForm.isStockable}
+                      onChange={(e) => setEditProductForm((c) => ({ ...c, isStockable: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-navy-900"></div>
+                  </label>
+                </div>
+              </div>
+
               <ImageUpload
                 label="Product Images"
                 value={editProductForm.images}
@@ -1172,6 +1249,35 @@ export function InventoryPage() {
                     </>
                   ) : null
                 }
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition-all hover:bg-slate-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm text-navy-900">Stockable Product</span>
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider ${
+                          productForm.isStockable ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {productForm.isStockable ? 'Stock Deducted' : 'No Stock Deduction'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {productForm.isStockable
+                          ? 'Stock is tracked and automatically deducted when used in services or sold at POS.'
+                          : 'Stock is NOT deducted during service creation or POS checkout (ideal for non-stockable/consumable service items).'}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={productForm.isStockable}
+                        onChange={(e) => setProductForm((c) => ({ ...c, isStockable: e.target.checked }))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-navy-900"></div>
+                    </label>
+                  </div>
+                </div>
 
                 <ImageUpload
                   label="Product Images"

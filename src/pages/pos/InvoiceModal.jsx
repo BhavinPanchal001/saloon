@@ -1,7 +1,7 @@
 import { X, Printer, Sparkles, MessageCircle, Bluetooth, FileText, Receipt, Check, Loader2, RefreshCw } from "lucide-react";
 import { formatCurrency } from "../../utils/format";
 import { COMPANY_INFO, getFullImageUrl } from "../../utils/companyInfo";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { fetchProductsFromAPI, sendWhatsAppBillAPI } from "../../services/api";
 import { useToastStore } from "../../stores/toastStore";
 import { createPortal } from "react-dom";
@@ -35,11 +35,12 @@ const formatTime = (iso) => {
 const typeLabel = (t) =>
   t === "service" ? "Service" : t === "package" ? "Package" : "Product";
 
-export function InvoiceModal({ bill, onClose, defaultTemplate }) {
+export function InvoiceModal({ bill, onClose, defaultTemplate, autoPrint = false }) {
   const [productMasters, setProductMasters] = useState([]);
   const [sendingWa, setSendingWa] = useState(false);
   const [waDeliveryStatus, setWaDeliveryStatus] = useState(() => bill?.whatsapp || null);
   const toast = useToastStore();
+  const autoPrintedRef = useRef(false);
 
   // Template selection: 'thermal' | 'a4'
   const [templateMode, setTemplateMode] = useState(() => {
@@ -141,6 +142,30 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
     }
   };
 
+  useEffect(() => {
+    if (autoPrint && !autoPrintedRef.current && bill) {
+      autoPrintedRef.current = true;
+      const timer = setTimeout(() => {
+        if (templateMode === "thermal" && btStatus?.connected) {
+          handlePrintBluetooth();
+        } else {
+          handlePrint();
+        }
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint, bill, templateMode, btStatus?.connected]);
+
+  const handlePrintAndWhatsApp = async () => {
+    const waPromise = handleSendWhatsApp();
+    if (templateMode === "thermal" && btStatus?.connected) {
+      await handlePrintBluetooth();
+    } else {
+      handlePrint();
+    }
+    await waPromise;
+  };
+
   if (!bill) return null;
 
   return createPortal(
@@ -205,6 +230,18 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrintAndWhatsApp}
+              disabled={sendingWa || printingBt || connectingBt}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white rounded-xl transition-all shadow-md disabled:opacity-50"
+              title="Print receipt and send WhatsApp message simultaneously"
+            >
+              <Printer size={14} />
+              <span className="font-bold">+</span>
+              <MessageCircle size={14} />
+              <span>Print + WhatsApp</span>
+            </button>
             {templateMode === "thermal" ? (
               <>
                 <button

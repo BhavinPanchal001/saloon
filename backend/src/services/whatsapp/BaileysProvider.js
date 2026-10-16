@@ -34,13 +34,39 @@ class BaileysProvider extends BaseWhatsAppProvider {
       const credsPath = path.join(AUTH_DIR, 'creds.json');
       if (!fs.existsSync(credsPath)) return false;
       const data = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
-      return Boolean(data.registered && data.me && data.me.id);
+      return Boolean(data && data.me && data.me.id);
     } catch (_) {
       return false;
     }
   }
 
+  async ensureConnected(timeoutMs = 8000) {
+    if (this.status === 'connected' && this.sock) return true;
+    if (!this.hasSavedSession()) return false;
+
+    if (!this.isConnecting) {
+      console.log('[Baileys] Socket disconnected but saved session exists. Auto-reconnecting...');
+      this.connect().catch((err) => {
+        console.warn('[Baileys] Auto-reconnect in ensureConnected note:', err.message);
+      });
+    }
+
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (this.status === 'connected' && this.sock) return true;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    return this.status === 'connected' && Boolean(this.sock);
+  }
+
   async getStatus() {
+    // If disconnected but has saved session and not already connecting, trigger auto-connect
+    if (this.status === 'disconnected' && this.hasSavedSession() && !this.isConnecting) {
+      this.connect().catch((err) => {
+        console.warn('[Baileys] Auto-connect on getStatus note:', err.message);
+      });
+    }
+
     return {
       provider: this.name,
       displayName: this.displayName,
@@ -346,6 +372,8 @@ class BaileysProvider extends BaseWhatsAppProvider {
   }
 
   async sendMessage({ to, text }) {
+    await this.ensureConnected();
+
     if (this.status !== 'connected' || !this.sock) {
       return {
         success: false,
@@ -388,6 +416,8 @@ class BaileysProvider extends BaseWhatsAppProvider {
   }
 
   async sendDocument({ to, document, fileName, caption = '', mimetype = 'application/pdf' }) {
+    await this.ensureConnected();
+
     if (this.status !== 'connected' || !this.sock) {
       return {
         success: false,
@@ -435,6 +465,8 @@ class BaileysProvider extends BaseWhatsAppProvider {
   }
 
   async sendInvoice(bill, options = {}) {
+    await this.ensureConnected();
+
     if (this.status !== 'connected' || !this.sock) {
       return {
         success: false,

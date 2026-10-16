@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { fetchCustomerPointsHistoryAPI, adjustCustomerPointsAPI } from "../../services/api";
 import { useToastStore } from "../../stores/toastStore";
+import { formatCurrency } from "../../utils/format";
 
 export function CustomerLoyaltyModal({ customerId, onClose, onCustomerUpdated }) {
   const toast = useToastStore();
@@ -97,7 +98,7 @@ export function CustomerLoyaltyModal({ customerId, onClose, onCustomerUpdated })
                 )}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Phone: <span className="font-semibold text-navy-900">{customer?.phone}</span> • Lifetime Spend: <span className="font-semibold text-navy-900">₹{Number(customer?.total_spend || 0).toLocaleString("en-IN")}</span>
+                Phone: <span className="font-semibold text-navy-900">{customer?.phone}</span> • Lifetime Spend: <span className="font-semibold text-navy-900">{formatCurrency(customer?.total_spend || 0)}</span>
               </p>
             </div>
           </div>

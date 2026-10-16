@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { Navbar } from "../components/navigation/Navbar";
 import { Sidebar } from "../components/navigation/Sidebar";
@@ -18,6 +18,7 @@ export function AppLayout() {
     localStorage.setItem("sidebarCollapsed", JSON.stringify(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
   const navigate = useNavigate();
 
   const user = useAuthStore((state) => state.user);
@@ -47,7 +48,8 @@ export function AppLayout() {
 
       if (e.ctrlKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
-        setSidebarCollapsed((prev) => !prev);
+        if (window.innerWidth < 1440) setSidebarOpen((prev) => !prev);
+        else setSidebarCollapsed((prev) => !prev);
         return;
       }
 
@@ -74,16 +76,16 @@ export function AppLayout() {
   }, [navigate, isPosUser, openSearch, toggleSearch]);
 
   return (
-    <div className="min-h-screen lg:flex">
+    <div className="app-shell min-h-screen desktop:flex">
       <Sidebar
         isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
+        onClose={closeSidebar}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
-      <div className="flex min-h-screen flex-1 flex-col min-w-0">
-        <Navbar onOpenSidebar={() => setSidebarOpen(true)} />
-        <main className="flex-1 px-4 py-4 md:px-6 md:py-5">
+      <div className="app-workspace flex min-h-screen flex-1 flex-col min-w-0">
+        <Navbar sidebarOpen={sidebarOpen} onOpenSidebar={() => setSidebarOpen(true)} />
+        <main className="app-content min-w-0 flex-1 px-4 py-4 md:px-6 md:py-5">
           <Outlet />
         </main>
       </div>

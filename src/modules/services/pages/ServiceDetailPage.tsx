@@ -4,7 +4,7 @@ import { PageHeader } from '../../../components/ui/PageHeader';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { useToastStore } from '../../../stores/toastStore';
-import { fetchServiceByIdFromAPI, deleteServiceAPI, fetchOutletsFromAPI } from '../../../services/api';
+import { fetchServiceByIdFromAPI, deleteServiceAPI, fetchOutletsFromAPI, fetchProductsFromAPI } from '../../../services/api';
 import { formatCurrency } from '../../../utils/format';
 import {
   Scissors,
@@ -25,6 +25,7 @@ const ServiceDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToastStore();
   const [service, setService] = useState<any>(null);
+  const [products, setProducts] = useState<any[]>([]);
   const [outlets, setOutlets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -38,11 +39,13 @@ const ServiceDetailPage: React.FC = () => {
   const loadService = async () => {
     try {
       setLoading(true);
-      const [found, outletList] = await Promise.all([
+      const [found, outletList, productList] = await Promise.all([
         fetchServiceByIdFromAPI(id),
         fetchOutletsFromAPI(),
+        fetchProductsFromAPI(),
       ]);
       setOutlets(outletList);
+      setProducts(productList);
       setService({
         ...found,
         serviceName: found.service_name,
@@ -141,7 +144,7 @@ const ServiceDetailPage: React.FC = () => {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <div className="glass-card p-6">
           <div className="flex items-start justify-between">
             <div>
@@ -202,12 +205,16 @@ const ServiceDetailPage: React.FC = () => {
                 <p className="text-xs font-medium text-slate-500 uppercase">Linked Outlets</p>
                 <p className="mt-1 font-medium text-navy-900">
                   {service.assignedOutletIds && service.assignedOutletIds.length > 0 ? (
-                    outlets
-                      .filter((o) => service.assignedOutletIds.includes(o.id))
-                      .map((o) => o.name)
-                      .join(', ')
+                    service.assignedOutletIds.length >= outlets.length && outlets.length > 0 ? (
+                      `All Outlets (${outlets.length})`
+                    ) : (
+                      outlets
+                        .filter((o) => service.assignedOutletIds.includes(o.id))
+                        .map((o) => o.name)
+                        .join(', ')
+                    )
                   ) : (
-                    <span className="italic text-slate-400">All Outlets</span>
+                    <span className="italic text-slate-400">None</span>
                   )}
                 </p>
               </div>
@@ -250,22 +257,35 @@ const ServiceDetailPage: React.FC = () => {
             <h3 className="text-lg font-semibold text-navy-900">Linked Products</h3>
             {service.product_linkages && service.product_linkages.length > 0 ? (
               <div className="mt-4 space-y-3">
-                {service.product_linkages.map((linkage: any, index: number) => (
-                  <div
-                    key={linkage.inventoryId || index}
-                    className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/50 p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold-50">
-                        <Package className="h-4 w-4 text-gold-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-navy-900">{linkage.productName || `Product #${linkage.inventoryId}`}</p>
-                        <p className="text-xs text-slate-500">Qty: {linkage.quantityUsed} {linkage.consumptionUnit || ''}</p>
+                {service.product_linkages.map((linkage: any, index: number) => {
+                  const prod = products.find((p) => String(p.id) === String(linkage.inventoryId || linkage.inventory_id));
+                  const isStockable = prod ? (prod.isStockable !== false && prod.is_stockable !== false) : true;
+                  const unitAbbr = linkage.consumptionUnit || linkage.consumption_unit || 'primary';
+
+                  return (
+                    <div
+                      key={linkage.inventoryId || index}
+                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/50 p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold-50">
+                          <Package className="h-4 w-4 text-gold-600" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-navy-900">{prod?.itemName || linkage.productName || `Product #${linkage.inventoryId}`}</p>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              isStockable ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>
+                              {isStockable ? 'Stockable' : 'Non-Stockable'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500">Qty: {linkage.quantityUsed ?? linkage.quantity_used} {unitAbbr}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center">

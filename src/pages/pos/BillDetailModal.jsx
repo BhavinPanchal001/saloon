@@ -1,5 +1,23 @@
 import { useEffect, useState } from "react";
-import { X, Calendar, User, MapPin, Package, Scissors, CreditCard, Info, MessageCircle } from "lucide-react";
+import { 
+  X, 
+  Calendar, 
+  User, 
+  MapPin, 
+  Package, 
+  Scissors, 
+  CreditCard, 
+  Info, 
+  MessageCircle,
+  Gift,
+  Copy,
+  Check,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  ExternalLink
+} from "lucide-react";
 import { formatCurrency } from "../../utils/format";
 import { createPortal } from "react-dom";
 import { getUnitAbbr } from "../../utils/unitConversion";
@@ -25,12 +43,13 @@ const formatTime = (iso) => {
 export function BillDetailModal({ bill, onClose }) {
   const [productMasters, setProductMasters] = useState([]);
   const [sendingWa, setSendingWa] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
   const toast = useToastStore();
 
   useEffect(() => {
     if (!bill) return;
     const needsProducts = bill.lineItems?.some(
-      (item) => item.itemType === 'product' || (item.itemType === 'service' && item.productConsumption?.length > 0)
+      (item) => item.itemType === 'product'
     );
     if (!needsProducts) return;
     fetchProductsFromAPI().then(setProductMasters).catch(() => {});
@@ -151,6 +170,140 @@ export function BillDetailModal({ bill, onClose }) {
             </div>
           </div>
 
+          {/* Awarded Next-Visit Voucher Section */}
+          {(() => {
+            const awardedVoucher = bill.awardedVoucher || (bill.awardedVoucherCode ? {
+              code: bill.awardedVoucherCode,
+              amount: bill.awardedVoucherAmount,
+              initialValue: bill.awardedVoucherAmount,
+              status: 'active',
+            } : null);
+
+            if (!awardedVoucher || (!awardedVoucher.code && !awardedVoucher.amount)) return null;
+
+            return (
+              <div className="mb-6 overflow-hidden rounded-2xl border-2 border-dashed border-amber-300 bg-gradient-to-br from-amber-50/90 via-white to-amber-50/50 p-4 shadow-md transition-all">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-amber-200/80 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-sm flex-shrink-0">
+                      <Gift size={20} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-black tracking-tight text-navy-900">
+                          Next-Visit Reward Voucher
+                        </h3>
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-amber-800 border border-amber-300">
+                          Reward
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Earned from this invoice · For customer's next visit
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div>
+                    {awardedVoucher.status === "redeemed" ? (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 border border-blue-200">
+                        <CheckCircle2 size={12} className="text-blue-600" />
+                        Redeemed {awardedVoucher.redeemedBillNumber && `#${awardedVoucher.redeemedBillNumber}`}
+                      </span>
+                    ) : awardedVoucher.status === "expired" ? (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 border border-rose-200">
+                        <AlertCircle size={12} className="text-rose-600" />
+                        Expired
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
+                        <Sparkles size={12} className="text-emerald-500" />
+                        Active · Ready to Redeem
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Voucher Details Grid */}
+                <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* Code */}
+                  <div className="rounded-xl border border-amber-200/80 bg-white p-3 shadow-xs">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Voucher Code</p>
+                    <div className="mt-1 flex items-center justify-between gap-1.5">
+                      <span className="font-mono text-sm font-black tracking-wider text-amber-950">
+                        {awardedVoucher.code}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(awardedVoucher.code);
+                          setCopiedCode(true);
+                          toast.success(`Copied code ${awardedVoucher.code}`);
+                          setTimeout(() => setCopiedCode(false), 2000);
+                        }}
+                        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold transition-all ${
+                          copiedCode
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100/70 text-amber-900 hover:bg-amber-900 hover:text-white"
+                        }`}
+                        title="Copy Code"
+                      >
+                        {copiedCode ? <Check size={11} /> : <Copy size={11} />}
+                        <span>{copiedCode ? "Copied" : "Copy"}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Value */}
+                  <div className="rounded-xl border border-amber-200/80 bg-white p-3 shadow-xs">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Reward Value</p>
+                    <div className="mt-1 flex items-baseline gap-1">
+                      <span className="text-lg font-black text-amber-600">
+                        {formatCurrency(awardedVoucher.initialValue || awardedVoucher.amount || 0)}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase text-amber-800/80">OFF</span>
+                    </div>
+                    {awardedVoucher.balanceValue !== undefined && Number(awardedVoucher.balanceValue) !== Number(awardedVoucher.initialValue) && (
+                      <p className="text-[10px] text-navy-600 font-semibold">
+                        Balance: {formatCurrency(awardedVoucher.balanceValue)}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Validity */}
+                  <div className="rounded-xl border border-amber-200/80 bg-white p-3 shadow-xs">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Valid Until</p>
+                    <p className="mt-1 text-xs font-bold text-navy-900">
+                      {formatDate(awardedVoucher.validUntil)}
+                    </p>
+                    {awardedVoucher.validUntil && (
+                      <p className="text-[10px] font-semibold text-amber-700 mt-0.5 flex items-center gap-1">
+                        <Clock size={10} />
+                        {(() => {
+                          const diff = Math.ceil((new Date(awardedVoucher.validUntil) - new Date()) / (1000 * 60 * 60 * 24));
+                          if (diff < 0) return "Expired";
+                          if (diff === 0) return "Expires today";
+                          return `${diff} days left`;
+                        })()}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Min Spend */}
+                  <div className="rounded-xl border border-amber-200/80 bg-white p-3 shadow-xs">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Conditions</p>
+                    <p className="mt-1 text-xs font-bold text-navy-900">
+                      {Number(awardedVoucher.minSpend || 0) > 0
+                        ? `Min Spend ${formatCurrency(awardedVoucher.minSpend)}`
+                        : "No min spend"}
+                    </p>
+                    <p className="text-[10px] text-slate-400">Next visit</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Line Items */}
           <div className="mb-6">
             <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-4">Items & Services</p>
@@ -220,49 +373,6 @@ export function BillDetailModal({ bill, onClose }) {
               </table>
             </div>
           </div>
-
-          {/* Product Consumption Details */}
-          <div className="mb-8">
-            <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-4">Inventory Consumption Log</p>
-            <div className="space-y-4">
-              {bill.lineItems.filter(item => item.itemType === 'service' && item.productConsumption?.length > 0).map((item, idx) => (
-                <div key={idx} className="glass-card !p-0 overflow-hidden border-purple-100">
-                  <div className="bg-purple-50/50 px-4 py-2 border-b border-purple-100">
-                    <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wide">Usage for: {item.itemName}</p>
-                  </div>
-                  <div className="p-4 grid gap-3">
-                    {item.productConsumption.map((consumption, cIdx) => {
-                      const product = productMasters.find(p => p.id === consumption.productId);
-                      const um = product?.unitMaster;
-                      const unitAbbr = um ? getUnitAbbr(um, consumption.unit || 'primary') : '';
-                      const productSize = product?.productMeasureLabel || '';
-
-                      return (
-                        <div key={cIdx} className="flex items-center justify-between border-b border-navy-50 last:border-0 pb-2 last:pb-0">
-                          <div className="flex items-center gap-3">
-                            <div className="h-1.5 w-1.5 rounded-full bg-purple-400" />
-                            <div>
-                              <p className="text-sm font-bold text-navy-900">{product?.itemName || consumption.productId}</p>
-                              {productSize && <p className="text-[10px] text-slate-400 font-medium">Pack Size: {productSize}</p>}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-sm font-black text-navy-900">{consumption.qty} {unitAbbr}</span>
-                            <p className="text-[10px] text-slate-400 font-medium">consumed</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-              {bill.lineItems.filter(item => item.itemType === 'service' && item.productConsumption?.length > 0).length === 0 && (
-                <div className="rounded-2xl border border-dashed border-navy-200 p-8 text-center">
-                  <p className="text-xs text-slate-400 italic">No specific inventory consumption recorded for this transaction.</p>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
 
         {/* Totals Footer */}
@@ -281,21 +391,31 @@ export function BillDetailModal({ bill, onClose }) {
               )}
               {Number(bill.voucherDiscountAmount || bill.voucher_discount_amount || 0) > 0 && (
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Voucher</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Voucher Redeemed</p>
                   <p className="mt-1 font-bold text-gold-400">−{formatCurrency(bill.voucherDiscountAmount || bill.voucher_discount_amount)}</p>
                 </div>
               )}
-              {(bill.awardedVoucherCode || bill.awarded_voucher_code) && (
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Awarded Voucher</p>
-                  <p className="mt-1 font-bold text-emerald-300">
-                    +{formatCurrency(bill.awardedVoucherAmount || bill.awarded_voucher_amount || 0)}
-                    <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-200">
-                      {bill.awardedVoucherCode || bill.awarded_voucher_code}
-                    </span>
-                  </p>
-                </div>
-              )}
+              {(() => {
+                const av = bill.awardedVoucher || (bill.awardedVoucherCode ? {
+                  code: bill.awardedVoucherCode,
+                  amount: bill.awardedVoucherAmount,
+                  initialValue: bill.awardedVoucherAmount,
+                } : null);
+                if (!av || (!av.code && !av.amount)) return null;
+                return (
+                  <div className="border-l border-navy-700/80 pl-6">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-1">
+                      <Gift size={11} /> Next-Visit Reward
+                    </p>
+                    <p className="mt-1 font-bold text-emerald-300">
+                      {formatCurrency(av.initialValue || av.amount || 0)} OFF
+                      <span className="ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-200">
+                        {av.code}
+                      </span>
+                    </p>
+                  </div>
+                );
+              })()}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Tax (8%)</p>
                 <p className="mt-1 font-bold">{formatCurrency(bill.tax)}</p>

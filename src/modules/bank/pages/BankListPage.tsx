@@ -121,7 +121,7 @@ const BankListPage: React.FC = () => {
       />
 
       {/* Stats */}
-      <div className="grid gap-2 grid-cols-2 lg:grid-cols-5 mb-3">
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-3 desktop:grid-cols-5 mb-3">
         <div className="glass-card !p-2.5 flex items-center justify-between px-3">
           <span className="text-xs text-navy-600 font-medium">Total Banks</span>
           <span className="text-base font-bold text-navy-900">{stats.total}</span>

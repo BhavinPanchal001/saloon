@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { fetchStaff, fetchSettings, fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI, validateCouponAPI, fetchCustomerVouchersAPI, validateVoucherAPI, fetchCustomersAPI, fetchBillByIdFromAPI, updateBillAPI, fetchWhatsAppStatusAPI, fetchVoucherRewardRulesAPI } from "../../services/api";
+import { fetchStaff, fetchSettings, fetchPOSCatalogFromAPI, checkoutBillAPI, fetchOutletsFromAPI, fetchProductsFromAPI, fetchOutletInventoryFromAPI, validateCouponAPI, fetchCustomerVouchersAPI, validateVoucherAPI, fetchCustomersAPI, fetchBillByIdFromAPI, updateBillAPI, fetchWhatsAppStatusAPI, fetchVoucherRewardRulesAPI, sendWhatsAppBillAPI } from "../../services/api";
+import { fetchTerminalsAPI, createTerminalAPI, fetchActiveShiftAPI, openShiftAPI, addCashMovementAPI } from "../../services/posShiftApi";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
@@ -13,8 +14,7 @@ import { CashMovementModal } from "./components/CashMovementModal";
 import { XReportModal } from "./components/XReportModal";
 import { CloseShiftModal } from "./components/CloseShiftModal";
 import { ZReportPrintModal } from "./components/ZReportPrintModal";
-import { fetchTerminalsAPI, createTerminalAPI, fetchActiveShiftAPI, openShiftAPI, addCashMovementAPI } from "../../services/posShiftApi";
-import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, Ticket, AlertCircle, CreditCard, Keyboard, HelpCircle, X, User, Edit, ChevronDown, ChevronUp, Monitor, PlayCircle, StopCircle, CheckCircle2, FileText, MessageCircle, Gift } from "lucide-react";
+import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, Ticket, AlertCircle, CreditCard, Keyboard, HelpCircle, X, User, Edit, ChevronDown, ChevronUp, Monitor, PlayCircle, StopCircle, CheckCircle2, FileText, MessageCircle, Gift, FlaskConical, Printer } from "lucide-react";
 import BankSelector from "../../modules/bank/components/BankSelector";
 
 const paymentMethods = ["Cash", "Card", "UPI", "Store Credit", "Split"];
@@ -22,6 +22,10 @@ const paymentMethods = ["Cash", "Card", "UPI", "Store Credit", "Split"];
 const createLineId = () => `line_${Math.random().toString(36).slice(2, 9)}`;
 
 export function POSPage() {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
   const user = useAuthStore((state) => state.user);
   const toast = useToastStore();
   const [catalog, setCatalog] = useState([]);
@@ -75,10 +79,12 @@ export function POSPage() {
   const [selectedBankId, setSelectedBankId] = useState("");
   const [showInvoice, setShowInvoice] = useState(false);
   const [currentBill, setCurrentBill] = useState(null);
+  const [autoPrintInvoice, setAutoPrintInvoice] = useState(false);
+  const [isSubmittingCheckout, setIsSubmittingCheckout] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [outlets, setOutlets] = useState([]);
-  const [selectedOutlet, setSelectedOutlet] = useState("");
+  const [selectedOutlet, setSelectedOutlet] = useState(() => searchParams.get("outletId") || "");
   const [productMasters, setProductMasters] = useState([]);
   const [outletInventory, setOutletInventory] = useState([]);
   const [discountType, setDiscountType] = useState("percent");
@@ -98,10 +104,6 @@ export function POSPage() {
   const [showBillBreakdown, setShowBillBreakdown] = useState(false);
   const searchInputRef = useRef(null);
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
-
-  const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
 
   const [editingBillId, setEditingBillId] = useState(null);
   const [editingBillNumber, setEditingBillNumber] = useState("");
@@ -210,6 +212,10 @@ export function POSPage() {
   const handleCreateTerminal = async (payload) => {
     try {
       const targetOutletId = selectedOutlet || user?.outlet_id;
+      if (!targetOutletId) {
+        toast.error("Please select an outlet before creating a terminal.");
+        return;
+      }
       const res = await createTerminalAPI({ ...payload, outlet_id: targetOutletId });
       if (res.success) {
         toast.success(`Terminal "${res.terminal.name}" created successfully.`);
@@ -226,6 +232,10 @@ export function POSPage() {
     setShiftLoading(true);
     try {
       const targetOutletId = selectedOutlet || user?.outlet_id;
+      if (!targetOutletId) {
+        toast.error("Please select an outlet before opening a shift.");
+        return;
+      }
       const res = await openShiftAPI({ ...payload, outlet_id: targetOutletId });
       if (res.success) {
         setActiveShift(res.shift);
@@ -347,11 +357,16 @@ export function POSPage() {
             staffId: li.staffAssigned || "",
             unit: li.productConsumption?.unit || "primary",
             productLinkages: (li.productConsumption && Array.isArray(li.productConsumption))
-              ? li.productConsumption.map((c) => ({
-                  inventoryId: c.productId,
-                  currentQty: c.qty,
-                  currentUnit: c.unit || "primary",
-                }))
+              ? li.productConsumption.map((c) => {
+                  const pm = productMasters.find((p) => String(p.id) === String(c.productId));
+                  return {
+                    inventoryId: Number(c.productId),
+                    currentQty: Number((Number(c.qty) / (Number(li.qty) || 1)).toFixed(4)),
+                    currentUnit: c.unit || "primary",
+                    unitMaster: pm?.unitMaster || null,
+                    unitMasterId: pm?.unitMasterId || null,
+                  };
+                })
               : [],
             serviceItems: (li.includedServices && Array.isArray(li.includedServices))
               ? li.includedServices.map((svc) => ({
@@ -360,12 +375,17 @@ export function POSPage() {
                   sessions: svc.sessions,
                   enabled: true,
                   staffId: svc.staffAssigned || "",
-                  productLinkages: (svc.productConsumption || []).map((link) => ({
-                    inventoryId: link.productId,
-                    currentQty: link.qty,
-                    currentUnit: link.unit || "primary",
-                    enabled: true,
-                  })),
+                  productLinkages: (svc.productConsumption || []).map((link) => {
+                    const pm = productMasters.find((p) => String(p.id) === String(link.productId));
+                    return {
+                      inventoryId: Number(link.productId),
+                      currentQty: Number((Number(link.qty) / (Number(li.qty) || 1)).toFixed(4)),
+                      currentUnit: link.unit || "primary",
+                      unitMaster: pm?.unitMaster || null,
+                      unitMasterId: pm?.unitMasterId || null,
+                      enabled: true,
+                    };
+                  }),
                 }))
               : [],
           };
@@ -450,12 +470,17 @@ export function POSPage() {
   useEffect(() => {
     fetchOutletsFromAPI().then((outletList) => {
       setOutlets(outletList);
-      if (outletList.length > 0 && !selectedOutlet) {
-        const defaultId = user?.outlet_id || outletList[0].id;
-        setSelectedOutlet(defaultId);
+      if (outletList.length > 0) {
+        const queryOutlet = searchParams.get("outletId");
+        if (queryOutlet && outletList.some((o) => String(o.id) === String(queryOutlet))) {
+          setSelectedOutlet(queryOutlet);
+        } else if (!selectedOutlet) {
+          const defaultId = user?.outlet_id || outletList[0].id;
+          setSelectedOutlet(defaultId);
+        }
       }
     }).catch(() => {});
-  }, [user]);
+  }, [user, searchParams]);
 
   useEffect(() => {
     const loadPos = async () => {
@@ -550,14 +575,77 @@ export function POSPage() {
     );
   };
 
-  const updateProductLinkageQty = (lineId, inventoryId, delta) => {
+  const addProductLinkage = (lineId) => {
+    if (!productMasters || productMasters.length === 0) {
+      toast.error("No products available to link.");
+      return;
+    }
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        const existingIds = new Set((line.productLinkages || []).map((l) => Number(l.inventoryId)));
+        const chosen = productMasters.find((p) => !existingIds.has(Number(p.id))) || productMasters[0];
+        const newLink = {
+          inventoryId: Number(chosen.id),
+          currentQty: 1,
+          currentUnit: chosen.consumptionUnit || "primary",
+          unitMaster: chosen.unitMaster || null,
+          unitMasterId: chosen.unitMasterId || null,
+          quantityUsed: 1,
+        };
+        return {
+          ...line,
+          productLinkages: [...(line.productLinkages || []), newLink],
+        };
+      })
+    );
+  };
+
+  const changeProductLinkageProduct = (lineId, linkIndex, newProductId) => {
+    const chosen = productMasters.find((p) => String(p.id) === String(newProductId));
+    if (!chosen) return;
     setCart((current) =>
       current.map((line) => {
         if (line.lineId !== lineId) return line;
         return {
           ...line,
-          productLinkages: line.productLinkages.map((link) => {
-            if (link.inventoryId !== inventoryId) return link;
+          productLinkages: (line.productLinkages || []).map((link, idx) => {
+            if (idx !== linkIndex && link.inventoryId !== linkIndex) return link;
+            return {
+              ...link,
+              inventoryId: Number(chosen.id),
+              unitMaster: chosen.unitMaster || null,
+              unitMasterId: chosen.unitMasterId || null,
+              currentUnit: chosen.consumptionUnit || "primary",
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  const removeProductLinkage = (lineId, linkIndex) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          productLinkages: (line.productLinkages || []).filter(
+            (link, idx) => idx !== linkIndex && link.inventoryId !== linkIndex
+          ),
+        };
+      })
+    );
+  };
+
+  const updateProductLinkageQty = (lineId, linkIndex, delta) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          productLinkages: (line.productLinkages || []).map((link, idx) => {
+            if (idx !== linkIndex && link.inventoryId !== linkIndex) return link;
             const currentQty = Number(link.currentQty) || 0;
             let nextQty;
             if (delta < 0) {
@@ -574,27 +662,27 @@ export function POSPage() {
     );
   };
 
-  const updateProductLinkageField = (lineId, inventoryId, field, value) => {
+  const updateProductLinkageField = (lineId, linkIndex, field, value) => {
     setCart((current) =>
       current.map((line) => {
         if (line.lineId !== lineId) return line;
         return {
           ...line,
-          productLinkages: line.productLinkages.map((link) => {
-            if (link.inventoryId !== inventoryId) return link;
-            // If switching unit, auto-convert the quantity
-            if (field === "currentUnit" && link.unitMaster) {
+          productLinkages: (line.productLinkages || []).map((link, idx) => {
+            if (idx !== linkIndex && link.inventoryId !== linkIndex) return link;
+            const um = link.unitMaster || productMasters.find((p) => String(p.id) === String(link.inventoryId))?.unitMaster;
+            if (field === "currentUnit" && um) {
               const oldUnit = link.currentUnit;
               const newUnit = value;
               if (oldUnit !== newUnit) {
-                const ratio = link.unitMaster.conversionRatio;
+                const ratio = um.conversionRatio;
                 let newQty = link.currentQty;
                 if (oldUnit === "primary" && newUnit === "secondary") {
                   newQty = (Number(link.currentQty) || 0) * ratio;
                 } else if (oldUnit === "secondary" && newUnit === "primary") {
                   newQty = (Number(link.currentQty) || 0) / ratio;
                 }
-                return { ...link, currentUnit: newUnit, currentQty: Number(newQty.toFixed(4)) };
+                return { ...link, currentUnit: newUnit, currentQty: Number(newQty.toFixed(4)), unitMaster: um };
               }
             }
             return { ...link, [field]: value };
@@ -682,18 +770,80 @@ export function POSPage() {
     );
   };
 
-  const togglePackageServiceProduct = (lineId, serviceId, inventoryId) => {
+  const addPackageServiceProduct = (lineId, serviceId) => {
+    if (!productMasters || productMasters.length === 0) {
+      toast.error("No products available to link.");
+      return;
+    }
     setCart((current) =>
       current.map((line) => {
         if (line.lineId !== lineId) return line;
         return {
           ...line,
-          serviceItems: line.serviceItems.map((svc) => {
+          serviceItems: (line.serviceItems || []).map((svc) => {
+            if (svc.serviceId !== serviceId) return svc;
+            const existingIds = new Set((svc.productLinkages || []).map((l) => Number(l.inventoryId)));
+            const chosen = productMasters.find((p) => !existingIds.has(Number(p.id))) || productMasters[0];
+            const newLink = {
+              inventoryId: Number(chosen.id),
+              currentQty: 1,
+              currentUnit: chosen.consumptionUnit || "primary",
+              unitMaster: chosen.unitMaster || null,
+              unitMasterId: chosen.unitMasterId || null,
+              quantityUsed: 1,
+              enabled: true,
+            };
+            return {
+              ...svc,
+              productLinkages: [...(svc.productLinkages || []), newLink],
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  const changePackageServiceProduct = (lineId, serviceId, linkIndex, newProductId) => {
+    const chosen = productMasters.find((p) => String(p.id) === String(newProductId));
+    if (!chosen) return;
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          serviceItems: (line.serviceItems || []).map((svc) => {
             if (svc.serviceId !== serviceId) return svc;
             return {
               ...svc,
-              productLinkages: svc.productLinkages.map((link) =>
-                link.inventoryId === inventoryId ? { ...link, enabled: !link.enabled } : link
+              productLinkages: (svc.productLinkages || []).map((link, idx) => {
+                if (idx !== linkIndex && link.inventoryId !== linkIndex) return link;
+                return {
+                  ...link,
+                  inventoryId: Number(chosen.id),
+                  unitMaster: chosen.unitMaster || null,
+                  unitMasterId: chosen.unitMasterId || null,
+                  currentUnit: chosen.consumptionUnit || "primary",
+                };
+              }),
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  const removePackageServiceProduct = (lineId, serviceId, linkIndex) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          serviceItems: (line.serviceItems || []).map((svc) => {
+            if (svc.serviceId !== serviceId) return svc;
+            return {
+              ...svc,
+              productLinkages: (svc.productLinkages || []).filter(
+                (link, idx) => idx !== linkIndex && link.inventoryId !== linkIndex
               ),
             };
           }),
@@ -702,7 +852,7 @@ export function POSPage() {
     );
   };
 
-  const updatePackageServiceProductField = (lineId, serviceId, inventoryId, field, value) => {
+  const togglePackageServiceProduct = (lineId, serviceId, linkIndex) => {
     setCart((current) =>
       current.map((line) => {
         if (line.lineId !== lineId) return line;
@@ -712,20 +862,43 @@ export function POSPage() {
             if (svc.serviceId !== serviceId) return svc;
             return {
               ...svc,
-              productLinkages: svc.productLinkages.map((link) => {
-                if (link.inventoryId !== inventoryId) return link;
-                if (field === "currentUnit" && link.unitMaster) {
+              productLinkages: svc.productLinkages.map((link, idx) =>
+                (idx === linkIndex || link.inventoryId === linkIndex)
+                  ? { ...link, enabled: !link.enabled }
+                  : link
+              ),
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  const updatePackageServiceProductField = (lineId, serviceId, linkIndex, field, value) => {
+    setCart((current) =>
+      current.map((line) => {
+        if (line.lineId !== lineId) return line;
+        return {
+          ...line,
+          serviceItems: (line.serviceItems || []).map((svc) => {
+            if (svc.serviceId !== serviceId) return svc;
+            return {
+              ...svc,
+              productLinkages: (svc.productLinkages || []).map((link, idx) => {
+                if (idx !== linkIndex && link.inventoryId !== linkIndex) return link;
+                const um = link.unitMaster || productMasters.find((p) => String(p.id) === String(link.inventoryId))?.unitMaster;
+                if (field === "currentUnit" && um) {
                   const oldUnit = link.currentUnit;
                   const newUnit = value;
                   if (oldUnit !== newUnit) {
-                    const ratio = link.unitMaster.conversionRatio;
+                    const ratio = um.conversionRatio;
                     let newQty = link.currentQty;
                     if (oldUnit === "primary" && newUnit === "secondary") {
                       newQty = (Number(link.currentQty) || 0) * ratio;
                     } else if (oldUnit === "secondary" && newUnit === "primary") {
                       newQty = (Number(link.currentQty) || 0) / ratio;
                     }
-                    return { ...link, currentUnit: newUnit, currentQty: Number(newQty.toFixed(4)) };
+                    return { ...link, currentUnit: newUnit, currentQty: Number(newQty.toFixed(4)), unitMaster: um };
                   }
                 }
                 return { ...link, [field]: value };
@@ -737,18 +910,18 @@ export function POSPage() {
     );
   };
 
-  const updatePackageServiceProductQty = (lineId, serviceId, inventoryId, delta) => {
+  const updatePackageServiceProductQty = (lineId, serviceId, linkIndex, delta) => {
     setCart((current) =>
       current.map((line) => {
         if (line.lineId !== lineId) return line;
         return {
           ...line,
-          serviceItems: line.serviceItems.map((svc) => {
+          serviceItems: (line.serviceItems || []).map((svc) => {
             if (svc.serviceId !== serviceId) return svc;
             return {
               ...svc,
-              productLinkages: svc.productLinkages.map((link) => {
-                if (link.inventoryId !== inventoryId) return link;
+              productLinkages: (svc.productLinkages || []).map((link, idx) => {
+                if (idx !== linkIndex && link.inventoryId !== linkIndex) return link;
                 const currentQty = Number(link.currentQty) || 0;
                 let nextQty;
                 if (delta < 0) {
@@ -806,6 +979,14 @@ export function POSPage() {
     } finally {
       setCouponLoading(false);
     }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCodeInput("");
+    setDiscountValue("");
+    setDiscountType("percent");
+    toast.info("Coupon removed");
   };
 
   // Load active vouchers when customer is selected
@@ -871,22 +1052,29 @@ export function POSPage() {
   const total = Math.max(0, Math.round((discountedSubtotal + tax) * 100) / 100);
 
   const estimatedAwardedVoucher = useMemo(() => {
-    if (!voucherRewardRules || !voucherRewardRules.enabled || total <= 0) return null;
-    if (total < (Number(voucherRewardRules.min_bill_amount) || 0)) return null;
+    if (!voucherRewardRules || !voucherRewardRules.enabled) return null;
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (voucherRewardRules.start_date && todayStr < voucherRewardRules.start_date) return null;
+    if (!voucherRewardRules.is_lifetime && voucherRewardRules.end_date && todayStr > voucherRewardRules.end_date) return null;
+
+    // Use net pre-tax discounted subtotal to match backend spendAmount calculation
+    const spendAmt = discountedSubtotal > 0 ? discountedSubtotal : total;
+    if (spendAmt <= 0 || spendAmt < (Number(voucherRewardRules.min_bill_amount) || 0)) return null;
 
     if (voucherRewardRules.mode === "percentage") {
       const pct = Number(voucherRewardRules.percentage) || 0;
-      let val = Math.round((total * pct) / 100);
+      let val = Math.round((spendAmt * pct) / 100);
       const cap = Number(voucherRewardRules.max_voucher_amount) || 0;
       if (cap > 0 && val > cap) val = cap;
       return val > 0 ? val : null;
     } else {
       const tiers = Array.isArray(voucherRewardRules.tiers) ? [...voucherRewardRules.tiers] : [];
       tiers.sort((a, b) => Number(b.min_spend) - Number(a.min_spend));
-      const match = tiers.find((t) => total >= Number(t.min_spend));
+      const match = tiers.find((t) => spendAmt >= Number(t.min_spend));
       return match ? Number(match.voucher_amount) : null;
     }
-  }, [voucherRewardRules, total]);
+  }, [voucherRewardRules, discountedSubtotal, total]);
 
   const hasUnassignedService = cart.some(
     (line) =>
@@ -1038,7 +1226,32 @@ export function POSPage() {
 
   const canCheckout = cart.length > 0 && isSplitCovered && !nonCashNeedsBank && (!hasStockErrors || allowOutOfStockCheckout);
 
-  const handleCheckout = async () => {
+  const handleRecentBillPrintAndWhatsApp = async (billToPrint = currentBill) => {
+    if (!billToPrint) return;
+    try {
+      const template = localStorage.getItem("glowy_print_template") || "thermal";
+      const paperWidth = localStorage.getItem("glowy_printer_paper_width") ? parseInt(localStorage.getItem("glowy_printer_paper_width"), 10) : 48;
+
+      sendWhatsAppBillAPI(billToPrint.id, { format: template, paperWidth })
+        .then((res) => {
+          toast.success(res?.message || "WhatsApp receipt sent!");
+        })
+        .catch((err) => {
+          toast.error(err?.message || "WhatsApp failed to send");
+        });
+
+      setAutoPrintInvoice(true);
+      setCurrentBill(billToPrint);
+      setShowInvoice(true);
+    } catch (err) {
+      console.error("Print + WhatsApp for recent bill failed:", err);
+    }
+  };
+
+  const handleCheckout = async (options = {}) => {
+    const { autoPrint = false, forceWhatsApp = false } = options;
+    if (isSubmittingCheckout) return;
+
     if (hasStockErrors && !allowOutOfStockCheckout) {
       toast.error("Checkout blocked: Product(s) out of stock. Enable out-of-stock checkout in Settings to proceed.");
       return;
@@ -1075,10 +1288,12 @@ export function POSPage() {
       return;
     }
 
+    const shouldSendWA = forceWhatsApp || autoSendWhatsAppOnPOS;
+
     const payload = {
       customer,
       paymentMethod: paymentMethod || "Unpaid",
-      sendWhatsApp: autoSendWhatsAppOnPOS,
+      sendWhatsApp: shouldSendWA,
       printTemplate: localStorage.getItem("glowy_print_template") || "thermal",
       paperWidth: localStorage.getItem("glowy_printer_paper_width") ? parseInt(localStorage.getItem("glowy_printer_paper_width"), 10) : 48,
       bankId: primaryBankAccountId,
@@ -1162,6 +1377,7 @@ export function POSPage() {
       })),
     };
 
+    setIsSubmittingCheckout(true);
     try {
       let result;
       if (editingBillId) {
@@ -1173,7 +1389,11 @@ export function POSPage() {
         setSearchParams({});
       } else {
         result = await checkoutBillAPI(payload);
-        toast.success(`Bill ${result.billNumber} created successfully!`);
+        toast.success(
+          autoPrint
+            ? `Bill ${result.billNumber} created! Triggering Print & WhatsApp...`
+            : `Bill ${result.billNumber} created successfully!`
+        );
       }
 
       const finalBill = {
@@ -1190,6 +1410,7 @@ export function POSPage() {
         } : null),
       };
       setCurrentBill(finalBill);
+      setAutoPrintInvoice(Boolean(autoPrint));
       setShowInvoice(true);
       setCart([]);
       setPaymentMethod("");
@@ -1204,6 +1425,8 @@ export function POSPage() {
     } catch (err) {
       console.error("Checkout/Update failed:", err);
       toast.error(err.message || "Operation failed. Please try again. Your cart has been preserved.");
+    } finally {
+      setIsSubmittingCheckout(false);
     }
   };
 
@@ -1246,7 +1469,20 @@ export function POSPage() {
       if (e.key === "F12" || (e.ctrlKey && e.key === "Enter")) {
         e.preventDefault();
         if (canCheckout) {
-          handleCheckout();
+          handleCheckout({ autoPrint: false });
+        } else if (cart.length === 0) {
+          toast.error("Cart is empty.");
+        } else if (!paymentMethod) {
+          toast.error("Please select a payment method.");
+        }
+        return;
+      }
+
+      // Ctrl+P or F7 -> Print + WhatsApp
+      if ((e.ctrlKey && e.key.toLowerCase() === "p") || e.key === "F7") {
+        e.preventDefault();
+        if (canCheckout) {
+          handleCheckout({ autoPrint: true, forceWhatsApp: true });
         } else if (cart.length === 0) {
           toast.error("Cart is empty.");
         } else if (!paymentMethod) {
@@ -1405,12 +1641,15 @@ export function POSPage() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <a href="#pos-checkout" className="btn-premium-primary mb-4 flex lg:hidden">
+        <ShoppingCart size={18} /> View checkout ({cart.length})
+      </a>
+      <div className="pos-layout grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] 2xl:gap-6">
         {/* ── Catalog Panel ── */}
-        <div className="glass-card !p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
+        <div className="pos-catalog glass-card min-w-0 !p-4 flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="premium-label !mb-0">Catalog Menu</p>
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowShortcutGuide(true)}
@@ -1423,9 +1662,18 @@ export function POSPage() {
               </button>
               {isAdmin && (
                 <select
-                  className="premium-input !py-1.5 !px-3 !text-xs appearance-none min-w-[140px]"
+                  className="premium-input !py-1.5 !px-3 !text-xs !w-auto max-w-[14rem] appearance-none min-w-[140px]"
                   value={selectedOutlet}
-                  onChange={(e) => setSelectedOutlet(e.target.value)}
+                  onChange={(e) => {
+                    const nextOutlet = e.target.value;
+                    setSelectedOutlet(nextOutlet);
+                    setSearchParams((prev) => {
+                      const next = new URLSearchParams(prev);
+                      if (nextOutlet) next.set("outletId", nextOutlet);
+                      else next.delete("outletId");
+                      return next;
+                    });
+                  }}
                 >
                   <option value="">All Outlets</option>
                   {outlets.map((outlet) => (
@@ -1482,7 +1730,7 @@ export function POSPage() {
           )}
 
           {/* Catalog grid — compact cards */}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="pos-catalog-grid grid gap-3 grid-cols-2 2xl:grid-cols-3">
             {filteredCatalog.map((item) => (
               <button
                 key={`${item.type}-${item.id}`}
@@ -1501,7 +1749,7 @@ export function POSPage() {
                   >
                     {item.type}
                   </span>
-                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-navy-900 text-white text-xs opacity-0 group-hover:opacity-100 transition-all">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-navy-900 text-white text-xs opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                     +
                   </div>
                 </div>
@@ -1544,7 +1792,60 @@ export function POSPage() {
         </div>
 
         {/* ── Cart Panel ── */}
-        <div className="glass-card !p-5 flex flex-col gap-4">
+        <div id="pos-checkout" className="pos-checkout glass-card min-w-0 !p-4 flex flex-col gap-4">
+          {/* Recent Sale Quick Bar */}
+          {currentBill && !editingBillId && (
+            <div className="rounded-2xl bg-gradient-to-r from-navy-900 via-indigo-950 to-slate-900 p-3 text-white shadow-md border border-navy-800 flex flex-wrap items-center justify-between gap-2.5 animate-fade-in">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <CheckCircle2 size={16} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Last Sale</span>
+                    <span className="font-mono font-bold text-xs text-white">#{currentBill.billNumber || currentBill.bill_number}</span>
+                    <span className="text-xs text-slate-300 truncate max-w-[120px]">({currentBill.customer?.name || "Walk-in"})</span>
+                  </div>
+                  <p className="text-xs font-black text-emerald-300 mt-0.5">
+                    {formatCurrency(currentBill.total)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleRecentBillPrintAndWhatsApp()}
+                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition"
+                  title="Print receipt & Send WhatsApp"
+                >
+                  <Printer size={13} />
+                  <span>+</span>
+                  <MessageCircle size={13} />
+                  <span>Print + WhatsApp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAutoPrintInvoice(false);
+                    setShowInvoice(true);
+                  }}
+                  className="flex items-center gap-1 rounded-xl bg-white/10 hover:bg-white/20 px-2.5 py-1.5 text-xs font-semibold text-white transition"
+                  title="View Bill Details"
+                >
+                  <FileText size={13} /> View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentBill(null)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg transition"
+                  title="Dismiss"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <p className="premium-label !mb-0">Checkout Desk</p>
             {cart.length > 0 && (
@@ -1835,74 +2136,136 @@ export function POSPage() {
                           )}
                         </div>
 
-                        {/* Products used in service — editable measurements */}
-                        {line.productLinkages && line.productLinkages.length > 0 && (
-                          <div className="mt-3 space-y-2 rounded-lg bg-navy-50 p-3 border border-navy-100">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-navy-500">Product Consumption</p>
-                            {line.productLinkages.map((link) => {
-                              const finalQty = Math.max(0, Number(link.currentQty) || 0);
-                              const um = link.unitMaster;
-                              const unitAbbr = um ? getUnitAbbr(um, link.currentUnit || 'primary') : '';
-                              const unitOptions = um ? getAvailableUnits(um) : [];
-                              const showConversion = um && link.currentUnit === 'secondary' && finalQty > 0;
-                              const baseEquiv = showConversion
-                                ? convertToBase(finalQty, um.conversionRatio, 'secondary')
-                                : null;
-
-                              return (
-                                <div key={link.inventoryId} className="space-y-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs text-navy-700 truncate flex-1">
-                                      {productNameById[link.inventoryId] || link.inventoryId}
-                                    </span>
-                                    <div className="flex items-center gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, -1)}
-                                        className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
-                                        disabled={finalQty <= 0}
-                                      >
-                                        <Minus className="h-2.5 w-2.5" />
-                                      </button>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="any"
-                                        value={finalQty}
-                                        onChange={(e) => updateProductLinkageField(line.lineId, link.inventoryId, 'currentQty', Number(e.target.value) || 0)}
-                                        className="w-16 text-center text-xs font-semibold text-navy-700 border border-navy-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:border-navy-400"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => updateProductLinkageQty(line.lineId, link.inventoryId, 1)}
-                                        className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
-                                      >
-                                        <Plus className="h-2.5 w-2.5" />
-                                      </button>
-                                      {unitOptions.length > 0 ? (
-                                        <select
-                                          className="text-[10px] font-semibold text-navy-600 bg-white border border-navy-200 rounded px-1 py-0.5 appearance-none"
-                                          value={link.currentUnit || 'primary'}
-                                          onChange={(e) => updateProductLinkageField(line.lineId, link.inventoryId, 'currentUnit', e.target.value)}
-                                        >
-                                          {unitOptions.map((opt) => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                          ))}
-                                        </select>
-                                      ) : null}
-                                    </div>
-                                  </div>
-                                  {showConversion && baseEquiv !== null ? (
-                                    <div className="flex items-center gap-1 text-[10px] text-slate-400 pl-1">
-                                      <ArrowLeftRight className="h-2.5 w-2.5" />
-                                      <span>= {baseEquiv.toFixed(4).replace(/\.?0+$/, '')} {um.primaryAbbr}</span>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              );
-                            })}
+                        {/* Products used in service — editable products and measurements */}
+                        <div className="mt-3 rounded-xl bg-navy-50/60 p-3 border border-navy-100">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-1.5">
+                              <FlaskConical className="h-3.5 w-3.5 text-navy-600" />
+                              <p className="text-[10px] font-black uppercase tracking-wider text-navy-600">
+                                Products Used in Service {line.productLinkages?.length > 0 ? `(${line.productLinkages.length})` : ""}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => addProductLinkage(line.lineId)}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-navy-700 bg-white hover:bg-navy-100 border border-navy-200 rounded-md px-2 py-0.5 shadow-2xs transition"
+                              title="Add product consumed for this service"
+                            >
+                              <Plus className="h-2.5 w-2.5" /> Add Product
+                            </button>
                           </div>
-                        )}
+
+                          {(!line.productLinkages || line.productLinkages.length === 0) ? (
+                            <div className="rounded-lg border border-dashed border-navy-200/80 bg-white/50 px-3 py-2 text-center">
+                              <p className="text-[11px] text-slate-400">
+                                No products linked. Click <span className="font-semibold text-navy-600">+ Add Product</span> to record materials used.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {line.productLinkages.map((link, linkIdx) => {
+                                const finalQty = Math.max(0, Number(link.currentQty) || 0);
+                                const um = link.unitMaster || productMasters.find((p) => String(p.id) === String(link.inventoryId))?.unitMaster;
+                                const unitOptions = um ? getAvailableUnits(um) : [];
+                                const showConversion = um && link.currentUnit === "secondary" && finalQty > 0;
+                                const baseEquiv = showConversion
+                                  ? convertToBase(finalQty, um.conversionRatio, "secondary")
+                                  : null;
+                                const currentStock = stockByProductId[String(link.inventoryId)];
+
+                                return (
+                                  <div key={`link-${link.inventoryId}-${linkIdx}`} className="space-y-1.5 rounded-lg bg-white p-2 border border-navy-100 shadow-2xs">
+                                    <div className="flex items-center justify-between gap-1.5">
+                                      {/* Product selector dropdown to edit/change product */}
+                                      <div className="flex-1 min-w-0">
+                                        <select
+                                          value={link.inventoryId}
+                                          onChange={(e) => changeProductLinkageProduct(line.lineId, linkIdx, e.target.value)}
+                                          className="w-full text-xs font-semibold text-navy-800 bg-navy-50/50 hover:bg-navy-50 border border-navy-200 rounded-md px-2 py-1 focus:outline-none focus:border-navy-400 truncate"
+                                          title="Change product used in this service"
+                                        >
+                                          {!productMasters.some((p) => String(p.id) === String(link.inventoryId)) && (
+                                            <option value={link.inventoryId}>
+                                              {productNameById[link.inventoryId] || `Product #${link.inventoryId}`}
+                                            </option>
+                                          )}
+                                          {productMasters.map((p) => {
+                                            const stock = stockByProductId[String(p.id)];
+                                            return (
+                                              <option key={p.id} value={p.id}>
+                                                {p.itemName} {stock !== undefined ? `(${stock} in stock)` : ""}
+                                              </option>
+                                            );
+                                          })}
+                                        </select>
+                                      </div>
+
+                                      {/* Remove button */}
+                                      <button
+                                        type="button"
+                                        onClick={() => removeProductLinkage(line.lineId, linkIdx)}
+                                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
+                                        title="Remove this product"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    </div>
+
+                                    {/* Quantity and unit controls */}
+                                    <div className="flex items-center justify-between gap-2 pt-0.5 border-t border-slate-100">
+                                      <span className="text-[10px] font-medium text-slate-400">
+                                        Qty {currentStock !== undefined && <span className={finalQty > currentStock ? "text-rose-500 font-bold" : ""}>({currentStock} avail)</span>}:
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateProductLinkageQty(line.lineId, linkIdx, -1)}
+                                          className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                          disabled={finalQty <= 0}
+                                        >
+                                          <Minus className="h-2.5 w-2.5" />
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="any"
+                                          value={finalQty}
+                                          onChange={(e) => updateProductLinkageField(line.lineId, linkIdx, "currentQty", Number(e.target.value) || 0)}
+                                          className="w-14 text-center text-xs font-semibold text-navy-700 border border-navy-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:border-navy-400"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => updateProductLinkageQty(line.lineId, linkIdx, 1)}
+                                          className="flex h-5 w-5 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                        >
+                                          <Plus className="h-2.5 w-2.5" />
+                                        </button>
+                                        {unitOptions.length > 0 ? (
+                                          <select
+                                            className="text-[10px] font-semibold text-navy-600 bg-white border border-navy-200 rounded px-1 py-0.5"
+                                            value={link.currentUnit || "primary"}
+                                            onChange={(e) => updateProductLinkageField(line.lineId, linkIdx, "currentUnit", e.target.value)}
+                                          >
+                                            {unitOptions.map((opt) => (
+                                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                            ))}
+                                          </select>
+                                        ) : null}
+                                      </div>
+                                    </div>
+
+                                    {showConversion && baseEquiv !== null ? (
+                                      <div className="flex items-center gap-1 text-[10px] text-slate-400 pl-1">
+                                        <ArrowLeftRight className="h-2.5 w-2.5" />
+                                        <span>= {baseEquiv.toFixed(4).replace(/\.?0+$/, "")} {um?.primaryAbbr || ""}</span>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </>
                     )}
 
@@ -1953,76 +2316,131 @@ export function POSPage() {
                             )}
 
                             {/* Linked products per service */}
-                            {svc.enabled && svc.productLinkages?.length > 0 && (
-                              <div className="mt-2 space-y-1.5 rounded-lg bg-navy-50 p-2 border border-navy-100">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-navy-400">Product Consumption</p>
-                                {svc.productLinkages.map((link) => {
-                                  const finalQty = Math.max(0, Number(link.currentQty) || 0);
-                                  const um = link.unitMaster;
-                                  const unitOptions = um ? getAvailableUnits(um) : [];
-                                  const showConv = um && link.currentUnit === "secondary" && finalQty > 0;
-                                  const baseEquiv = showConv ? convertToBase(finalQty, um.conversionRatio, "secondary") : null;
-                                  return (
-                                    <div key={link.inventoryId} className={`space-y-0.5 transition-opacity ${link.enabled ? "opacity-100" : "opacity-40"}`}>
-                                      <div className="flex items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          onClick={() => togglePackageServiceProduct(line.lineId, svc.serviceId, link.inventoryId)}
-                                          className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full border-2 border-transparent transition-colors ${link.enabled ? "bg-emerald-500" : "bg-slate-300"}`}
-                                        >
-                                          <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow transition-transform ${link.enabled ? "translate-x-2.5" : "translate-x-0"}`} />
-                                        </button>
-                                        <span className="flex-1 text-[11px] text-navy-700 truncate">
-                                          {productNameById[link.inventoryId] || link.inventoryId}
-                                        </span>
-                                        {link.enabled && (
-                                          <div className="flex items-center gap-1">
-                                             <button
-                                               type="button"
-                                               onClick={() => updatePackageServiceProductQty(line.lineId, svc.serviceId, link.inventoryId, -1)}
-                                               disabled={finalQty <= 0}
-                                               className="flex h-4 w-4 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
-                                             >
-                                               <Minus className="h-2 w-2" />
-                                             </button>
-                                             <input
-                                               type="number"
-                                               min="0"
-                                               step="any"
-                                               value={finalQty}
-                                               onChange={(e) => updatePackageServiceProductField(line.lineId, svc.serviceId, link.inventoryId, "currentQty", Number(e.target.value) || 0)}
-                                               className="w-12 text-center text-[11px] font-semibold text-navy-700 border border-navy-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:border-navy-400"
-                                             />
-                                             <button
-                                               type="button"
-                                               onClick={() => updatePackageServiceProductQty(line.lineId, svc.serviceId, link.inventoryId, 1)}
-                                               className="flex h-4 w-4 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
-                                             >
-                                               <Plus className="h-2 w-2" />
-                                             </button>
-                                            {unitOptions.length > 0 && (
-                                              <select
-                                                className="text-[10px] font-semibold text-navy-600 bg-white border border-navy-200 rounded px-1 py-0.5 appearance-none"
-                                                value={link.currentUnit || "primary"}
-                                                onChange={(e) => updatePackageServiceProductField(line.lineId, svc.serviceId, link.inventoryId, "currentUnit", e.target.value)}
-                                              >
-                                                {unitOptions.map((opt) => (
-                                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                ))}
-                                              </select>
+                            {svc.enabled && (
+                              <div className="mt-2 space-y-1.5 rounded-lg bg-navy-50/70 p-2 border border-navy-100">
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-navy-500">
+                                    Products Used {svc.productLinkages?.length > 0 ? `(${svc.productLinkages.length})` : ""}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => addPackageServiceProduct(line.lineId, svc.serviceId)}
+                                    className="inline-flex items-center gap-0.5 text-[9px] font-bold text-navy-700 bg-white hover:bg-navy-100 border border-navy-200 rounded px-1.5 py-0.5 shadow-2xs transition"
+                                    title="Add product consumed for this service"
+                                  >
+                                    <Plus className="h-2 w-2" /> Add Product
+                                  </button>
+                                </div>
+
+                                {(!svc.productLinkages || svc.productLinkages.length === 0) ? (
+                                  <p className="text-[10px] text-slate-400 italic text-center py-1">No products linked.</p>
+                                ) : (
+                                  svc.productLinkages.map((link, linkIdx) => {
+                                    const finalQty = Math.max(0, Number(link.currentQty) || 0);
+                                    const um = link.unitMaster || productMasters.find((p) => String(p.id) === String(link.inventoryId))?.unitMaster;
+                                    const unitOptions = um ? getAvailableUnits(um) : [];
+                                    const showConv = um && link.currentUnit === "secondary" && finalQty > 0;
+                                    const baseEquiv = showConv ? convertToBase(finalQty, um.conversionRatio, "secondary") : null;
+                                    const currentStock = stockByProductId[String(link.inventoryId)];
+
+                                    return (
+                                      <div key={`pkg-link-${link.inventoryId}-${linkIdx}`} className={`space-y-1 rounded bg-white p-1.5 border border-navy-100 transition-opacity ${link.enabled ? "opacity-100" : "opacity-40"}`}>
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => togglePackageServiceProduct(line.lineId, svc.serviceId, linkIdx)}
+                                            className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full border-2 border-transparent transition-colors ${link.enabled ? "bg-emerald-500" : "bg-slate-300"}`}
+                                            title={link.enabled ? "Consumption enabled" : "Consumption disabled"}
+                                          >
+                                            <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow transition-transform ${link.enabled ? "translate-x-2.5" : "translate-x-0"}`} />
+                                          </button>
+
+                                          <select
+                                            value={link.inventoryId}
+                                            onChange={(e) => changePackageServiceProduct(line.lineId, svc.serviceId, linkIdx, e.target.value)}
+                                            disabled={!link.enabled}
+                                            className="flex-1 text-[11px] font-semibold text-navy-800 bg-navy-50/50 hover:bg-navy-50 border border-navy-200 rounded px-1.5 py-0.5 focus:outline-none focus:border-navy-400 truncate"
+                                            title="Change product used"
+                                          >
+                                            {!productMasters.some((p) => String(p.id) === String(link.inventoryId)) && (
+                                              <option value={link.inventoryId}>
+                                                {productNameById[link.inventoryId] || `Product #${link.inventoryId}`}
+                                              </option>
                                             )}
+                                            {productMasters.map((p) => {
+                                              const stock = stockByProductId[String(p.id)];
+                                              return (
+                                                <option key={p.id} value={p.id}>
+                                                  {p.itemName} {stock !== undefined ? `(${stock} avail)` : ""}
+                                                </option>
+                                              );
+                                            })}
+                                          </select>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => removePackageServiceProduct(line.lineId, svc.serviceId, linkIdx)}
+                                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
+                                            title="Remove product"
+                                          >
+                                            <Trash2 className="h-2.5 w-2.5" />
+                                          </button>
+                                        </div>
+
+                                        {link.enabled && (
+                                          <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-50">
+                                            <span className="text-[9px] text-slate-400">
+                                              Qty {currentStock !== undefined && <span className={finalQty > currentStock ? "text-rose-500 font-bold" : ""}>({currentStock} avail)</span>}:
+                                            </span>
+                                            <div className="flex items-center gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => updatePackageServiceProductQty(line.lineId, svc.serviceId, linkIdx, -1)}
+                                                disabled={finalQty <= 0}
+                                                className="flex h-4 w-4 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                              >
+                                                <Minus className="h-2 w-2" />
+                                              </button>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                step="any"
+                                                value={finalQty}
+                                                onChange={(e) => updatePackageServiceProductField(line.lineId, svc.serviceId, linkIdx, "currentQty", Number(e.target.value) || 0)}
+                                                className="w-12 text-center text-[11px] font-semibold text-navy-700 border border-navy-200 rounded px-1 py-0.5 bg-white focus:outline-none focus:border-navy-400"
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => updatePackageServiceProductQty(line.lineId, svc.serviceId, linkIdx, 1)}
+                                                className="flex h-4 w-4 items-center justify-center rounded border border-navy-200 bg-white text-navy-600 hover:bg-navy-50"
+                                              >
+                                                <Plus className="h-2 w-2" />
+                                              </button>
+                                              {unitOptions.length > 0 && (
+                                                <select
+                                                  className="text-[10px] font-semibold text-navy-600 bg-white border border-navy-200 rounded px-1 py-0.5"
+                                                  value={link.currentUnit || "primary"}
+                                                  onChange={(e) => updatePackageServiceProductField(line.lineId, svc.serviceId, linkIdx, "currentUnit", e.target.value)}
+                                                >
+                                                  {unitOptions.map((opt) => (
+                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                  ))}
+                                                </select>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {showConv && baseEquiv !== null && (
+                                          <div className="flex items-center gap-1 text-[9px] text-slate-400 pl-6">
+                                            <ArrowLeftRight className="h-2 w-2" />
+                                            <span>= {baseEquiv.toFixed(4).replace(/\.?0+$/, "")} {um?.primaryAbbr || ""}</span>
                                           </div>
                                         )}
                                       </div>
-                                      {showConv && baseEquiv !== null && (
-                                        <div className="flex items-center gap-1 text-[9px] text-slate-400 pl-6">
-                                          <ArrowLeftRight className="h-2 w-2" />
-                                          <span>= {baseEquiv.toFixed(4).replace(/\.?0+$/, "")} {um.primaryAbbr}</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                                    );
+                                  })
+                                )}
                               </div>
                             )}
                           </div>
@@ -2289,7 +2707,7 @@ export function POSPage() {
               </div>
             )}
 
-            <div className="mt-3 grid grid-cols-5 gap-1 shadow-sm">
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-5 gap-2 shadow-sm">
               {paymentMethods.map((method) => {
                 const hotkeys = { Cash: "F4", Card: "F8", UPI: "F9", "Store Credit": "F11", Split: "F10" };
                 const isSelected = paymentMethod === method;
@@ -2543,15 +2961,45 @@ export function POSPage() {
               </span>
             </div>
 
-            <button
-              type="button"
-              className="btn-premium-primary mt-3 w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:grayscale"
-              onClick={handleCheckout}
-              disabled={!canCheckout}
-            >
-              <span>{editingBillId ? `Update Invoice #${editingBillNumber}` : "Complete Billing"}</span>
-              <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-mono font-bold text-white">Ctrl+↵ / F12</kbd>
-            </button>
+            <div className="mt-3 space-y-2">
+              <button
+                type="button"
+                className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-600/25 hover:from-emerald-500 hover:to-indigo-500 hover:shadow-emerald-600/40 active:scale-[0.99] transition-all disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed cursor-pointer"
+                onClick={() => handleCheckout({ autoPrint: true, forceWhatsApp: true })}
+                disabled={!canCheckout || isSubmittingCheckout}
+                title="Complete billing, trigger print and send WhatsApp receipt (Ctrl+P / F7)"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Printer className="h-4 w-4" />
+                  <span className="text-xs font-bold text-white/80">+</span>
+                  <MessageCircle className="h-4 w-4" />
+                </div>
+                <span>
+                  {isSubmittingCheckout && autoPrintInvoice
+                    ? "Processing & Printing..."
+                    : editingBillId
+                    ? "Update & Print + WhatsApp"
+                    : "Print + WhatsApp"}
+                </span>
+                <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-mono font-bold text-white">Ctrl+P / F7</kbd>
+              </button>
+
+              <button
+                type="button"
+                className="btn-premium-primary w-full flex items-center justify-center gap-2 !py-2.5 !text-xs disabled:opacity-50 disabled:grayscale"
+                onClick={() => handleCheckout({ autoPrint: false })}
+                disabled={!canCheckout || isSubmittingCheckout}
+              >
+                <span>
+                  {isSubmittingCheckout && !autoPrintInvoice
+                    ? "Processing..."
+                    : editingBillId
+                    ? `Update Invoice #${editingBillNumber}`
+                    : "Complete Billing"}
+                </span>
+                <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[9px] font-mono font-bold text-white">Ctrl+↵ / F12</kbd>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2617,6 +3065,18 @@ export function POSPage() {
                       <kbd className="rounded bg-white border border-slate-200 px-2 py-0.5 text-xs font-mono font-bold text-navy-700 shadow-sm">Alt+4</kbd>
                     </div>
                   </div>
+                  <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <Printer className="h-3.5 w-3.5 text-emerald-700" />
+                      <span className="text-[10px] font-bold text-emerald-700">+</span>
+                      <MessageCircle className="h-3.5 w-3.5 text-emerald-700" />
+                      <span className="text-xs font-bold text-emerald-900">Print + WhatsApp Billing</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <kbd className="rounded bg-emerald-700 px-2 py-0.5 text-xs font-mono font-bold text-white shadow-sm">Ctrl+P</kbd>
+                      <kbd className="rounded bg-emerald-700 px-2 py-0.5 text-xs font-mono font-bold text-white shadow-sm">F7</kbd>
+                    </div>
+                  </div>
                   <div className="flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-100 p-2.5">
                     <span className="text-xs font-bold text-emerald-900">Complete Billing</span>
                     <div className="flex gap-1">
@@ -2668,7 +3128,14 @@ export function POSPage() {
       )}
 
       {showInvoice && currentBill && (
-        <InvoiceModal bill={currentBill} onClose={() => setShowInvoice(false)} />
+        <InvoiceModal
+          bill={currentBill}
+          autoPrint={autoPrintInvoice}
+          onClose={() => {
+            setShowInvoice(false);
+            setAutoPrintInvoice(false);
+          }}
+        />
       )}
 
       {/* POS Shift Modals */}

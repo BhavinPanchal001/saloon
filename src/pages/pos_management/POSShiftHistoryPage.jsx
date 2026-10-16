@@ -85,7 +85,7 @@ export function POSShiftHistoryPage() {
       />
 
       {/* Filter Bar */}
-      <div className="p-4 rounded-2xl bg-white border border-navy-100 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+      <div className="p-4 rounded-2xl bg-white border border-navy-100 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 desktop:grid-cols-5 gap-3 items-end">
         <div>
           <label className="block text-xs font-bold text-navy-700 mb-1">Outlet</label>
           <select

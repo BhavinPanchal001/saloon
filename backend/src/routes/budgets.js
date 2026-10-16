@@ -17,5 +17,11 @@ router.get('/months', budgetController.getAvailableMonths);
 
 // Set/update budget (admin only)
 router.post('/', requireAdmin, budgetController.setBudget);
+router.put('/', requireAdmin, budgetController.setBudget);
+router.delete('/', requireAdmin, budgetController.deleteBudget);
+
+// Budget history management (admin only)
+router.put('/history/:id', requireAdmin, budgetController.updateBudgetHistory);
+router.delete('/history/:id', requireAdmin, budgetController.deleteBudgetHistory);
 
 module.exports = router;

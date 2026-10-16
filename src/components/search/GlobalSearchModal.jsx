@@ -347,7 +347,7 @@ export function GlobalSearchModal() {
 
       {/* Command Palette Card */}
       <div
-        className="relative flex flex-col w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-3xl border border-white/60 bg-white/95 shadow-2xl backdrop-blur-2xl ring-1 ring-black/5 animate-premium-in"
+        className="relative flex flex-col w-full max-w-2xl max-h-[calc(100dvh-7rem)] overflow-hidden rounded-3xl border border-white/60 bg-white/95 shadow-2xl backdrop-blur-2xl ring-1 ring-black/5 animate-premium-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Search Bar */}
@@ -411,7 +411,7 @@ export function GlobalSearchModal() {
         {/* Body Area */}
         <div
           ref={listRef}
-          className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth max-h-[55vh]"
+          className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth max-h-[55dvh]"
         >
           {/* 1. Empty Query State: Recent Searches & Quick Links */}
           {isQueryEmpty && (

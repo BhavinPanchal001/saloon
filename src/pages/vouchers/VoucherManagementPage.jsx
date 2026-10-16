@@ -51,8 +51,10 @@ import {
   fetchBillByIdFromAPI,
 } from "../../services/api";
 import { BillDetailModal } from "../pos/BillDetailModal";
+import { COMPANY_INFO } from "../../utils/companyInfo";
 
 export function VoucherManagementPage() {
+  const currencySymbol = COMPANY_INFO.currency || "RM";
   const [activeTab, setActiveTab] = useState("vouchers"); // "vouchers" | "redemptions" | "rewardRules"
   const [vouchers, setVouchers] = useState([]);
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, redeemed: 0, expired: 0 });
@@ -71,6 +73,9 @@ export function VoucherManagementPage() {
   // Auto-Reward Rules State
   const [rewardRules, setRewardRules] = useState({
     enabled: true,
+    start_date: "",
+    end_date: "",
+    is_lifetime: true,
     min_bill_amount: 100,
     mode: "tiered",
     percentage: 10,
@@ -205,6 +210,9 @@ export function VoucherManagementPage() {
       if (res.success && res.data) {
         setRewardRules({
           ...res.data,
+          start_date: res.data.start_date || "",
+          end_date: res.data.end_date || "",
+          is_lifetime: res.data.is_lifetime !== undefined ? !!res.data.is_lifetime : !res.data.end_date,
           tiers: Array.isArray(res.data.tiers) ? res.data.tiers : [],
         });
       }
@@ -261,10 +269,25 @@ export function VoucherManagementPage() {
     if (!rewardRules.enabled) {
       return { eligible: false, reason: "Auto-award rules are currently turned OFF." };
     }
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (rewardRules.start_date && todayStr < rewardRules.start_date) {
+      return {
+        eligible: false,
+        reason: `Promotion has not started yet. Scheduled to start on ${formatDateTime(rewardRules.start_date).date}.`,
+      };
+    }
+    if (!rewardRules.is_lifetime && rewardRules.end_date && todayStr > rewardRules.end_date) {
+      return {
+        eligible: false,
+        reason: `Promotion ended on ${formatDateTime(rewardRules.end_date).date}. Auto-awarding is paused.`,
+      };
+    }
+
     if (amt < (Number(rewardRules.min_bill_amount) || 0)) {
       return {
         eligible: false,
-        reason: `Bill amount is less than minimum qualifying bill of ₹${rewardRules.min_bill_amount}.`,
+        reason: `Bill amount is less than minimum qualifying bill of ${currencySymbol} ${rewardRules.min_bill_amount}.`,
       };
     }
     if (rewardRules.mode === "percentage") {
@@ -276,7 +299,7 @@ export function VoucherManagementPage() {
       return {
         eligible: true,
         voucher_amount: val,
-        validity_days: rewardRules.validity_days || 30,
+        validity_days: Number(rewardRules.validity_days) >= 0 ? Number(rewardRules.validity_days) : 30,
         min_spend_to_redeem: rewardRules.min_spend_to_redeem || 0,
       };
     } else {
@@ -289,7 +312,7 @@ export function VoucherManagementPage() {
         eligible: true,
         voucher_amount: Number(match.voucher_amount),
         min_spend_tier: match.min_spend,
-        validity_days: rewardRules.validity_days || 30,
+        validity_days: Number(rewardRules.validity_days) >= 0 ? Number(rewardRules.validity_days) : 30,
         min_spend_to_redeem: rewardRules.min_spend_to_redeem || 0,
       };
     }
@@ -483,11 +506,8 @@ export function VoucherManagementPage() {
   };
 
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 2,
-    }).format(Number(val) || 0);
+    const num = Number(val) || 0;
+    return `${currencySymbol} ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   return (
@@ -589,7 +609,7 @@ export function VoucherManagementPage() {
       {activeTab === "vouchers" && (
         <div className="space-y-6">
           {/* KPI Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 desktop:grid-cols-5 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
                 <Gift className="w-5 h-5" />
@@ -925,7 +945,7 @@ export function VoucherManagementPage() {
   {activeTab === "redemptions" && (
     <div className="space-y-6">
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
             <History className="w-5 h-5" />
@@ -1207,6 +1227,135 @@ export function VoucherManagementPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 Cols: Configuration */}
             <div className="lg:col-span-2 space-y-6">
+              {/* Campaign Schedule & Duration Card */}
+              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-gray-100 pb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-indigo-500" />
+                      Promotion Campaign Schedule
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Define the active date window when bills at POS qualify to earn reward vouchers.
+                    </p>
+                  </div>
+
+                  {/* Dynamic Status Badge */}
+                  <div>
+                    {(() => {
+                      if (!rewardRules.enabled) {
+                        return (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                            <span className="w-2 h-2 rounded-full bg-gray-400" />
+                            Rules Inactive (Off)
+                          </span>
+                        );
+                      }
+                      const todayStr = new Date().toISOString().split("T")[0];
+                      if (rewardRules.start_date && todayStr < rewardRules.start_date) {
+                        return (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                            Scheduled (Starts {formatDateTime(rewardRules.start_date).date})
+                          </span>
+                        );
+                      }
+                      if (!rewardRules.is_lifetime && rewardRules.end_date && todayStr > rewardRules.end_date) {
+                        return (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                            <span className="w-2 h-2 rounded-full bg-rose-500" />
+                            Campaign Expired (Ended {formatDateTime(rewardRules.end_date).date})
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          {rewardRules.is_lifetime
+                            ? "Active · Lifetime / Ongoing"
+                            : `Active · Until ${formatDateTime(rewardRules.end_date).date}`}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Campaign Start Date */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-gray-700">
+                        Campaign Start Date
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const todayStr = new Date().toISOString().split("T")[0];
+                          setRewardRules({ ...rewardRules, start_date: todayStr });
+                        }}
+                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                      >
+                        Set Today
+                      </button>
+                    </div>
+                    <input
+                      type="date"
+                      value={rewardRules.start_date || ""}
+                      onChange={(e) => setRewardRules({ ...rewardRules, start_date: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none"
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Vouchers start being awarded from this date onwards (leave empty to start immediately).
+                    </p>
+                  </div>
+
+                  {/* Campaign End Date & Lifetime Toggle */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-gray-700">
+                        Campaign End Date
+                      </label>
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-[11px] font-bold text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={!!rewardRules.is_lifetime}
+                          onChange={(e) => {
+                            const isLife = e.target.checked;
+                            setRewardRules({
+                              ...rewardRules,
+                              is_lifetime: isLife,
+                              end_date: isLife ? "" : rewardRules.end_date,
+                            });
+                          }}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                        />
+                        <span>No End Date (Lifetime)</span>
+                      </label>
+                    </div>
+
+                    {rewardRules.is_lifetime ? (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50/60 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800">
+                        <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <span>Lifetime Campaign — Runs indefinitely without automatic expiration.</span>
+                      </div>
+                    ) : (
+                      <input
+                        type="date"
+                        min={rewardRules.start_date || ""}
+                        value={rewardRules.end_date || ""}
+                        onChange={(e) => setRewardRules({ ...rewardRules, end_date: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none"
+                      />
+                    )}
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      {rewardRules.is_lifetime
+                        ? "Uncheck above if you want this promotion to end on a specific date."
+                        : "Auto-awarding will automatically stop at 23:59 on this date."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Calculation Mode Card */}
               <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
@@ -1411,17 +1560,46 @@ export function VoucherManagementPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                      Validity Period (Days)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={rewardRules.validity_days}
-                      onChange={(e) => setRewardRules({ ...rewardRules, validity_days: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none"
-                    />
-                    <p className="text-[11px] text-gray-400 mt-1">Voucher expires X days after bill issue date</p>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold text-gray-700">
+                        Customer Validity
+                      </label>
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={Number(rewardRules.validity_days) === 0}
+                          onChange={(e) => {
+                            setRewardRules({
+                              ...rewardRules,
+                              validity_days: e.target.checked ? 0 : 30,
+                            });
+                          }}
+                          className="rounded border-gray-300 text-amber-600 focus:ring-amber-500 h-3 w-3"
+                        />
+                        <span>No Expiry</span>
+                      </label>
+                    </div>
+                    {Number(rewardRules.validity_days) === 0 ? (
+                      <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-800">
+                        Never expires (Lifetime voucher)
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="1"
+                          value={rewardRules.validity_days}
+                          onChange={(e) => setRewardRules({ ...rewardRules, validity_days: Math.max(1, Number(e.target.value)) })}
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none"
+                        />
+                        <span className="absolute right-3 top-2 text-xs font-bold text-gray-400">Days</span>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      {Number(rewardRules.validity_days) === 0
+                        ? "Customer can redeem voucher anytime in the future"
+                        : `Voucher expires ${rewardRules.validity_days} days after bill issue date`}
+                    </p>
                   </div>
 
                   <div>
@@ -1520,7 +1698,7 @@ export function VoucherManagementPage() {
                           Voucher Unlocked!
                         </span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900">
-                          {rewardRules.validity_days} Days Valid
+                          {Number(rewardRules.validity_days) === 0 ? "Lifetime Valid" : `${rewardRules.validity_days} Days Valid`}
                         </span>
                       </div>
 
@@ -1559,7 +1737,9 @@ export function VoucherManagementPage() {
                       </div>
                       <p className="text-[9px] font-bold">CODE: VCH-7X8K2P</p>
                       <p className="text-[7.5px] text-gray-500 mt-1">
-                        Present receipt on next visit to redeem.
+                        {Number(rewardRules.validity_days) === 0
+                          ? "Lifetime validity · Redeem on any future visit."
+                          : `Present receipt on next visit to redeem (Valid for ${rewardRules.validity_days} days).`}
                       </p>
                     </div>
                   </div>
@@ -1621,7 +1801,7 @@ export function VoucherManagementPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Value {editingVoucher.voucher_type === "percent" ? "(%)" : "(₹)"} *
+                    Value {editingVoucher.voucher_type === "percent" ? "(%)" : `(${currencySymbol})`} *
                   </label>
                   <input
                     type="number"
@@ -1636,7 +1816,7 @@ export function VoucherManagementPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Min Spend (₹)
+                    Min Spend ({currencySymbol})
                   </label>
                   <input
                     type="number"
@@ -1799,15 +1979,15 @@ export function VoucherManagementPage() {
                     onChange={(e) => setFormData({ ...formData, voucherType: e.target.value })}
                     className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:outline-none font-medium"
                   >
-                    <option value="cash">Cash / Gift Value (₹)</option>
-                    <option value="flat">Flat Discount (₹)</option>
+                    <option value="cash">Cash / Gift Value ({currencySymbol})</option>
+                    <option value="flat">Flat Discount ({currencySymbol})</option>
                     <option value="percent">Percentage Discount (%)</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Value {formData.voucherType === "percent" ? "(%)" : "(₹)"} <span className="text-rose-500">*</span>
+                    Value {formData.voucherType === "percent" ? "(%)" : `(${currencySymbol})`} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -1826,7 +2006,7 @@ export function VoucherManagementPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Min Bill Spend (₹)
+                    Min Bill Spend ({currencySymbol})
                   </label>
                   <input
                     type="number"

@@ -112,6 +112,10 @@ export const router = createBrowserRouter([
                 element: <OutletTransactionsPage />,
               },
               {
+                path: "/outlets/:outletId",
+                element: <OutletTransactionsPage />,
+              },
+              {
                 path: "/outlets/:outletId/transactions",
                 element: <OutletTransactionsPage />,
               },
@@ -142,6 +146,14 @@ export const router = createBrowserRouter([
               },
               {
                 path: "/expenses/add",
+                element: <ExpenseAddPage />,
+              },
+              {
+                path: "/expenses/edit/:id",
+                element: <ExpenseAddPage />,
+              },
+              {
+                path: "/expenses/:id/edit",
                 element: <ExpenseAddPage />,
               },
               {

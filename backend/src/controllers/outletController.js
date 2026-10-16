@@ -4,6 +4,7 @@ const Bill = require('../models/Bill');
 const Expense = require('../models/Expense');
 const PurchaseOrder = require('../models/PurchaseOrder');
 const MonthlyBudget = require('../models/MonthlyBudget');
+const StockIssue = require('../models/StockIssue');
 
 const toResponse = (outlet) => ({
   id: outlet.id,
@@ -81,6 +82,20 @@ const getOutletFinancialSummary = async (req, res) => {
     // 5. Net Surplus / Deficit
     const netProfit = totalEarned - (totalExpenses + totalPOCost);
 
+    // 6. Stock Issues
+    let filteredStockIssues = [];
+    try {
+      const stockIssues = await StockIssue.findAll({ where: { outlet_id: outletId } });
+      filteredStockIssues = stockIssues.filter(si => {
+        if (!monthKey) return true;
+        const siDate = new Date(si.created_at || si.createdAt);
+        const siMonth = `${siDate.getFullYear()}-${String(siDate.getMonth() + 1).padStart(2, '0')}`;
+        return siMonth === monthKey;
+      });
+    } catch (siErr) {
+      console.warn('[Outlet Financial Summary] Could not query StockIssues by outlet_id:', siErr.message);
+    }
+
     return res.json({
       outlet: toResponse(outlet),
       monthKey: currentMonthKey,
@@ -90,6 +105,7 @@ const getOutletFinancialSummary = async (req, res) => {
       expensesCount: expenses.length,
       totalPOCost,
       poCount: filteredPOs.length,
+      stockIssuesCount: filteredStockIssues.length,
       assignedBudget,
       remainingBudget,
       spendPercentage,

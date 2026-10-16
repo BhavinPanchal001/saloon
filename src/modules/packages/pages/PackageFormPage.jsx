@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { 
   Plus, 
   Trash2, 
@@ -32,6 +32,7 @@ import {
 } from "../../../services/api";
 import { formatCurrency } from "../../../utils/format";
 import { useToastStore } from "../../../stores/toastStore";
+import { useAuthStore } from "../../../stores/authStore";
 import {
   createInitialPackageForm,
   createInitialServiceSelection,
@@ -41,9 +42,35 @@ import {
 } from "../utils/packageFormUtils";
 import "../styles/packages.css";
 
+const normalizeOutletIds = (raw) => {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.map((id) => String(id).trim()).filter(Boolean);
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.map((id) => String(id).trim()).filter(Boolean);
+      }
+    } catch {}
+    return [trimmed];
+  }
+  if (typeof raw === "number") {
+    return [String(raw)];
+  }
+  return [];
+};
+
 export function PackageFormPage() {
   const navigate = useNavigate();
   const { packageId } = useParams();
+  const [searchParams] = useSearchParams();
+  const queryOutletId = searchParams.get("outletId");
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const isEditing = Boolean(packageId);
   const toast = useToastStore();
   const [form, setForm] = useState(createInitialPackageForm());
@@ -81,12 +108,26 @@ export function PackageFormPage() {
         const serviceList = rawServiceList.map(s => ({
           ...s,
           serviceName: s.serviceName || s.service_name || '',
+          assignedOutletIds: normalizeOutletIds(s.assignedOutletIds || s.assigned_outlet_ids),
         }));
         setServices(serviceList);
         setProducts(productList);
         setOutlets(outletList);
         setCategories(categoryList);
-        setForm(packageRecord ? mapPackageToForm(packageRecord) : createInitialPackageForm());
+
+        if (packageRecord) {
+          setForm(mapPackageToForm(packageRecord));
+        } else {
+          const initialOutlets = [];
+          if (queryOutletId) {
+            const matched = outletList.find((o) => String(o.id) === String(queryOutletId));
+            if (matched) initialOutlets.push(matched.id);
+          } else if (!isAdmin && user?.outlet_id) {
+            const matched = outletList.find((o) => String(o.id) === String(user.outlet_id));
+            if (matched) initialOutlets.push(matched.id);
+          }
+          setForm(createInitialPackageForm(initialOutlets));
+        }
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -94,7 +135,7 @@ export function PackageFormPage() {
 
     loadPage();
     return () => { isMounted = false; };
-  }, [isEditing, packageId]);
+  }, [isEditing, packageId, queryOutletId, isAdmin, user?.outlet_id]);
 
   const serviceOptionsById = useMemo(
     () => Object.fromEntries(services.map((service) => [service.id, service])),
@@ -108,10 +149,77 @@ export function PackageFormPage() {
 
   const availableServices = useMemo(() => {
     if (!form.assignedOutletIds || form.assignedOutletIds.length === 0) {
-      return services;
+      return [];
     }
-    return services;
-  }, [services, form.assignedOutletIds]);
+
+    const selectedOutletIds = form.assignedOutletIds
+      .map((id) => String(id).trim())
+      .filter(Boolean);
+
+    if (selectedOutletIds.length === 0) {
+      return [];
+    }
+
+    return services.filter((service) => {
+      // Inactive services should not be offered unless already selected in this package
+      if (service.status && String(service.status).toLowerCase() === "inactive") {
+        const isAlreadyInForm = form.services?.some(
+          (s) => String(s.serviceId) === String(service.id)
+        );
+        if (!isAlreadyInForm) return false;
+      }
+
+      const serviceOutlets = normalizeOutletIds(
+        service.assignedOutletIds || service.assigned_outlet_ids
+      );
+
+      // If service is assigned to all outlets (empty array), it's available everywhere
+      if (serviceOutlets.length === 0) {
+        return true;
+      }
+
+      // The service must be available in all selected outlets for this package
+      return selectedOutletIds.every((outletId) => serviceOutlets.includes(outletId));
+    });
+  }, [services, form.assignedOutletIds, form.services]);
+
+  // Clean up any selected services that are no longer available in the newly selected outlet(s)
+  useEffect(() => {
+    if (isLoading || !services.length) return;
+
+    if (!form.assignedOutletIds || form.assignedOutletIds.length === 0) {
+      setForm((current) => {
+        const hasSelectedServices = current.services.some((s) => s.serviceId);
+        if (!hasSelectedServices) return current;
+        return {
+          ...current,
+          services: current.services.map((s) => ({
+            ...s,
+            serviceId: "",
+            linkedProducts: [],
+          })),
+        };
+      });
+      return;
+    }
+
+    const availableIds = new Set(availableServices.map((s) => String(s.id)));
+    setForm((current) => {
+      let changed = false;
+      const updatedServices = current.services.map((selection) => {
+        if (selection.serviceId && !availableIds.has(String(selection.serviceId))) {
+          changed = true;
+          return {
+            ...selection,
+            serviceId: "",
+            linkedProducts: [],
+          };
+        }
+        return selection;
+      });
+      return changed ? { ...current, services: updatedServices } : current;
+    });
+  }, [availableServices, form.assignedOutletIds, isLoading, services.length]);
 
   const getServiceLinkedProducts = (serviceId) => {
     const service = serviceOptionsById[serviceId];
@@ -208,12 +316,39 @@ export function PackageFormPage() {
     }));
   };
 
+  const isOutletSelected = (outletId) => {
+    return form.assignedOutletIds.some((id) => String(id) === String(outletId));
+  };
+
+  const isAllOutletsSelected = useMemo(() => {
+    return (
+      outlets.length > 0 &&
+      outlets.every((outlet) => isOutletSelected(outlet.id))
+    );
+  }, [outlets, form.assignedOutletIds]);
+
+  const selectedOutletsCount = useMemo(() => {
+    return outlets.filter((outlet) => isOutletSelected(outlet.id)).length;
+  }, [outlets, form.assignedOutletIds]);
+
   const toggleOutlet = (outletId) => {
+    setForm((current) => {
+      const exists = current.assignedOutletIds.some((id) => String(id) === String(outletId));
+      return {
+        ...current,
+        assignedOutletIds: exists
+          ? current.assignedOutletIds.filter((id) => String(id) !== String(outletId))
+          : [...current.assignedOutletIds, outletId],
+      };
+    });
+  };
+
+  const toggleSelectAllOutlets = () => {
     setForm((current) => ({
       ...current,
-      assignedOutletIds: current.assignedOutletIds.includes(outletId)
-        ? current.assignedOutletIds.filter((id) => id !== outletId)
-        : [...current.assignedOutletIds, outletId],
+      assignedOutletIds: isAllOutletsSelected
+        ? []
+        : outlets.map((outlet) => outlet.id),
     }));
   };
 
@@ -233,6 +368,11 @@ export function PackageFormPage() {
     if (!form.packageName.trim()) {
       toast.error("Package name is required");
       setActiveTab("basics");
+      return;
+    }
+    if (!form.assignedOutletIds || form.assignedOutletIds.length === 0) {
+      toast.error("Please select at least one outlet for the package");
+      setActiveTab("services");
       return;
     }
     if (cleanedServices.length === 0) {
@@ -395,14 +535,55 @@ export function PackageFormPage() {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
               {/* Outlet Selection - Must select first */}
               <div className="mb-8 p-5 rounded-2xl bg-navy-50/50 border border-navy-100">
-                <div className="flex items-center gap-2 mb-4">
-                  <Store size={18} className="text-navy-600" />
-                  <h2 className="form-section-title" style={{ margin: 0 }}>Select Outlets</h2>
+                <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Store size={18} className="text-navy-600" />
+                    <h2 className="form-section-title" style={{ margin: 0 }}>Select Outlets</h2>
+                    {outlets.length > 0 && (
+                      <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-navy-100 text-navy-700">
+                        {selectedOutletsCount} of {outlets.length} selected
+                      </span>
+                    )}
+                  </div>
+                  {outlets.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={toggleSelectAllOutlets}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border border-navy-200 bg-white text-navy-700 hover:bg-navy-50 hover:border-navy-300 transition-all shadow-sm cursor-pointer"
+                    >
+                      <Check size={14} className={isAllOutletsSelected ? "text-emerald-600" : "text-slate-400"} />
+                      {isAllOutletsSelected ? "Deselect All" : "Select All"}
+                    </button>
+                  )}
                 </div>
                 <p className="text-sm text-slate-500 mb-4">Select outlets where this package will be available. Services will be filtered based on outlet availability.</p>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {outlets.length > 1 && (
+                    <label
+                      className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                        isAllOutletsSelected
+                          ? 'border-navy-600 bg-navy-50 font-medium'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-5 w-5 rounded border-slate-300 text-navy-600 focus:ring-navy-600 cursor-pointer"
+                        checked={isAllOutletsSelected}
+                        onChange={toggleSelectAllOutlets}
+                      />
+                      <div>
+                        <p className={`font-bold ${isAllOutletsSelected ? 'text-navy-900' : 'text-slate-700'}`}>
+                          Select All
+                        </p>
+                        <p className="text-xs text-slate-500 uppercase tracking-wider">
+                          All {outlets.length} Outlets
+                        </p>
+                      </div>
+                    </label>
+                  )}
                   {outlets.map((outlet) => {
-                    const isSelected = form.assignedOutletIds.includes(outlet.id);
+                    const isSelected = isOutletSelected(outlet.id);
                     return (
                       <label key={outlet.id} className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all cursor-pointer ${isSelected ? 'border-navy-600 bg-navy-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                         <input
@@ -432,7 +613,7 @@ export function PackageFormPage() {
                   <h2 className="form-section-title" style={{ margin: 0 }}>Service Bundle</h2>
                   <p className="text-sm text-slate-500 mt-1">
                     {form.assignedOutletIds.length > 0 
-                      ? `${availableServices.length} services available`
+                      ? `${availableServices.length} service${availableServices.length === 1 ? '' : 's'} available for selected outlet${form.assignedOutletIds.length === 1 ? '' : 's'}`
                       : 'Select an outlet to add services'}
                   </p>
                 </div>
@@ -465,10 +646,19 @@ export function PackageFormPage() {
                             value={selection.serviceId}
                             onChange={(e) => updateServiceSelection(selection.id, "serviceId", e.target.value)}
                           >
-                            <option value="">Select Service</option>
-                            {availableServices.map(s => (
-                              <option key={s.id} value={s.id}>{s.serviceName} ({formatCurrency(s.price)})</option>
-                            ))}
+                            <option value="">
+                              {availableServices.length === 0
+                                ? "No services available for selected outlet(s)"
+                                : "Select Service"}
+                            </option>
+                            {availableServices.map((s) => {
+                              const isGlobal = !s.assignedOutletIds || s.assignedOutletIds.length === 0;
+                              return (
+                                <option key={s.id} value={s.id}>
+                                  {s.serviceName} ({formatCurrency(s.price)}){isGlobal && outlets.length > 1 ? " • All Outlets" : ""}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
                         <div className="form-field">

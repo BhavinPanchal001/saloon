@@ -245,7 +245,7 @@ export function SalaryViewPage() {
               <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
                 <User className="w-8 h-8 text-gray-500" />
               </div>
-              <div className="flex-1 grid grid-cols-3 gap-4">
+              <div className="min-w-0 flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 <div>
                   <p className="text-xs text-gray-500 uppercase">Employee Name</p>
                   <p className="font-semibold text-gray-800">{salaryData.employee.name}</p>

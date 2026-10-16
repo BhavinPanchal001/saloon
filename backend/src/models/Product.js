@@ -11,6 +11,10 @@ const Product = sequelize.define('Product', {
     type: DataTypes.STRING(200),
     allowNull: false,
   },
+  barcode: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+  },
   unit_price: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
@@ -49,6 +53,11 @@ const Product = sequelize.define('Product', {
   status: {
     type: DataTypes.ENUM('active', 'inactive'),
     defaultValue: 'active',
+  },
+  is_stockable: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+    allowNull: false,
   },
   images: {
     type: DataTypes.TEXT('long'),

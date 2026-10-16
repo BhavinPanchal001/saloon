@@ -17,6 +17,7 @@ const {
   Customer,
   CustomerLedger,
   LoyaltyTier,
+  CustomerVoucher,
   sequelize,
 } = require('../models');
 const rewardService = require('../services/rewardService');
@@ -129,6 +130,8 @@ const getCatalog = async (req, res) => {
             });
             return {
               ...link,
+              isStockable: product ? (product.is_stockable !== false && product.is_stockable !== 0) : true,
+              is_stockable: product ? (product.is_stockable !== false && product.is_stockable !== 0) : true,
               unitMasterId: product?.unit_master_id || null,
               unitMaster: product?.unitMaster
                 ? {
@@ -147,8 +150,12 @@ const getCatalog = async (req, res) => {
         );
 
         // Filter by outlet assignment
-        const assignedOutletIds = (service.assigned_outlet_ids || []).map(Number);
-        if (outletIdNum && assignedOutletIds.length > 0 && !assignedOutletIds.includes(outletIdNum)) {
+        let rawAssigned = service.assigned_outlet_ids;
+        if (typeof rawAssigned === 'string') {
+          try { rawAssigned = JSON.parse(rawAssigned); } catch { rawAssigned = []; }
+        }
+        const assignedOutletIds = Array.isArray(rawAssigned) ? rawAssigned.map(Number) : [];
+        if (outletIdNum && !assignedOutletIds.includes(outletIdNum)) {
           return null;
         }
 
@@ -208,6 +215,8 @@ const getCatalog = async (req, res) => {
               });
               return {
                 ...link,
+                isStockable: product ? (product.is_stockable !== false && product.is_stockable !== 0) : true,
+                is_stockable: product ? (product.is_stockable !== false && product.is_stockable !== 0) : true,
                 unitMasterId: product?.unit_master_id || null,
                 unitMaster: product?.unitMaster
                   ? {
@@ -242,8 +251,12 @@ const getCatalog = async (req, res) => {
         );
 
         // Filter by outlet assignment
-        const assignedOutletIds = (pkg.assigned_outlet_ids || []).map(Number);
-        if (outletIdNum && assignedOutletIds.length > 0 && !assignedOutletIds.includes(outletIdNum)) {
+        let rawPkgAssigned = pkg.assigned_outlet_ids;
+        if (typeof rawPkgAssigned === 'string') {
+          try { rawPkgAssigned = JSON.parse(rawPkgAssigned); } catch { rawPkgAssigned = []; }
+        }
+        const assignedOutletIds = Array.isArray(rawPkgAssigned) ? rawPkgAssigned.map(Number) : [];
+        if (outletIdNum && !assignedOutletIds.includes(outletIdNum)) {
           return null;
         }
 
@@ -326,6 +339,8 @@ const getCatalog = async (req, res) => {
         price: outletPrice !== undefined ? outletPrice : basePrice,
         basePrice,
         stock,
+        isStockable: product.is_stockable !== false && product.is_stockable !== 0,
+        is_stockable: product.is_stockable !== false && product.is_stockable !== 0,
         measureLabel: product.unitMaster && product.product_measure
           ? `${product.product_measure} ${product.product_measure_unit === 'primary' ? product.unitMaster.primary_abbr : product.unitMaster.secondary_abbr}`
           : null,
@@ -667,6 +682,7 @@ const checkout = async (req, res) => {
           });
 
           if (!product) continue;
+          if (product.is_stockable === false || product.is_stockable === 0) continue;
 
           // Convert consumption to base unit
           const consumptionUnit = consumption.unit || 'primary';
@@ -699,6 +715,9 @@ const checkout = async (req, res) => {
           transaction,
         });
 
+        if (!product) continue;
+        if (product.is_stockable === false || product.is_stockable === 0) continue;
+
         const unit = item.unit || 'primary';
         const deduction = product && product.unitMaster
           ? convertToBase(Number(item.qty), Number(product.unitMaster.conversion_ratio), unit)
@@ -730,6 +749,7 @@ const checkout = async (req, res) => {
             });
 
             if (!product) continue;
+            if (product.is_stockable === false || product.is_stockable === 0) continue;
 
             const consumptionUnit = consumption.unit || 'primary';
             const baseDeduction = convertToBase(
@@ -845,8 +865,24 @@ const checkout = async (req, res) => {
       include: [
         { model: BillLineItem, as: 'lineItems' },
         { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
+        {
+          model: CustomerVoucher,
+          as: 'awardedVoucher',
+          required: false,
+          include: [
+            { model: Bill, as: 'redeemedBill', attributes: ['id', 'bill_number'], required: false },
+          ],
+        },
       ],
     });
+
+    let completeAwardedVoucher = completeBill.awardedVoucher;
+    if (!completeAwardedVoucher && completeBill.awarded_voucher_id) {
+      completeAwardedVoucher = await CustomerVoucher.findByPk(completeBill.awarded_voucher_id, {
+        include: [{ model: Bill, as: 'redeemedBill', attributes: ['id', 'bill_number'], required: false }],
+      });
+    }
+    const checkoutAwardedVoucherObj = formatAwardedVoucher(completeAwardedVoucher, completeBill);
 
     // Format response
     const response = {
@@ -870,16 +906,12 @@ const checkout = async (req, res) => {
       voucherId: completeBill.voucher_id,
       voucherCode: completeBill.voucher_code,
       voucherDiscountAmount: Number(completeBill.voucher_discount_amount || 0),
-      awardedVoucherId: completeBill.awarded_voucher_id || null,
-      awardedVoucherCode: completeBill.awarded_voucher_code || null,
-      awardedVoucherAmount: Number(completeBill.awarded_voucher_amount || 0),
-      awarded_voucher_code: completeBill.awarded_voucher_code || null,
-      awarded_voucher_amount: Number(completeBill.awarded_voucher_amount || 0),
-      awardedVoucher: completeBill.awarded_voucher_code ? {
-        id: completeBill.awarded_voucher_id,
-        code: completeBill.awarded_voucher_code,
-        amount: Number(completeBill.awarded_voucher_amount || 0),
-      } : null,
+      awardedVoucherId: checkoutAwardedVoucherObj?.id || completeBill.awarded_voucher_id || null,
+      awardedVoucherCode: checkoutAwardedVoucherObj?.code || completeBill.awarded_voucher_code || null,
+      awardedVoucherAmount: Number(checkoutAwardedVoucherObj?.amount || completeBill.awarded_voucher_amount || 0),
+      awarded_voucher_code: checkoutAwardedVoucherObj?.code || completeBill.awarded_voucher_code || null,
+      awarded_voucher_amount: Number(checkoutAwardedVoucherObj?.amount || completeBill.awarded_voucher_amount || 0),
+      awardedVoucher: checkoutAwardedVoucherObj,
       tax: Number(completeBill.tax),
       total: Number(completeBill.total),
       lineItems: completeBill.lineItems.map((li) => ({
@@ -946,6 +978,47 @@ const checkout = async (req, res) => {
   }
 };
 
+// Helper to format awarded CustomerVoucher object
+const formatAwardedVoucher = (voucherRecord, bill) => {
+  if (voucherRecord) {
+    return {
+      id: voucherRecord.id,
+      code: voucherRecord.code,
+      amount: Number(voucherRecord.initial_value || bill?.awarded_voucher_amount || 0),
+      initialValue: Number(voucherRecord.initial_value || 0),
+      balanceValue: Number(voucherRecord.balance_value || 0),
+      minSpend: Number(voucherRecord.min_spend || 0),
+      validFrom: voucherRecord.valid_from,
+      validUntil: voucherRecord.valid_until,
+      status: voucherRecord.status,
+      voucherType: voucherRecord.voucher_type || 'cash',
+      notes: voucherRecord.notes,
+      redeemedAt: voucherRecord.redeemed_at,
+      redeemedBillId: voucherRecord.redeemed_bill_id,
+      redeemedBillNumber: voucherRecord.redeemedBill?.bill_number || null,
+    };
+  }
+  if (bill?.awarded_voucher_code) {
+    return {
+      id: bill.awarded_voucher_id || null,
+      code: bill.awarded_voucher_code,
+      amount: Number(bill.awarded_voucher_amount || 0),
+      initialValue: Number(bill.awarded_voucher_amount || 0),
+      balanceValue: Number(bill.awarded_voucher_amount || 0),
+      minSpend: 0,
+      validFrom: null,
+      validUntil: null,
+      status: 'active',
+      voucherType: 'cash',
+      notes: null,
+      redeemedAt: null,
+      redeemedBillId: null,
+      redeemedBillNumber: null,
+    };
+  }
+  return null;
+};
+
 // GET /api/pos/bills
 const getBills = async (req, res) => {
   try {
@@ -985,71 +1058,78 @@ const getBills = async (req, res) => {
         { model: BillLineItem, as: 'lineItems' },
         { model: Outlet, attributes: ['id', 'name'] },
         { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
+        {
+          model: CustomerVoucher,
+          as: 'awardedVoucher',
+          required: false,
+          include: [
+            { model: Bill, as: 'redeemedBill', attributes: ['id', 'bill_number'], required: false },
+          ],
+        },
       ],
       order: [['created_at', 'DESC']],
     });
 
     // Format response
-    const response = bills.map((bill) => ({
-      id: bill.id,
-      billNumber: bill.bill_number,
-      createdAt: bill.createdAt,
-      createdBy: bill.created_by,
-      customer: {
-        name: bill.customer_name,
-        phone: bill.customer_phone,
-      },
-      paymentMethod: bill.payment_method,
-      outletId: bill.outlet_id,
-      outletName: bill.Outlet?.name || 'Unknown',
-      status: bill.status,
-      subtotal: Number(bill.subtotal),
-      discountType: bill.discount_type,
-      discountValue: Number(bill.discount_value),
-      discountAmount: Number(bill.discount_amount),
-      couponId: bill.coupon_id,
-      couponCode: bill.coupon_code,
-      voucherId: bill.voucher_id,
-      voucherCode: bill.voucher_code,
-      voucherDiscountAmount: Number(bill.voucher_discount_amount || 0),
-      awardedVoucherId: bill.awarded_voucher_id || null,
-      awardedVoucherCode: bill.awarded_voucher_code || null,
-      awardedVoucherAmount: Number(bill.awarded_voucher_amount || 0),
-      awarded_voucher_code: bill.awarded_voucher_code || null,
-      awarded_voucher_amount: Number(bill.awarded_voucher_amount || 0),
-      awardedVoucher: bill.awarded_voucher_code ? {
-        id: bill.awarded_voucher_id,
-        code: bill.awarded_voucher_code,
-        amount: Number(bill.awarded_voucher_amount || 0),
-      } : null,
-      tax: Number(bill.tax),
-      total: Number(bill.total),
-      lineItems: bill.lineItems.map((li) => ({
-        id: li.id,
-        itemId: li.item_id,
-        itemType: li.item_type,
-        itemName: li.item_name,
-        qty: li.qty,
-        price: Number(li.price),
-        staffAssigned: li.staff_assigned,
-        productConsumption: li.product_consumption,
-        includedServices: li.included_services,
-      })),
-      payments: (bill.payments || []).map((p) => ({
-        id: p.id,
-        totalAmount: Number(p.total_amount),
-        status: p.status,
-        transactionReference: p.transaction_reference || '',
-        notes: p.notes || '',
-        paymentDate: p.payment_date,
-        details: (p.details || []).map((d) => ({
-          id: d.id,
-          paymentMode: d.payment_mode,
-          amount: Number(d.amount),
-          bankAccountId: d.bank_account_id || null,
+    const response = bills.map((bill) => {
+      const billAwardedVoucher = formatAwardedVoucher(bill.awardedVoucher, bill);
+      return {
+        id: bill.id,
+        billNumber: bill.bill_number,
+        createdAt: bill.createdAt,
+        createdBy: bill.created_by,
+        customer: {
+          name: bill.customer_name,
+          phone: bill.customer_phone,
+        },
+        paymentMethod: bill.payment_method,
+        outletId: bill.outlet_id,
+        outletName: bill.Outlet?.name || 'Unknown',
+        status: bill.status,
+        subtotal: Number(bill.subtotal),
+        discountType: bill.discount_type,
+        discountValue: Number(bill.discount_value),
+        discountAmount: Number(bill.discount_amount),
+        couponId: bill.coupon_id,
+        couponCode: bill.coupon_code,
+        voucherId: bill.voucher_id,
+        voucherCode: bill.voucher_code,
+        voucherDiscountAmount: Number(bill.voucher_discount_amount || 0),
+        awardedVoucherId: billAwardedVoucher?.id || bill.awarded_voucher_id || null,
+        awardedVoucherCode: billAwardedVoucher?.code || bill.awarded_voucher_code || null,
+        awardedVoucherAmount: Number(billAwardedVoucher?.amount || bill.awarded_voucher_amount || 0),
+        awarded_voucher_code: billAwardedVoucher?.code || bill.awarded_voucher_code || null,
+        awarded_voucher_amount: Number(billAwardedVoucher?.amount || bill.awarded_voucher_amount || 0),
+        awardedVoucher: billAwardedVoucher,
+        tax: Number(bill.tax),
+        total: Number(bill.total),
+        lineItems: bill.lineItems.map((li) => ({
+          id: li.id,
+          itemId: li.item_id,
+          itemType: li.item_type,
+          itemName: li.item_name,
+          qty: li.qty,
+          price: Number(li.price),
+          staffAssigned: li.staff_assigned,
+          productConsumption: li.product_consumption,
+          includedServices: li.included_services,
         })),
-      })),
-    }));
+        payments: (bill.payments || []).map((p) => ({
+          id: p.id,
+          totalAmount: Number(p.total_amount),
+          status: p.status,
+          transactionReference: p.transaction_reference || '',
+          notes: p.notes || '',
+          paymentDate: p.payment_date,
+          details: (p.details || []).map((d) => ({
+            id: d.id,
+            paymentMode: d.payment_mode,
+            amount: Number(d.amount),
+            bankAccountId: d.bank_account_id || null,
+          })),
+        })),
+      };
+    });
 
     return res.json(response);
   } catch (err) {
@@ -1066,12 +1146,31 @@ const getBillById = async (req, res) => {
         { model: BillLineItem, as: 'lineItems' },
         { model: Outlet, attributes: ['id', 'name'] },
         { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
+        {
+          model: CustomerVoucher,
+          as: 'awardedVoucher',
+          required: false,
+          include: [
+            { model: Bill, as: 'redeemedBill', attributes: ['id', 'bill_number'], required: false },
+          ],
+        },
       ],
     });
 
     if (!bill) {
       return res.status(404).json({ message: 'Bill not found.' });
     }
+
+    let awardedVoucherRecord = bill.awardedVoucher;
+    if (!awardedVoucherRecord && bill.awarded_voucher_id) {
+      awardedVoucherRecord = await CustomerVoucher.findByPk(bill.awarded_voucher_id, {
+        include: [
+          { model: Bill, as: 'redeemedBill', attributes: ['id', 'bill_number'], required: false },
+        ],
+      });
+    }
+
+    const awardedVoucherData = formatAwardedVoucher(awardedVoucherRecord, bill);
 
     // Format response
     const response = {
@@ -1095,16 +1194,12 @@ const getBillById = async (req, res) => {
       voucherId: bill.voucher_id,
       voucherCode: bill.voucher_code,
       voucherDiscountAmount: Number(bill.voucher_discount_amount || 0),
-      awardedVoucherId: bill.awarded_voucher_id || null,
-      awardedVoucherCode: bill.awarded_voucher_code || null,
-      awardedVoucherAmount: Number(bill.awarded_voucher_amount || 0),
-      awarded_voucher_code: bill.awarded_voucher_code || null,
-      awarded_voucher_amount: Number(bill.awarded_voucher_amount || 0),
-      awardedVoucher: bill.awarded_voucher_code ? {
-        id: bill.awarded_voucher_id,
-        code: bill.awarded_voucher_code,
-        amount: Number(bill.awarded_voucher_amount || 0),
-      } : null,
+      awardedVoucherId: awardedVoucherData?.id || bill.awarded_voucher_id || null,
+      awardedVoucherCode: awardedVoucherData?.code || bill.awarded_voucher_code || null,
+      awardedVoucherAmount: Number(awardedVoucherData?.amount || bill.awarded_voucher_amount || 0),
+      awarded_voucher_code: awardedVoucherData?.code || bill.awarded_voucher_code || null,
+      awarded_voucher_amount: Number(awardedVoucherData?.amount || bill.awarded_voucher_amount || 0),
+      awardedVoucher: awardedVoucherData,
       tax: Number(bill.tax),
       total: Number(bill.total),
       lineItems: bill.lineItems.map((li) => ({
@@ -1400,6 +1495,8 @@ const updateBill = async (req, res) => {
             include: [{ model: UnitMaster, as: 'unitMaster' }],
             transaction,
           });
+          if (!product || product.is_stockable === false || product.is_stockable === 0) continue;
+
           const unit = oldItem.product_consumption?.unit || 'primary';
           const restoration = product && product.unitMaster
             ? convertToBase(Number(oldItem.qty), Number(product.unitMaster.conversion_ratio), unit)
@@ -1419,7 +1516,7 @@ const updateBill = async (req, res) => {
               include: [{ model: UnitMaster, as: 'unitMaster' }],
               transaction,
             });
-            if (!product) continue;
+            if (!product || product.is_stockable === false || product.is_stockable === 0) continue;
             const consumptionUnit = consumption.unit || 'primary';
             const baseRestoration = convertToBase(
               Number(consumption.qty),
@@ -1443,7 +1540,7 @@ const updateBill = async (req, res) => {
                 include: [{ model: UnitMaster, as: 'unitMaster' }],
                 transaction,
               });
-              if (!product) continue;
+              if (!product || product.is_stockable === false || product.is_stockable === 0) continue;
               const consumptionUnit = consumption.unit || 'primary';
               const baseRestoration = convertToBase(
                 Number(consumption.qty),
@@ -1488,7 +1585,7 @@ const updateBill = async (req, res) => {
               include: [{ model: UnitMaster, as: 'unitMaster' }],
               transaction,
             });
-            if (!product) continue;
+            if (!product || product.is_stockable === false || product.is_stockable === 0) continue;
             const consumptionUnit = consumption.unit || 'primary';
             const baseDeduction = convertToBase(
               Number(consumption.qty),
@@ -1509,6 +1606,7 @@ const updateBill = async (req, res) => {
             include: [{ model: UnitMaster, as: 'unitMaster' }],
             transaction,
           });
+          if (!product || product.is_stockable === false || product.is_stockable === 0) continue;
           const unit = item.unit || 'primary';
           const deduction = product && product.unitMaster
             ? convertToBase(Number(item.qty), Number(product.unitMaster.conversion_ratio), unit)
@@ -1530,7 +1628,7 @@ const updateBill = async (req, res) => {
                 include: [{ model: UnitMaster, as: 'unitMaster' }],
                 transaction,
               });
-              if (!product) continue;
+              if (!product || product.is_stockable === false || product.is_stockable === 0) continue;
               const consumptionUnit = consumption.unit || 'primary';
               const baseDeduction = convertToBase(
                 Number(consumption.qty),

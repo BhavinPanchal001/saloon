@@ -237,6 +237,16 @@ export function ProductSaleHistoryPage() {
             </div>
 
             <div className="border-t border-slate-100 pt-4 space-y-4 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 font-medium">Inventory Tracking</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                  product.isStockable !== false && product.is_stockable !== false
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}>
+                  {product.isStockable !== false && product.is_stockable !== false ? 'Stockable (Deducted)' : 'Non-Stockable (No Deduction)'}
+                </span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-slate-400 font-medium">Base Price</span>
                 <span className="font-bold text-navy-900">{formatCurrency(product.unitPrice)}</span>

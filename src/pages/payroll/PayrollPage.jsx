@@ -511,7 +511,7 @@ export function PayrollPage() {
 
       {/* Bottom Summary Section */}
       <div className="glass-card !p-5 mx-6 mt-6 mb-8">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 desktop:grid-cols-6 gap-4 md:gap-6">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-1">Total Salary</p>
             <p className="text-lg font-bold text-navy-900">{formatCurrency(totals.totalSalary)}</p>

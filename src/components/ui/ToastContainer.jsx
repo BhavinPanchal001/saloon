@@ -27,7 +27,7 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-3">
+    <div className="fixed top-4 right-4 z-[100] flex max-w-[calc(100vw-2rem)] flex-col gap-3">
       {toasts.map((toast) => {
         const Icon = toastIcons[toast.type];
         return (
@@ -37,7 +37,7 @@ export function ToastContainer() {
             role="alert"
           >
             <Icon className="h-5 w-5 flex-shrink-0" />
-            <span className="text-sm font-medium">{toast.message}</span>
+            <span className="min-w-0 break-words text-sm font-medium">{toast.message}</span>
             <button
               onClick={() => removeToast(toast.id)}
               className="ml-2 flex-shrink-0 rounded-lg p-1 hover:bg-white/20 transition-colors"

@@ -129,23 +129,33 @@ class WhatsAppService {
       return { success: false, reason: 'Customer phone number is missing.' };
     }
 
+    const bizInfo = getRuntimeBusinessInfo();
+    const currency = (bizInfo?.currency || 'RM').trim();
+    const salonName = bizInfo?.name || 'Glowy';
+
     const valueDisplay = voucher.voucher_type === 'percent'
       ? `${Number(voucher.initial_value)}% OFF`
-      : `₹${Number(voucher.initial_value).toFixed(2)} OFF`;
+      : `${currency} ${Number(voucher.initial_value).toFixed(2)} OFF`;
 
     const minSpendText = Number(voucher.min_spend) > 0
-      ? `\n📌 *Min Spend:* ₹${Number(voucher.min_spend).toFixed(2)}`
+      ? `\n📌 *Min Spend:* ${currency} ${Number(voucher.min_spend).toFixed(2)}`
       : '';
 
     const expiryText = voucher.valid_until
       ? `\n⏳ *Valid Until:* ${voucher.valid_until}`
       : '\n⏳ *Validity:* No Expiry';
 
-    const noteText = voucher.notes ? `\n💬 *Note:* ${voucher.notes}` : '';
+    let noteContent = voucher.notes || '';
+    if (noteContent && !noteContent.includes(currency)) {
+      // If legacy note had "(Spend: 2592.00)" without currency prefix, prepend currency
+      noteContent = noteContent.replace(/\(Spend:\s*([0-9.]+)\)/i, `(Spend: ${currency} $1)`);
+    }
 
-    const messageText = `✨ *Glowy Salon - Exclusive Voucher for You!* ✨\n\n` +
+    const noteText = noteContent ? `\n💬 *Note:* ${noteContent}` : '';
+
+    const messageText = `✨ *${salonName} - Exclusive Voucher for You!* ✨\n\n` +
       `Dear *${customer.name || 'Valued Customer'}*,\n` +
-      `You've received an exclusive voucher from Glowy Salon! 🎁\n\n` +
+      `You've received an exclusive voucher from ${salonName}! 🎁\n\n` +
       `🎟 *Voucher Code:* *${voucher.code}*\n` +
       `💰 *Value:* *${valueDisplay}*` +
       `${minSpendText}` +

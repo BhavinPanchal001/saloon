@@ -2,6 +2,7 @@ const { CustomerVoucher, Customer, Bill, Outlet, RewardSetting, sequelize } = re
 const { Op } = require('sequelize');
 const crypto = require('crypto');
 const { sendVoucherWhatsAppNotification } = require('../services/whatsappService');
+const { getRuntimeBusinessInfo } = require('./businessSettingsController');
 
 // Generate unique voucher code e.g. VCH-7X8K2P
 const generateVoucherCode = async () => {
@@ -265,9 +266,11 @@ const validateVoucher = async (req, res) => {
 
     const billSubtotal = parseFloat(subtotal || 0);
     if (voucher.min_spend && billSubtotal < parseFloat(voucher.min_spend)) {
+      const bizInfo = getRuntimeBusinessInfo();
+      const currency = (bizInfo?.currency || 'RM').trim();
       return res.status(400).json({
         success: false,
-        message: `Minimum bill spend of ₹${parseFloat(voucher.min_spend).toFixed(2)} is required to use this voucher.`,
+        message: `Minimum bill spend of ${currency} ${parseFloat(voucher.min_spend).toFixed(2)} is required to use this voucher.`,
       });
     }
 
@@ -527,11 +530,14 @@ const getRedemptionHistory = async (req, res) => {
 // Default Auto-Reward Rules configuration
 const DEFAULT_VOUCHER_REWARD_RULES = {
   enabled: true,
+  start_date: null, // 'YYYY-MM-DD' or null
+  end_date: null,   // 'YYYY-MM-DD' or null
+  is_lifetime: true, // boolean (true if campaign has no end date)
   min_bill_amount: 100,
   mode: 'tiered', // 'tiered' | 'percentage'
   percentage: 10,
   max_voucher_amount: 500,
-  validity_days: 30,
+  validity_days: 30, // customer voucher validity days (0 = lifetime)
   min_spend_to_redeem: 0,
   tiers: [
     { min_spend: 300, voucher_amount: 30 },
@@ -589,6 +595,16 @@ const updateVoucherRewardRules = async (req, res) => {
 const evaluateBillVoucherReward = async (billAmount) => {
   const rules = await getRulesObject();
   if (!rules || !rules.enabled) return null;
+
+  // Check campaign duration/date range
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (rules.start_date && todayStr < rules.start_date) {
+    return null; // Promotion has not started yet
+  }
+  if (!rules.is_lifetime && rules.end_date && todayStr > rules.end_date) {
+    return null; // Promotion has ended
+  }
+
   const amt = Number(billAmount) || 0;
   if (amt < (Number(rules.min_bill_amount) || 0)) return null;
 
@@ -612,8 +628,12 @@ const evaluateBillVoucherReward = async (billAmount) => {
 
   if (voucher_amount <= 0) return null;
 
-  const validity_days = Number(rules.validity_days) || 30;
-  const expiry_date = new Date(Date.now() + validity_days * 24 * 60 * 60 * 1000);
+  const validity_days = Number(rules.validity_days) >= 0 ? Number(rules.validity_days) : 30;
+  let expiry_date = null;
+  if (validity_days > 0) {
+    expiry_date = new Date(Date.now() + validity_days * 24 * 60 * 60 * 1000);
+  }
+
   return {
     voucher_amount,
     validity_days,
@@ -624,15 +644,22 @@ const evaluateBillVoucherReward = async (billAmount) => {
 
 // Helper: auto-generate and award voucher during checkout
 const awardBillVoucher = async ({ bill, customer, userId, transaction }) => {
-  const billTotal = Number(bill.total) || 0;
-  if (billTotal <= 0) return null;
+  // Spend is the pre-tax item & service subtotal (net of discounts)
+  const spendAmount = Math.max(
+    0,
+    Number(bill.subtotal !== undefined ? bill.subtotal : bill.total || 0) - Number(bill.discount_amount || 0)
+  );
+  if (spendAmount <= 0) return null;
 
-  const evalResult = await evaluateBillVoucherReward(billTotal);
+  const evalResult = await evaluateBillVoucherReward(spendAmount);
   if (!evalResult || !evalResult.voucher_amount) return null;
+
+  const bizInfo = getRuntimeBusinessInfo();
+  const currency = (bizInfo?.currency || 'RM').trim();
 
   const code = await generateVoucherCode();
   const todayStr = new Date().toISOString().split('T')[0];
-  const validUntilStr = evalResult.expiry_date.toISOString().split('T')[0];
+  const validUntilStr = evalResult.expiry_date ? evalResult.expiry_date.toISOString().split('T')[0] : null;
 
   const voucher = await CustomerVoucher.create(
     {
@@ -645,7 +672,7 @@ const awardBillVoucher = async ({ bill, customer, userId, transaction }) => {
       valid_from: todayStr,
       valid_until: validUntilStr,
       status: 'active',
-      notes: `Auto-awarded from Bill #${bill.bill_number} (Spend: ${billTotal.toFixed(2)})`,
+      notes: `Auto-awarded from Bill #${bill.bill_number} (Spend: ${currency} ${spendAmount.toFixed(2)})`,
       issued_by: userId || null,
       issued_from_bill_id: bill.id,
     },

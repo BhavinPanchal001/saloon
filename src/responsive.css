@@ -1,0 +1,171 @@
+/* Layout is based on CSS viewport size, not the tablet's physical dimensions.
+   Keep these rules screen-only so invoices and thermal receipts retain their sizing. */
+@media screen {
+  .app-shell,
+  .app-workspace {
+    min-height: 100dvh;
+  }
+
+  .app-content {
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+
+  .app-content :where(.grid, .form-grid) > *,
+  .app-content > *,
+  .form-field {
+    min-width: 0;
+  }
+
+  /* All list modules keep wide records inside a swipeable table region. */
+  .app-content :where(div, section):has(> table),
+  .table-container,
+  .table-shell,
+  .service-table-container,
+  .employee-table-container {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .premium-table,
+  .service-table,
+  .emp-table {
+    min-width: 40rem;
+  }
+
+  .module-header {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .module-header > *,
+  .page-actions > .flex {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .form-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+  }
+
+  .search-input-wrapper {
+    min-width: min(100%, 18rem);
+  }
+
+  .form-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .tab-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .bank-detail-row {
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+  }
+
+  .bank-detail-value {
+    overflow-wrap: anywhere;
+  }
+
+  .service-product-row {
+    grid-template-columns: minmax(0, 1fr) 100px 120px 44px;
+  }
+
+  .pos-catalog-grid {
+    max-height: 65dvh;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 0.25rem;
+  }
+
+  .pos-checkout {
+    scroll-margin-top: 6rem;
+  }
+
+  .pos-layout > .glass-card:hover {
+    transform: none;
+  }
+
+  .invoice-action-bar {
+    flex-wrap: wrap;
+  }
+
+  /* Legacy dialogs use the same centered overlay structure as the shared modal.
+     Bound the panel itself so its first and last fields remain reachable. */
+  .fixed.inset-0.items-center > :where(.w-full, .card-solid) {
+    max-height: calc(100dvh - 4rem);
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  @media (max-width: 1439px) {
+    .premium-table :is(th, td) {
+      padding: 0.875rem 1rem;
+    }
+
+    .invoice-paper {
+      padding: clamp(1rem, 3vw, 2rem);
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .package-stats-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 767px) {
+    .service-product-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+    }
+
+    .service-product-row > :first-child {
+      grid-column: 1 / -1;
+    }
+
+    .service-selection-item {
+      grid-template-columns: minmax(0, 1fr) 80px 44px;
+      padding: 0.75rem;
+      gap: 0.5rem;
+    }
+  }
+
+  /* Hybrid tablets may also have a mouse: any-pointer keeps touch targets usable. */
+  @media (any-pointer: coarse) {
+    :where(button, a.btn-primary, a.btn-secondary, a.btn-premium-primary,
+      a.btn-premium-outline, .app-navbar a, #app-navigation a, [role="button"]) {
+      min-height: 44px;
+      min-width: 44px;
+      touch-action: manipulation;
+    }
+
+    :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), select) {
+      min-height: 44px;
+      font-size: 16px;
+    }
+
+    :where(input, textarea, select) {
+      max-width: 100%;
+    }
+
+    .glass-card:hover,
+    .pos-catalog-grid > button:hover {
+      transform: none;
+    }
+
+    .pos-catalog-grid .group > div > div {
+      opacity: 1;
+    }
+
+    .keyboard-hint {
+      display: none;
+    }
+  }
+}

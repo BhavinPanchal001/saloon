@@ -144,7 +144,7 @@ const EmployeeListPage: React.FC = () => {
       />
 
       {/* Stats Summary Panel - Now derived from actual data */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 mb-6">
+      <div className="grid gap-3 grid-cols-2 xl:grid-cols-4 mb-6">
         <div className="glass-card !p-3.5 sm:!p-4 flex items-center justify-between px-4">
           <div className="flex flex-col">
             <span className="text-[10px] sm:text-xs text-navy-500 font-bold uppercase tracking-wider">Total Employees</span>

@@ -42,9 +42,9 @@ const getDashboardSummary = async (req, res) => {
     const budgets = await MonthlyBudget.findAll({ where: budgetWhere });
     const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount || 0), 0);
 
-    // 2. Load Completed / Paid Bills strictly filtered by target outlet
+    // 2. Load Valid Invoices (exclude cancelled) strictly filtered by target outlet
     const billWhere = {
-      status: { [Op.in]: ['paid', 'completed'] },
+      status: { [Op.ne]: 'cancelled' },
     };
     if (isOutletFiltered) {
       billWhere.outlet_id = targetOutletId;
@@ -176,6 +176,7 @@ const getDashboardSummary = async (req, res) => {
       total: Number(b.total),
       paymentMethod: b.payment_method,
       status: b.status,
+      createdAt: b.createdAt || b.created_at,
     }));
 
     // 5. Line Item Aggregations (filtered by target outlet)

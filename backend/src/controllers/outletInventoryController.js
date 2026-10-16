@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { sequelize, OutletInventory, StockIssue, OutletProductPrice, Product, Outlet, Notification } = require('../models');
+const { sequelize, OutletInventory, StockIssue, OutletProductPrice, Product, Outlet, Notification, Admin } = require('../models');
 const AuditService = require('../services/auditService');
 
 const LOW_STOCK_THRESHOLD = 5;
@@ -10,8 +10,20 @@ const getInventory = async (req, res) => {
     const { outletId } = req.query;
     const where = {};
     
+    const priceWhere = {};
     if (outletId && outletId !== 'undefined') {
-      where.outlet_id = outletId;
+      if (Array.isArray(outletId)) {
+        const ids = outletId.map(Number).filter((n) => !isNaN(n));
+        where.outlet_id = { [Op.in]: ids };
+        priceWhere.outlet_id = { [Op.in]: ids };
+      } else if (typeof outletId === 'string' && outletId.includes(',')) {
+        const ids = outletId.split(',').map((s) => Number(s.trim())).filter((n) => !isNaN(n));
+        where.outlet_id = { [Op.in]: ids };
+        priceWhere.outlet_id = { [Op.in]: ids };
+      } else {
+        where.outlet_id = outletId;
+        priceWhere.outlet_id = outletId;
+      }
     }
 
     const inventory = await OutletInventory.findAll({
@@ -19,7 +31,7 @@ const getInventory = async (req, res) => {
       include: [
         {
           model: Product,
-          attributes: ['id', 'item_name', 'unit_price', 'unit_master_id', 'purchase_unit', 'consumption_unit'],
+          attributes: ['id', 'item_name', 'unit_price', 'unit_master_id', 'purchase_unit', 'consumption_unit', 'is_stockable'],
           include: [{ association: 'unitMaster', required: false }]
         },
         { model: Outlet, attributes: ['id', 'name', 'code'] },
@@ -27,7 +39,26 @@ const getInventory = async (req, res) => {
       order: [['created_at', 'DESC']],
     });
 
-    return res.json(inventory);
+    const outletPrices = await OutletProductPrice.findAll({ where: priceWhere });
+    const priceMap = new Map();
+    outletPrices.forEach((op) => {
+      priceMap.set(`${op.outlet_id}_${op.product_id}`, Number(op.price));
+    });
+
+    const results = inventory.map((inv) => {
+      const invJson = inv.toJSON();
+      const customPrice = priceMap.get(`${inv.outlet_id}_${inv.product_id}`);
+      const basePrice = Number(invJson.Product?.unit_price || 0);
+      const effectivePrice = customPrice !== undefined ? customPrice : basePrice;
+
+      return {
+        ...invJson,
+        outlet_price: customPrice !== undefined ? customPrice : null,
+        effective_price: effectivePrice,
+      };
+    });
+
+    return res.json(results);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error.' });
@@ -281,17 +312,42 @@ const issueProduct = async (req, res) => {
 // Get stock issue history
 const getStockIssues = async (req, res) => {
   try {
-    const { outletId, productId } = req.query;
+    const { outletId, productId, monthKey } = req.query;
     const where = {};
     
     if (outletId && outletId !== 'undefined') where.outlet_id = outletId;
     if (productId && productId !== 'undefined') where.product_id = productId;
 
+    if (monthKey && monthKey !== 'undefined') {
+      const parts = monthKey.split('-');
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      if (year && month) {
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 1);
+        where.created_at = {
+          [Op.gte]: startDate,
+          [Op.lt]: endDate,
+        };
+      }
+    }
+
     const issues = await StockIssue.findAll({
       where,
       include: [
-        { model: Product, attributes: ['id', 'item_name'] },
-        { model: Outlet, attributes: ['id', 'name', 'code'] },
+        {
+          model: Product,
+          attributes: ['id', 'item_name', 'unit_price', 'purchase_unit', 'consumption_unit', 'product_measure', 'product_measure_unit'],
+          include: [
+            {
+              association: 'unitMaster',
+              required: false,
+              attributes: ['id', 'group_name', 'primary_unit', 'primary_abbr', 'secondary_unit', 'secondary_abbr', 'conversion_ratio'],
+            },
+          ],
+        },
+        { model: Outlet, attributes: ['id', 'name', 'code', 'city'] },
+        { model: Admin, as: 'issuer', attributes: ['id', 'name', 'email'], required: false },
       ],
       order: [['created_at', 'DESC']],
     });

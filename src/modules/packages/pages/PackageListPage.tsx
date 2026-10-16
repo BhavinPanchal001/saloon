@@ -51,7 +51,9 @@ const PackageListPage: React.FC = () => {
       const matchesOutlet =
         outletFilter === "all" ||
         !servicePackage.assignedOutletIds.length ||
-        servicePackage.assignedOutletIds.includes(outletFilter);
+        servicePackage.assignedOutletIds.some(
+          (id: any) => String(id) === String(outletFilter)
+        );
 
       return matchesSearch && matchesStatus && matchesOutlet;
     });
@@ -87,7 +89,13 @@ const PackageListPage: React.FC = () => {
         action={
           <button 
             className="btn-premium-primary"
-            onClick={() => navigate('/packages/new')}
+            onClick={() => {
+              if (outletFilter && outletFilter !== "all") {
+                navigate(`/packages/new?outletId=${outletFilter}`);
+              } else {
+                navigate('/packages/new');
+              }
+            }}
           >
             + Add New Package
           </button>

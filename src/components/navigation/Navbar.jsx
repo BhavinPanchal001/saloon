@@ -37,7 +37,7 @@ const pageTitles = {
   "/profile": "User Profile",
 };
 
-export function Navbar({ onOpenSidebar }) {
+export function Navbar({ onOpenSidebar, sidebarOpen }) {
   const location = useLocation();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
@@ -110,17 +110,20 @@ export function Navbar({ onOpenSidebar }) {
 
   return (
     <>
-      <header className="sticky top-0 z-20 border-b border-white/60 bg-cream/70 backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-4 px-4 py-4 md:px-8">
-          <div className="flex items-center gap-3">
+      <header className="app-navbar sticky top-0 z-20 border-b border-white/60 bg-cream/70 backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 md:gap-3 md:px-6">
+          <div className="flex shrink-0 items-center gap-3">
             <button
               type="button"
-              className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-700 lg:hidden"
+              className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-700 desktop:hidden"
+              aria-label="Open navigation"
+              aria-expanded={sidebarOpen}
+              aria-controls="app-navigation"
               onClick={onOpenSidebar}
             >
               <Menu size={18} />
             </button>
-            <div>
+            <div className="hidden sm:block">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-gold-600">
                 <Sparkles size={14} />
                 Salon OS
@@ -129,7 +132,7 @@ export function Navbar({ onOpenSidebar }) {
           </div>
 
           {/* Global Search Bar Trigger */}
-          <div className="flex-1 max-w-md mx-2 sm:mx-6">
+          <div className="min-w-0 flex-1 max-w-md sm:mx-2">
             <button
               type="button"
               onClick={() => openSearch()}
@@ -145,17 +148,18 @@ export function Navbar({ onOpenSidebar }) {
                   Search...
                 </span>
               </div>
-              <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 group-hover:border-gold-300 group-hover:text-gold-700 transition-colors shrink-0">
+              <kbd className="keyboard-hint hidden desktop:inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 group-hover:border-gold-300 group-hover:text-gold-700 transition-colors shrink-0">
                 <span>Ctrl</span>
                 <span>K</span>
               </kbd>
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             {/* Notification Bell */}
             <Link
               to="/notifications"
+              aria-label="Notifications"
               className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
             >
               <Bell size={18} />
@@ -167,9 +171,9 @@ export function Navbar({ onOpenSidebar }) {
             </Link>
 
             {/* User Info */}
-            <div className="hidden rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-right shadow-sm md:block">
-              <p className="text-sm font-semibold text-ink">{user?.email}</p>
-              <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
+            <div className="hidden max-w-56 rounded-2xl border border-white/70 bg-white/80 px-3 py-2 text-right shadow-sm xl:block">
+              <p className="truncate text-sm font-semibold text-ink" title={user?.email}>{user?.email}</p>
+              <p className="mt-1 truncate text-xs uppercase tracking-[0.16em] text-slate-500" title={outletName}>
                 {outletName}
               </p>
             </div>
@@ -178,6 +182,7 @@ export function Navbar({ onOpenSidebar }) {
             {!(user?.role === "cashier" || user?.role === "pos") && (
               <Link
                 to="/settings"
+                aria-label="Settings"
                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
               >
                 <Settings size={18} />
@@ -185,9 +190,9 @@ export function Navbar({ onOpenSidebar }) {
             )}
 
             {/* Logout Button */}
-            <button type="button" className="btn-secondary gap-2" onClick={handleLogout}>
+            <button type="button" className="btn-secondary gap-2" aria-label="Logout" onClick={handleLogout}>
               <LogOut size={16} />
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>

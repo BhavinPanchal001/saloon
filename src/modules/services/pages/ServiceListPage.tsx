@@ -283,8 +283,8 @@ const ServiceListPage: React.FC = () => {
           />
         )
       ) : (
-        <div className="glass-card overflow-hidden">
-          <table className="premium-table">
+        <div className="glass-card overflow-x-auto" role="region" aria-label="Services table" tabIndex={0}>
+          <table className="premium-table services-list-table">
             <thead>
               <tr>
                 <th>Service Name</th>
@@ -303,8 +303,8 @@ const ServiceListPage: React.FC = () => {
                   <td>{service.duration} min</td>
                   <td className="text-sm">
                     {service.productLinkages?.length ? (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-navy-100 text-navy-700">
-                        {service.productLinkages.length} product(s)
+                      <span className="inline-flex whitespace-nowrap items-center px-2 py-1 rounded-full text-xs font-medium bg-navy-100 text-navy-700">
+                        {`${service.productLinkages.length} ${service.productLinkages.length === 1 ? 'product' : 'products'}`}
                       </span>
                     ) : (
                       <span className="text-navy-400 italic">No linked products</span>
@@ -312,18 +312,24 @@ const ServiceListPage: React.FC = () => {
                   </td>
                   <td className="text-sm">
                     {service.assignedOutletIds?.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {outlets
-                          .filter((o) => service.assignedOutletIds.includes(o.id))
-                          .map((o) => (
-                            <span key={o.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gold-50 text-gold-700 border border-gold-200">
-                              {o.name}
-                            </span>
-                          ))}
-                      </div>
+                      service.assignedOutletIds.length >= outlets.length && outlets.length > 0 ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gold-50 text-gold-700 border border-gold-200">
+                          All Outlets ({outlets.length})
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {outlets
+                            .filter((o) => service.assignedOutletIds.includes(o.id))
+                            .map((o) => (
+                              <span key={o.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gold-50 text-gold-700 border border-gold-200">
+                                {o.name}
+                              </span>
+                            ))}
+                        </div>
+                      )
                     ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
-                        All Outlets
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500 italic">
+                        No Outlets
                       </span>
                     )}
                   </td>

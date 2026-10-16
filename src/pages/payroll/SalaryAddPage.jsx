@@ -600,7 +600,7 @@ export function SalaryAddPage() {
       </div>
 
       {/* Bottom Summary Cards */}
-      <div className="grid grid-cols-4 gap-4 mx-6 mt-6 mb-8">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mx-6 mt-6 mb-8">
         <div className="glass-card !p-4 flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-navy-100 flex items-center justify-center text-navy-600">
             <DollarSign size={24} />

@@ -247,3 +247,155 @@ exports.getAvailableMonths = async (req, res) => {
     res.status(500).json({ message: 'Failed to get available months', error: error.message });
   }
 };
+
+// Delete/reset budget for an outlet in a month
+exports.deleteBudget = async (req, res) => {
+  try {
+    const outletId = req.query.outletId || req.body?.outletId;
+    const monthKey = req.query.monthKey || req.body?.monthKey;
+    const reason = req.body?.reason || req.query.reason || 'Budget removed';
+    const deleteHistory = req.query.deleteHistory === 'true' || req.body?.deleteHistory === true;
+    const userId = req.admin?.id || req.user?.id;
+
+    if (!outletId || !monthKey) {
+      return res.status(400).json({ message: 'outletId and monthKey are required' });
+    }
+
+    const numericOutletId = Number(outletId);
+
+    const budget = await MonthlyBudget.findOne({
+      where: { outlet_id: numericOutletId, month_key: monthKey },
+    });
+
+    if (!budget) {
+      return res.status(404).json({ message: 'Budget record not found' });
+    }
+
+    const previousAmount = parseFloat(budget.amount);
+
+    if (deleteHistory) {
+      await BudgetHistory.destroy({
+        where: { outlet_id: numericOutletId, month_key: monthKey },
+      });
+    } else if (previousAmount > 0) {
+      await BudgetHistory.logChange({
+        outletId: numericOutletId,
+        monthKey,
+        previousAmount,
+        newAmount: 0,
+        reason,
+        userId,
+      });
+    }
+
+    await budget.destroy();
+
+    res.json({ message: 'Budget deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting budget:', error);
+    res.status(500).json({ message: 'Failed to delete budget', error: error.message });
+  }
+};
+
+// Delete a specific budget history entry
+exports.deleteBudgetHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const historyRecord = await BudgetHistory.findByPk(id);
+
+    if (!historyRecord) {
+      return res.status(404).json({ message: 'Budget history record not found' });
+    }
+
+    const { outlet_id, month_key, previous_amount } = historyRecord;
+
+    // Check if this was the latest history entry for this outlet & month
+    const latestHistory = await BudgetHistory.findOne({
+      where: { outlet_id, month_key },
+      order: [['changed_at', 'DESC'], ['id', 'DESC']],
+    });
+
+    // If deleting the latest change, revert MonthlyBudget amount to previous_amount
+    if (latestHistory && Number(latestHistory.id) === Number(historyRecord.id)) {
+      const budget = await MonthlyBudget.findOne({
+        where: { outlet_id, month_key },
+      });
+      if (budget) {
+        const prevAmountNum = parseFloat(previous_amount);
+        if (prevAmountNum <= 0) {
+          await budget.destroy();
+        } else {
+          budget.amount = prevAmountNum;
+          await budget.save();
+        }
+      }
+    }
+
+    await historyRecord.destroy();
+
+    res.json({ message: 'Budget history record deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting budget history:', error);
+    res.status(500).json({ message: 'Failed to delete budget history record', error: error.message });
+  }
+};
+
+// Update a budget history entry (amount and reason)
+exports.updateBudgetHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newAmount, reason } = req.body;
+    const historyRecord = await BudgetHistory.findByPk(id);
+
+    if (!historyRecord) {
+      return res.status(404).json({ message: 'Budget history record not found' });
+    }
+
+    const numericNewAmount = parseFloat(newAmount);
+    if (isNaN(numericNewAmount) || numericNewAmount < 0) {
+      return res.status(400).json({ message: 'Amount must be a valid non-negative number' });
+    }
+
+    const { outlet_id, month_key, previous_amount } = historyRecord;
+    const prevAmountNum = parseFloat(previous_amount);
+
+    historyRecord.new_amount = numericNewAmount;
+    historyRecord.change_amount = Math.abs(numericNewAmount - prevAmountNum);
+    historyRecord.change_type = numericNewAmount >= prevAmountNum ? 'increase' : 'decrease';
+    if (reason !== undefined) {
+      historyRecord.reason = reason;
+    }
+    await historyRecord.save();
+
+    // If this is the latest history record, also synchronize MonthlyBudget
+    const latestHistory = await BudgetHistory.findOne({
+      where: { outlet_id, month_key },
+      order: [['changed_at', 'DESC'], ['id', 'DESC']],
+    });
+
+    if (latestHistory && Number(latestHistory.id) === Number(historyRecord.id)) {
+      let budget = await MonthlyBudget.findOne({
+        where: { outlet_id, month_key },
+      });
+      if (budget) {
+        budget.amount = numericNewAmount;
+        await budget.save();
+      } else {
+        await MonthlyBudget.create({
+          outlet_id,
+          month_key,
+          amount: numericNewAmount,
+        });
+      }
+    }
+
+    res.json({
+      message: 'Budget history updated successfully',
+      history: historyRecord,
+    });
+  } catch (error) {
+    console.error('Error updating budget history:', error);
+    res.status(500).json({ message: 'Failed to update budget history record', error: error.message });
+  }
+};
+

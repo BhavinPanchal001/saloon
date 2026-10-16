@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate, Link } from "react-router-dom";
+import { useEffect, useState, useMemo } from "react";
+import { useSearchParams, useNavigate, Link, useParams } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
 import {
   fetchOutletsFromAPI,
@@ -10,6 +10,9 @@ import {
   fetchBudgetHistoryFromAPI,
   fetchAvailableMonthsFromAPI,
   updateMonthlyBudgetAPI,
+  fetchStockIssuesFromAPI,
+  fetchProductsFromAPI,
+  issueProductToOutletAPI,
 } from "../../services/api";
 import {
   Store,
@@ -27,13 +30,22 @@ import {
   Eye,
   FileText,
   ArrowLeft,
+  PackageCheck,
+  Boxes,
+  Layers,
+  AlertCircle,
+  CheckCircle,
 } from "lucide-react";
+import { AuditHistoryButton, AuditHistoryModal } from "../../components/audit";
+import { formatCurrency } from "../../utils/format";
+import { formatUnitDisplay } from "../../utils/unitConversion";
 
 export function OutletTransactionsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { outletId: outletIdParam } = useParams();
 
-  const selectedOutletIdParam = searchParams.get("outletId");
+  const selectedOutletIdParam = outletIdParam || searchParams.get("outletId");
   const selectedMonthParam = searchParams.get("monthKey") || "";
 
   // Data states
@@ -46,7 +58,7 @@ export function OutletTransactionsPage() {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
-  // Active tab state: 'budget' | 'expenses' | 'purchase_orders' | 'sales'
+  // Active tab state: 'budget' | 'expenses' | 'purchase_orders' | 'sales' | 'stock_issues'
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "budget");
 
   // Tab 1: Budget states
@@ -75,6 +87,34 @@ export function OutletTransactionsPage() {
   const [billPaymentFilter, setBillPaymentFilter] = useState("all");
   const [selectedBill, setSelectedBill] = useState(null);
 
+  // Tab 5: Stock Issue states
+  const [stockIssues, setStockIssues] = useState([]);
+  const [loadingStockIssues, setLoadingStockIssues] = useState(false);
+  const [stockIssueSearch, setStockIssueSearch] = useState("");
+  const [stockIssueProductFilter, setStockIssueProductFilter] = useState("all");
+
+  // Issue Stock Modal states
+  const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
+  const [productsList, setProductsList] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [issueForm, setIssueForm] = useState({
+    productId: "",
+    qty: 1,
+    sellingPrice: "",
+  });
+  const [issuingStock, setIssuingStock] = useState(false);
+  const [issueError, setIssueError] = useState("");
+  const [issueSuccess, setIssueSuccess] = useState("");
+
+  // Audit history state
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [auditEntity, setAuditEntity] = useState({ type: null, id: null, name: null });
+
+  const openAuditHistory = (entityType, entityId, entityName) => {
+    setAuditEntity({ type: entityType, id: entityId, name: entityName });
+    setAuditModalOpen(true);
+  };
+
   // 1. Initial Load: Fetch Outlets and Available Months
   useEffect(() => {
     fetchOutletsFromAPI()
@@ -93,10 +133,11 @@ export function OutletTransactionsPage() {
 
   // Sync state with URL params
   useEffect(() => {
-    if (selectedOutletIdParam && selectedOutletIdParam !== selectedOutletId) {
-      setSelectedOutletId(selectedOutletIdParam);
+    const targetId = outletIdParam || searchParams.get("outletId");
+    if (targetId && targetId !== selectedOutletId) {
+      setSelectedOutletId(targetId);
     }
-  }, [selectedOutletIdParam]);
+  }, [outletIdParam, searchParams]);
 
   // 2. Load Financial Summary whenever outlet or month changes
   const loadFinancialSummary = () => {
@@ -120,12 +161,24 @@ export function OutletTransactionsPage() {
   }, [selectedOutletId, selectedMonth]);
 
   // 3. Tab Specific Data Loading
+  const loadStockIssues = () => {
+    if (!selectedOutletId) return;
+    setLoadingStockIssues(true);
+    fetchStockIssuesFromAPI({ outletId: selectedOutletId, monthKey: selectedMonth })
+      .then((data) => setStockIssues(Array.isArray(data) ? data : []))
+      .catch((err) => {
+        console.error("Error fetching stock issues:", err);
+        setStockIssues([]);
+      })
+      .finally(() => setLoadingStockIssues(false));
+  };
+
   useEffect(() => {
     if (!selectedOutletId) return;
 
     // Update query params
     const params = new URLSearchParams();
-    if (selectedOutletId) params.set("outletId", selectedOutletId);
+    if (selectedOutletId && !outletIdParam) params.set("outletId", selectedOutletId);
     if (selectedMonth) params.set("monthKey", selectedMonth);
     params.set("tab", activeTab);
     setSearchParams(params, { replace: true });
@@ -154,6 +207,8 @@ export function OutletTransactionsPage() {
         .then(setBills)
         .catch(() => setBills([]))
         .finally(() => setLoadingBills(false));
+    } else if (activeTab === "stock_issues") {
+      loadStockIssues();
     }
   }, [selectedOutletId, selectedMonth, activeTab]);
 
@@ -161,6 +216,66 @@ export function OutletTransactionsPage() {
   const handleOutletChange = (e) => {
     const id = e.target.value;
     setSelectedOutletId(id);
+    if (outletIdParam) {
+      navigate(`/outlets/${id}?tab=${activeTab}${selectedMonth ? `&monthKey=${selectedMonth}` : ""}`);
+    }
+  };
+
+  // Issue Stock Form Handlers
+  const handleOpenIssueModal = async () => {
+    setIsIssueModalOpen(true);
+    setIssueError("");
+    setIssueSuccess("");
+    setIssueForm({ productId: "", qty: 1, sellingPrice: "" });
+    setLoadingProducts(true);
+    try {
+      const prods = await fetchProductsFromAPI();
+      setProductsList(Array.isArray(prods) ? prods : []);
+    } catch (err) {
+      console.error("Error loading products:", err);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const handleIssueSubmit = async (e) => {
+    e.preventDefault();
+    setIssueError("");
+    setIssueSuccess("");
+
+    if (!issueForm.productId) {
+      setIssueError("Please select a product to issue.");
+      return;
+    }
+    const qtyNum = Number(issueForm.qty);
+    if (!qtyNum || qtyNum <= 0) {
+      setIssueError("Please enter a valid positive quantity.");
+      return;
+    }
+
+    setIssuingStock(true);
+    try {
+      await issueProductToOutletAPI({
+        outletId: selectedOutletId,
+        productId: issueForm.productId,
+        qty: qtyNum,
+        sellingPrice: issueForm.sellingPrice !== "" ? issueForm.sellingPrice : undefined,
+      });
+
+      setIssueSuccess("Stock successfully issued to outlet!");
+      setTimeout(() => {
+        setIsIssueModalOpen(false);
+        setIssueSuccess("");
+      }, 1200);
+
+      loadStockIssues();
+      loadFinancialSummary();
+    } catch (err) {
+      console.error("Error issuing stock:", err);
+      setIssueError(err.message || "Failed to issue stock.");
+    } finally {
+      setIssuingStock(false);
+    }
   };
 
   // Budget Update Handler
@@ -219,6 +334,55 @@ export function OutletTransactionsPage() {
       b.customer?.phone?.toLowerCase().includes(billSearch.toLowerCase());
     return matchesPayment && matchesSearch;
   });
+
+  const filteredStockIssues = stockIssues.filter((issue) => {
+    const prodName = issue.Product?.item_name || issue.product?.itemName || "";
+    const issuerName = issue.issuer?.name || "";
+    const matchesSearch =
+      !stockIssueSearch ||
+      prodName.toLowerCase().includes(stockIssueSearch.toLowerCase()) ||
+      issuerName.toLowerCase().includes(stockIssueSearch.toLowerCase());
+
+    const matchesProduct =
+      stockIssueProductFilter === "all" ||
+      String(issue.product_id || issue.productId) === String(stockIssueProductFilter);
+
+    return matchesSearch && matchesProduct;
+  });
+
+  const stockIssueStats = useMemo(() => {
+    let totalQty = 0;
+    let totalEstimatedValue = 0;
+    const uniqueProducts = new Set();
+
+    filteredStockIssues.forEach((issue) => {
+      const q = Number(issue.qty) || 0;
+      const unitPrice = Number(issue.Product?.unit_price ?? issue.product?.unitPrice ?? 0);
+      totalQty += q;
+      totalEstimatedValue += q * unitPrice;
+      const pid = issue.product_id || issue.productId;
+      if (pid) uniqueProducts.add(pid);
+    });
+
+    return {
+      totalQty,
+      totalEstimatedValue,
+      uniqueProductsCount: uniqueProducts.size,
+      totalTransactions: filteredStockIssues.length,
+    };
+  }, [filteredStockIssues]);
+
+  const distinctIssueProducts = useMemo(() => {
+    const map = new Map();
+    stockIssues.forEach((issue) => {
+      const pid = issue.product_id || issue.productId;
+      const name = issue.Product?.item_name || issue.product?.itemName;
+      if (pid && name && !map.has(pid)) {
+        map.set(pid, name);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [stockIssues]);
 
   const currentOutlet = outlets.find((o) => String(o.id) === String(selectedOutletId));
 
@@ -296,7 +460,7 @@ export function OutletTransactionsPage() {
       )}
 
       {/* Top Statistic Cards Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 desktop:grid-cols-5 gap-4">
         {/* Card 1: Total Sales Revenue */}
         <div className="bg-gradient-to-br from-emerald-500 to-teal-700 text-white rounded-2xl p-4 shadow-md relative overflow-hidden flex flex-col justify-between">
           <div className="flex justify-between items-start">
@@ -508,6 +672,21 @@ export function OutletTransactionsPage() {
             4. Total Sales History
             <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-300 font-mono">
               {summary?.totalBillsCount || 0}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("stock_issues")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+              activeTab === "stock_issues"
+                ? "bg-navy-900 text-white shadow-xs"
+                : "text-slate-600 hover:bg-slate-200/60"
+            }`}
+          >
+            <PackageCheck size={18} />
+            5. Issued Stock History
+            <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-amber-500/20 text-amber-300 font-mono">
+              {summary?.stockIssuesCount ?? stockIssues.length}
             </span>
           </button>
         </div>
@@ -877,6 +1056,226 @@ export function OutletTransactionsPage() {
               )}
             </div>
           )}
+
+          {/* TAB 5: STOCK ISSUES HISTORY */}
+          {activeTab === "stock_issues" && (
+            <div className="space-y-6">
+              {/* Tab Header Banner */}
+              <div className="flex flex-wrap items-center justify-between gap-4 bg-navy-50/50 p-4 rounded-xl border border-navy-100">
+                <div>
+                  <h4 className="font-bold text-navy-900 text-base flex items-center gap-2">
+                    <PackageCheck size={20} className="text-amber-600" />
+                    Outlet Stock Issuance History
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Track all inventory supplies, units, and products dispatched from central storage to {currentOutlet?.name || "this outlet"}.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/inventory"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-bold transition-colors shadow-xs"
+                  >
+                    <Boxes size={15} />
+                    Central Inventory
+                  </Link>
+                  <button
+                    onClick={handleOpenIssueModal}
+                    className="btn-premium-primary text-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Plus size={16} />
+                    Issue Stock to Outlet
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Mini Stat Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                    Total Items Issued
+                  </span>
+                  <p className="text-xl font-black text-navy-900 mt-1">
+                    {stockIssueStats.totalQty.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                    Distinct Products
+                  </span>
+                  <p className="text-xl font-black text-navy-900 mt-1">
+                    {stockIssueStats.uniqueProductsCount}
+                  </p>
+                </div>
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                    Estimated Stock Value
+                  </span>
+                  <p className="text-xl font-black text-emerald-700 font-mono mt-1">
+                    RM {stockIssueStats.totalEstimatedValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                    Dispatches Logged
+                  </span>
+                  <p className="text-xl font-black text-blue-700 mt-1">
+                    {stockIssueStats.totalTransactions}
+                  </p>
+                </div>
+              </div>
+
+              {/* Search & Filter Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3 flex-1 min-w-[240px] bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                  <Search size={18} className="text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search stock issues by product name or issuer..."
+                    value={stockIssueSearch}
+                    onChange={(e) => setStockIssueSearch(e.target.value)}
+                    className="bg-transparent text-sm w-full focus:outline-hidden text-slate-800 placeholder-slate-400"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-xs">
+                  <Filter size={16} className="text-slate-400" />
+                  <select
+                    value={stockIssueProductFilter}
+                    onChange={(e) => setStockIssueProductFilter(e.target.value)}
+                    className="bg-transparent text-sm font-medium text-slate-700 focus:outline-hidden cursor-pointer"
+                  >
+                    <option value="all">All Products ({distinctIssueProducts.length})</option>
+                    {distinctIssueProducts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  onClick={loadStockIssues}
+                  className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-navy-900 transition-colors shadow-xs cursor-pointer"
+                  title="Reload Stock Issues"
+                >
+                  <RefreshCw size={16} className={loadingStockIssues ? "animate-spin" : ""} />
+                </button>
+              </div>
+
+              {loadingStockIssues ? (
+                <div className="py-12 text-center text-slate-400 font-medium animate-pulse">
+                  Loading stock issuance history...
+                </div>
+              ) : filteredStockIssues.length === 0 ? (
+                <div className="py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                  <Boxes size={36} className="mx-auto text-slate-300 mb-2" />
+                  <p className="font-bold text-slate-600">No stock issuance records found for this outlet</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Click "Issue Stock to Outlet" to dispatch products from central inventory.
+                  </p>
+                </div>
+              ) : (
+                <div className="table-container">
+                  <table className="premium-table">
+                    <thead>
+                      <tr>
+                        <th>Date & Time</th>
+                        <th>Product</th>
+                        <th className="text-center">Qty Issued</th>
+                        <th>Base Unit Price</th>
+                        <th>Estimated Value</th>
+                        <th>Issued By</th>
+                        <th className="w-16 text-center">Audit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredStockIssues.map((issue) => {
+                        const product = issue.Product || issue.product;
+                        const qtyNum = Number(issue.qty) || 0;
+                        const unitPrice = Number(product?.unit_price ?? product?.unitPrice ?? 0);
+                        const totalValue = qtyNum * unitPrice;
+                        const issueDate = new Date(issue.created_at || issue.createdAt);
+                        const unitMaster = product?.unitMaster;
+                        const unitRole = product?.purchase_unit || product?.purchaseUnit || "primary";
+
+                        return (
+                          <tr key={issue.id}>
+                            <td>
+                              <div className="font-medium text-slate-800 text-sm">
+                                {issueDate.toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </div>
+                              <div className="text-xs text-slate-400 font-mono">
+                                {issueDate.toLocaleTimeString("en-US", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="font-bold text-navy-900">
+                                {product?.item_name || product?.itemName || "Unnamed Product"}
+                              </div>
+                              {unitMaster && (
+                                <span className="status-badge bg-slate-100 text-slate-600 text-[10px] mt-0.5 inline-block">
+                                  {unitMaster.group_name} ({unitMaster.primary_abbr || unitMaster.primaryUnit})
+                                </span>
+                              )}
+                            </td>
+                            <td className="text-center">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-bold text-sm">
+                                {unitMaster
+                                  ? formatUnitDisplay(qtyNum, unitMaster, unitRole)
+                                  : `${qtyNum} units`}
+                              </span>
+                            </td>
+                            <td className="font-mono text-slate-600 text-sm">
+                              RM {unitPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="font-mono font-bold text-emerald-700 text-sm">
+                              RM {totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                            </td>
+                            <td>
+                              {issue.issuer ? (
+                                <div>
+                                  <div className="font-semibold text-slate-800 text-xs">
+                                    {issue.issuer.name}
+                                  </div>
+                                  <div className="text-[11px] text-slate-400">
+                                    {issue.issuer.email}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 text-xs italic">System / Admin</span>
+                              )}
+                            </td>
+                            <td className="text-center">
+                              <AuditHistoryButton
+                                onClick={() =>
+                                  openAuditHistory(
+                                    "outlet_inventory",
+                                    selectedOutletId,
+                                    `${currentOutlet?.name || "Outlet"} - ${product?.item_name || "Stock Issue"}`
+                                  )
+                                }
+                                size="sm"
+                                variant="ghost"
+                                showText={false}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1060,6 +1459,133 @@ export function OutletTransactionsPage() {
           </div>
         </div>
       )}
+
+      {/* Issue Stock to Outlet Modal */}
+      {isIssueModalOpen && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-navy-900 text-lg flex items-center gap-2">
+                <PackageCheck className="text-amber-600" size={20} />
+                Issue Stock to Outlet
+              </h3>
+              <button
+                onClick={() => setIsIssueModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            {issueError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-700 flex items-center gap-2">
+                <AlertCircle size={16} />
+                {issueError}
+              </div>
+            )}
+
+            {issueSuccess && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-semibold text-emerald-700 flex items-center gap-2">
+                <CheckCircle size={16} />
+                {issueSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleIssueSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Destination Outlet
+                </label>
+                <div className="p-2.5 bg-slate-100 rounded-xl text-navy-900 font-bold text-sm">
+                  {currentOutlet?.name} ({currentOutlet?.code || currentOutlet?.city})
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Product to Issue <span className="text-rose-500">*</span>
+                </label>
+                {loadingProducts ? (
+                  <div className="text-xs text-slate-400 py-2">Loading central catalog...</div>
+                ) : (
+                  <select
+                    required
+                    value={issueForm.productId}
+                    onChange={(e) => setIssueForm({ ...issueForm, productId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-navy-500 text-sm font-medium"
+                  >
+                    <option value="">Select a product...</option>
+                    {productsList.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.itemName || p.item_name} (Central Stock: {Number(p.centralStock ?? p.central_stock ?? 0)})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Quantity to Issue <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0.0001"
+                    step="any"
+                    placeholder="e.g. 10"
+                    value={issueForm.qty}
+                    onChange={(e) => setIssueForm({ ...issueForm, qty: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-navy-500 font-mono text-sm font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    Outlet Selling Price (RM)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="Leave blank for base"
+                    value={issueForm.sellingPrice}
+                    onChange={(e) => setIssueForm({ ...issueForm, sellingPrice: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-navy-500 font-mono text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsIssueModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-600 font-semibold text-sm hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={issuingStock}
+                  className="btn-premium-primary text-sm cursor-pointer"
+                >
+                  {issuingStock ? "Issuing..." : "Confirm Issue Stock"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Audit History Modal */}
+      <AuditHistoryModal
+        isOpen={auditModalOpen}
+        onClose={() => setAuditModalOpen(false)}
+        entityType={auditEntity.type}
+        entityId={auditEntity.id}
+        entityName={auditEntity.name}
+      />
     </div>
   );
 }

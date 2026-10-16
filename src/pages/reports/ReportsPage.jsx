@@ -236,7 +236,7 @@ export function ReportsPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="min-w-0 max-w-7xl mx-auto space-y-6">
       {/* Top Main Navigation Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
@@ -566,7 +566,7 @@ export function ReportsPage() {
               {/* PURCHASE ORDERS REPORT */}
               {selectedReportId === "purchase-orders" && (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-1">
                       <span className="text-xs font-semibold text-slate-400 uppercase">Total Purchase Orders</span>
                       <p className="text-2xl font-bold text-slate-800">{fmt(reportData?.totalOrdersCount)}</p>
@@ -718,7 +718,7 @@ export function ReportsPage() {
               {/* GSTR-2 PURCHASE REPORT */}
               {selectedReportId === "gstr2" && (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                     <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-1">
                       <span className="text-xs font-semibold text-slate-400 uppercase">Total Purchase Orders</span>
                       <p className="text-2xl font-bold text-slate-800">{reportData?.totalPurchaseOrders || 0}</p>
@@ -778,7 +778,7 @@ export function ReportsPage() {
               {/* GST SALES REPORT */}
               {selectedReportId === "gst" && (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 desktop:grid-cols-6 gap-4">
                     <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-1">
                       <span className="text-xs font-semibold text-slate-400 uppercase">Paid Invoices</span>
                       <p className="text-2xl font-bold text-slate-800">{fmt(reportData?.totalBillsCount)}</p>
@@ -888,7 +888,7 @@ export function ReportsPage() {
 
                   <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
                     <h3 className="text-base font-bold text-slate-800">Payment Modes Breakdown</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                       {Object.entries(reportData?.paymentBreakdown || {}).map(([mode, amt]) => (
                         <div key={mode} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                           <span className="text-xs font-medium text-slate-500">{mode}</span>

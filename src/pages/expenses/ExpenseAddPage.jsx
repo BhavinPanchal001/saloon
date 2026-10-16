@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { useNavigate, Link, useSearchParams, useParams } from "react-router-dom";
 import {
   PlusCircle,
   Tag,
@@ -15,6 +15,7 @@ import {
   Store,
   Package,
   PencilLine,
+  Pencil,
   ChevronDown,
   Search,
   X,
@@ -27,12 +28,15 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import BankSelector from "../../modules/bank/components/BankSelector";
 import {
   createExpenseAPI,
+  updateExpenseAPI,
+  fetchExpenseByIdFromAPI,
   fetchBudgetSummaryFromAPI,
   fetchOutletsFromAPI,
   fetchOutletInventoryFromAPI,
   fetchAvailableMonthsFromAPI,
 } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
+import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 
 const initialExpenseForm = {
@@ -49,6 +53,10 @@ export function ExpenseAddPage() {
   const userOutletId = user?.outlet_id;
 
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
+  const toast = useToastStore();
+
   const [searchParams] = useSearchParams();
   const queryOutletId = searchParams.get("outletId");
   const [budget, setBudget] = useState(null);
@@ -73,6 +81,60 @@ export function ExpenseAddPage() {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
 
+  const loadExpense = async () => {
+    if (!id) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await fetchExpenseByIdFromAPI(id);
+      setForm({
+        itemName: data.itemName || "",
+        qty: data.qty !== null && data.qty !== undefined ? String(data.qty) : "",
+        price: data.price !== null && data.price !== undefined ? String(data.price) : "",
+        totalAmount: data.totalAmount !== null && data.totalAmount !== undefined ? String(data.totalAmount) : "",
+        billNo: data.billNo || "",
+      });
+      if (data.outletId) {
+        setSelectedOutletId(data.outletId);
+      }
+      if (data.monthKey) {
+        setActiveMonthKey(data.monthKey);
+      }
+      setItemSearch(data.itemName || "");
+
+      if (data.payments && data.payments.length > 0) {
+        const primaryPayment = data.payments[0];
+        setEnablePayment(true);
+        if (primaryPayment.details && primaryPayment.details.length > 0) {
+          setPaymentDetails(
+            primaryPayment.details.map((d) => ({
+              paymentMode: d.paymentMode,
+              amount: String(d.amount),
+            }))
+          );
+        } else if (Number(primaryPayment.totalAmount) > 0) {
+          setPaymentDetails([{ paymentMode: "cash", amount: String(primaryPayment.totalAmount) }]);
+        }
+        setTransactionReference(primaryPayment.transactionReference || "");
+        setPaymentNotes(primaryPayment.notes || "");
+        setBankAccountId(primaryPayment.bankAccountId ? String(primaryPayment.bankAccountId) : "");
+      } else {
+        setEnablePayment(false);
+      }
+    } catch (err) {
+      console.error("Failed to load expense details:", err);
+      setError(err.message || "Failed to load expense details.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isEditMode && id) {
+      loadExpense();
+    }
+  }, [id, isEditMode]);
+
   useEffect(() => {
     if (user) {
       loadOutlets();
@@ -86,6 +148,17 @@ export function ExpenseAddPage() {
       loadInventory();
     }
   }, [selectedOutletId]);
+
+  useEffect(() => {
+    if (form.itemName && inventoryItems.length > 0 && isEditMode) {
+      const match = inventoryItems.some(
+        (it) => it.itemName.toLowerCase() === form.itemName.toLowerCase()
+      );
+      if (!match) {
+        setItemMode("custom");
+      }
+    }
+  }, [inventoryItems, form.itemName, isEditMode]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -181,18 +254,33 @@ export function ExpenseAddPage() {
   };
 
   const removePaymentMethod = (index) => {
-    setPaymentDetails((prev) => prev.filter((_, i) => i !== index));
+    setPaymentDetails((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      const stillNeedsBank = updated.some(d => d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque');
+      if (!stillNeedsBank) {
+        setBankAccountId('');
+      }
+      return updated;
+    });
   };
 
   const updatePaymentDetail = (index, field, value) => {
-    setPaymentDetails((prev) =>
-      prev.map((detail, i) => (i === index ? { ...detail, [field]: value } : detail))
-    );
+    setPaymentDetails((prev) => {
+      const updated = prev.map((detail, i) => (i === index ? { ...detail, [field]: value } : detail));
+      const stillNeedsBank = updated.some(d => d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque');
+      if (!stillNeedsBank) {
+        setBankAccountId('');
+      }
+      return updated;
+    });
   };
 
   const totalPaymentAmount = paymentDetails.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
   const grandTotal = Number(form.totalAmount) || 0;
   const paymentBalance = grandTotal - totalPaymentAmount;
+  const requiresBankAccount = paymentDetails.some(
+    (d) => d.paymentMode === "bank_transfer" || d.paymentMode === "cheque"
+  );
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -203,10 +291,11 @@ export function ExpenseAddPage() {
       return;
     }
 
+    const hasBankTransferOrCheque = paymentDetails.some(
+      (d) => (d.paymentMode === "bank_transfer" || d.paymentMode === "cheque") && Number(d.amount) > 0
+    );
+
     if (enablePayment) {
-      const hasBankTransferOrCheque = paymentDetails.some(
-        (d) => (d.paymentMode === "bank_transfer" || d.paymentMode === "cheque") && Number(d.amount) > 0
-      );
       if (hasBankTransferOrCheque && !bankAccountId.trim()) {
         setError("Bank account selection is required for bank transfer and cheque payments.");
         return;
@@ -222,7 +311,7 @@ export function ExpenseAddPage() {
           transactionReference: transactionReference.trim(),
           notes: paymentNotes.trim(),
           paymentDate: new Date().toISOString().split("T")[0],
-          bankAccountId: bankAccountId.trim() || null,
+          bankAccountId: hasBankTransferOrCheque ? bankAccountId.trim() || null : null,
           details: paymentDetails
             .filter((d) => Number(d.amount) > 0)
             .map((d) => ({
@@ -233,16 +322,27 @@ export function ExpenseAddPage() {
       : null;
 
     try {
-      await createExpenseAPI({
-        ...form,
-        outletId: selectedOutletId || userOutletId,
-        ...(activeMonthKey ? { monthKey: activeMonthKey } : {}),
-        payment,
-      });
+      if (isEditMode) {
+        await updateExpenseAPI(id, {
+          ...form,
+          outletId: selectedOutletId || userOutletId,
+          ...(activeMonthKey ? { monthKey: activeMonthKey } : {}),
+          payment,
+        });
+        toast.success("Expense updated successfully");
+      } else {
+        await createExpenseAPI({
+          ...form,
+          outletId: selectedOutletId || userOutletId,
+          ...(activeMonthKey ? { monthKey: activeMonthKey } : {}),
+          payment,
+        });
+        toast.success("Expense recorded successfully");
+      }
 
       navigate("/expenses");
     } catch (err) {
-      setError(err.message || "Failed to create expense. Please try again.");
+      setError(err.message || `Failed to ${isEditMode ? "update" : "create"} expense. Please try again.`);
     } finally {
       setSubmitting(false);
     }
@@ -264,8 +364,8 @@ export function ExpenseAddPage() {
 
       <PageHeader
         eyebrow="Finance & Treasury"
-        title="Add New Expense"
-        description="Log a new expense entry for your outlet."
+        title={isEditMode ? "Edit Expense" : "Add New Expense"}
+        description={isEditMode ? "Update expense entry and payment information for your outlet." : "Log a new expense entry for your outlet."}
         action={
           isAdmin ? (
             <div className="flex items-center gap-2 bg-gold-50 border border-gold-200 rounded-xl px-4 py-3">
@@ -332,9 +432,9 @@ export function ExpenseAddPage() {
           <div className="glass-card">
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-navy-900 text-white">
-                <PlusCircle size={20} />
+                {isEditMode ? <Pencil size={20} /> : <PlusCircle size={20} />}
               </div>
-              <h2 className="text-xl">Log New Entry</h2>
+              <h2 className="text-xl">{isEditMode ? "Edit Expense Entry" : "Log New Entry"}</h2>
             </div>
 
             <form className="space-y-5" onSubmit={handleSubmit}>
@@ -530,21 +630,21 @@ export function ExpenseAddPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || (budget && budget.totalMonthlyBudget > 0 && budget.remainingBalance <= 0)}
+                  disabled={submitting || (!isEditMode && budget && budget.totalMonthlyBudget > 0 && budget.remainingBalance <= 0)}
                   className="btn-premium-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? (
                     <span className="flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Saving...
+                      {isEditMode ? "Updating..." : "Saving..."}
                     </span>
-                  ) : (budget?.totalMonthlyBudget > 0 && budget?.remainingBalance <= 0) ? (
+                  ) : (!isEditMode && budget?.totalMonthlyBudget > 0 && budget?.remainingBalance <= 0) ? (
                     <span className="flex items-center gap-2">
                       <Ban size={16} />
                       Budget Exhausted
                     </span>
                   ) : (
-                    "Save Expense"
+                    isEditMode ? "Update Expense" : "Save Expense"
                   )}
                 </button>
               </div>
@@ -678,13 +778,15 @@ export function ExpenseAddPage() {
                   </div>
                 </div>
 
-                <BankSelector
-                  value={bankAccountId}
-                  onChange={setBankAccountId}
-                  label="Bank Account (required for Bank Transfer & Cheque)"
-                  placeholder="Select bank account"
-                  showDefaultIndicator={true}
-                />
+                {requiresBankAccount && (
+                  <BankSelector
+                    value={bankAccountId}
+                    onChange={setBankAccountId}
+                    label="Bank Account (required for Bank Transfer & Cheque)"
+                    placeholder="Select bank account"
+                    showDefaultIndicator={true}
+                  />
+                )}
               </div>
             )}
           </div>

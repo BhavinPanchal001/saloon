@@ -315,13 +315,50 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
   const isPosUser = user?.role === "cashier" || user?.role === "pos";
   const navigation = isPosUser ? posNav : (isAdmin ? adminNav : staffNav);
 
-  const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
+  const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' ? window.innerWidth < 1440 : false);
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    const handleResize = () => setIsMobile(window.innerWidth < 1440);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const sidebarRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!isMobile) onClose();
+  }, [isMobile, onClose]);
+
+  React.useEffect(() => {
+    if (!isOpen || !isMobile) return;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const panel = sidebarRef.current;
+    const focusable = () => [...panel.querySelectorAll('a[href], button:not([disabled])')]
+      .filter((element) => element.getClientRects().length > 0);
+    focusable()[0]?.focus();
+    const handleKey = (event) => {
+      if (event.key === 'Escape') onClose();
+      if (event.key !== 'Tab') return;
+      const elements = focusable();
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    panel.addEventListener('keydown', handleKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      panel.removeEventListener('keydown', handleKey);
+      previousFocus?.focus();
+    };
+  }, [isOpen, isMobile, onClose]);
 
   const [isHovered, setIsHovered] = React.useState(false);
   const isSidebarCollapsed = collapsed && !isMobile && !isHovered;
@@ -329,22 +366,28 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
   return (
     <>
       {/* Desktop layout space reserving wrapper */}
-      <div className={`hidden lg:block shrink-0 transition-all duration-300 ${collapsed ? "w-[80px]" : "w-[280px]"}`} />
+      <div className={`hidden desktop:block shrink-0 transition-all duration-300 ${collapsed ? "w-[80px]" : "w-[280px]"}`} />
 
       {/* Mobile overlay */}
       <div
-        className={`fixed inset-0 z-30 bg-slate-950/30 transition lg:hidden ${
+        className={`fixed inset-0 z-30 bg-slate-950/30 transition desktop:hidden ${
           isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
       />
 
       <aside
-        onMouseEnter={() => { if (collapsed) setIsHovered(true); }}
+        ref={sidebarRef}
+        id="app-navigation"
+        aria-label="Main navigation"
+        role={isMobile && isOpen ? "dialog" : undefined}
+        aria-modal={isMobile && isOpen ? true : undefined}
+        inert={isMobile && !isOpen ? "" : undefined}
+        onMouseEnter={() => { if (collapsed && window.matchMedia("(hover: hover)").matches) setIsHovered(true); }}
         onMouseLeave={() => setIsHovered(false)}
-        className={`fixed inset-y-0 left-0 z-40 bg-navy-900 text-white shadow-2xl transition-all duration-300 lg:rounded-r-[2rem] flex flex-col shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-40 bg-navy-900 text-white shadow-2xl transition-all duration-300 desktop:rounded-r-[2rem] flex flex-col shrink-0 ${
           (isOpen || !isMobile) ? "translate-x-0" : "-translate-x-full"
-        } ${isSidebarCollapsed ? "w-[80px] px-3 py-6" : "w-[280px] px-5 py-6"}`}
+        } ${isSidebarCollapsed ? "w-[80px] px-3 py-6" : "w-[280px] max-w-[90vw] px-5 py-6"}`}
       >
         <div className="flex-1 overflow-y-auto no-scrollbar pb-4 pr-1">
           {/* ── Brand ── */}
@@ -364,7 +407,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
                 <button
                   type="button"
                   onClick={onToggleCollapse}
-                  className="hidden lg:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition shrink-0"
+                  className="hidden desktop:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition shrink-0"
                   title="Collapse sidebar"
                 >
                   <ChevronLeft size={18} />
@@ -372,8 +415,9 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
                 {/* Close button - mobile only */}
                 <button
                   type="button"
-                  className="rounded-full border border-white/10 p-2 text-slate-300 lg:hidden shrink-0"
+                  className="rounded-full border border-white/10 p-2 text-slate-300 desktop:hidden shrink-0"
                   onClick={onClose}
+                  aria-label="Close navigation"
                 >
                   <X size={18} />
                 </button>
@@ -388,7 +432,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
               <button
                 type="button"
                 onClick={onToggleCollapse}
-                className="hidden lg:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition"
+                className="hidden desktop:flex items-center justify-center rounded-xl border border-white/10 p-2 text-slate-400 hover:text-white hover:bg-white/10 transition"
                 title="Expand sidebar"
               >
                 <ChevronRight size={18} />

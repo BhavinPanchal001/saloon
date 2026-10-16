@@ -149,16 +149,16 @@ export function OTPVerificationPage() {
   };
 
   return (
-    <div className="min-h-screen px-4 py-8 md:px-10">
+    <div className="min-h-screen px-4 py-4 md:px-6 lg:py-8">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl overflow-hidden rounded-[2rem] border border-white/70 bg-white/50 shadow-float backdrop-blur-xl lg:grid-cols-[1.1fr_0.9fr]">
         {/* Left Panel - Hero Section */}
-        <section className="relative overflow-hidden bg-slate-950 px-8 py-10 text-white md:px-12 md:py-14">
+        <section className="relative overflow-hidden bg-slate-950 px-6 py-6 text-white lg:px-8 lg:py-10">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(221,111,53,0.35),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.12),transparent_26%)]" />
           <div className="relative z-10">
             <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-200">
               GLOWy
             </p>
-            <h1 className="mt-6 max-w-lg text-5xl leading-tight md:text-6xl">
+            <h1 className="mt-6 max-w-lg text-3xl leading-tight lg:text-4xl desktop:text-6xl">
               Secure your account.
             </h1>
             <p className="mt-6 max-w-xl text-base leading-8 text-slate-300">
@@ -167,7 +167,7 @@ export function OTPVerificationPage() {
               your device.
             </p>
 
-            <div className="mt-10 grid gap-4 md:grid-cols-3">
+            <div className="mt-8 hidden gap-4 desktop:grid desktop:grid-cols-3">
               {[
                 ["Enhanced Security", "2FA prevents unauthorized access even if your password is compromised."],
                 ["Easy Verification", "Receive codes via email or SMS. Quick and hassle-free authentication."],

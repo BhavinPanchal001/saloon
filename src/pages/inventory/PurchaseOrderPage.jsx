@@ -185,17 +185,32 @@ export default function PurchaseOrderPage() {
   };
 
   const removePaymentMethod = (index) => {
-    setPaymentDetails((prev) => prev.filter((_, i) => i !== index));
+    setPaymentDetails((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      const stillNeedsBank = updated.some(d => d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque');
+      if (!stillNeedsBank) {
+        setBankAccountId('');
+      }
+      return updated;
+    });
   };
 
   const updatePaymentDetail = (index, field, value) => {
-    setPaymentDetails((prev) =>
-      prev.map((detail, i) => (i === index ? { ...detail, [field]: value } : detail))
-    );
+    setPaymentDetails((prev) => {
+      const updated = prev.map((detail, i) => (i === index ? { ...detail, [field]: value } : detail));
+      const stillNeedsBank = updated.some(d => d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque');
+      if (!stillNeedsBank) {
+        setBankAccountId('');
+      }
+      return updated;
+    });
   };
 
   const totalPaymentAmount = paymentDetails.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
   const paymentBalance = grandTotal - totalPaymentAmount;
+  const requiresBankAccount = paymentDetails.some(
+    (d) => d.paymentMode === "bank_transfer" || d.paymentMode === "cheque"
+  );
 
   // Submit order
   const handleSubmit = async () => {
@@ -212,12 +227,16 @@ export default function PurchaseOrderPage() {
       return;
     }
 
-    if (enablePayment && totalPaymentAmount > grandTotal) {
-      toast.warning(`Payment amount (${formatCurrency(totalPaymentAmount)}) cannot exceed the order total (${formatCurrency(grandTotal)}).`);
-      return;
-    }
-
     if (enablePayment) {
+      if (totalPaymentAmount <= 0) {
+        toast.warning("Please enter a payment amount, or uncheck 'Add Payment Now'.");
+        return;
+      }
+      if (totalPaymentAmount > grandTotal) {
+        toast.warning(`Payment amount (${formatCurrency(totalPaymentAmount)}) cannot exceed the order total (${formatCurrency(grandTotal)}).`);
+        return;
+      }
+
       const hasBankTransferOrCheque = paymentDetails.some(d =>
         (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && Number(d.amount) > 0
       );
@@ -239,6 +258,10 @@ export default function PurchaseOrderPage() {
         orderDate: purchaseDate,
       };
 
+      const hasBankTransferOrCheque = paymentDetails.some(d =>
+        (d.paymentMode === 'bank_transfer' || d.paymentMode === 'cheque') && Number(d.amount) > 0
+      );
+
       // Add payment if enabled
       const payment = enablePayment
         ? {
@@ -246,7 +269,7 @@ export default function PurchaseOrderPage() {
           transactionReference: transactionReference.trim(),
           notes: paymentNotes.trim(),
           paymentDate: new Date().toISOString().split("T")[0],
-          bankAccountId: bankAccountId.trim() || null,
+          bankAccountId: hasBankTransferOrCheque ? bankAccountId.trim() || null : null,
           details: paymentDetails
             .filter((d) => Number(d.amount) > 0)
             .map((d) => ({
@@ -671,14 +694,16 @@ export default function PurchaseOrderPage() {
               </div>
             </div>
 
-            <BankSelector
-              value={bankAccountId}
-              onChange={setBankAccountId}
-              label="Bank Account (required for Bank Transfer & Cheque)"
-              placeholder="Select bank account"
-              className="mt-4"
-              showDefaultIndicator={true}
-            />
+            {requiresBankAccount && (
+              <BankSelector
+                value={bankAccountId}
+                onChange={setBankAccountId}
+                label="Bank Account (required for Bank Transfer & Cheque)"
+                placeholder="Select bank account"
+                className="mt-4"
+                showDefaultIndicator={true}
+              />
+            )}
           </div>
         )}
       </div>

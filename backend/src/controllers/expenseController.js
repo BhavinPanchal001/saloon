@@ -427,9 +427,252 @@ const getBudgetHistory = async (req, res) => {
   }
 };
 
+// Get expense by ID
+const getExpenseById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user || req.admin;
+
+    const expense = await Expense.findByPk(id, {
+      include: [
+        {
+          model: Outlet,
+          attributes: ['id', 'name', 'code'],
+        },
+        {
+          model: Payment,
+          as: 'payments',
+          include: [
+            { model: PaymentDetail, as: 'details' },
+            { model: Bank, as: 'bankAccount' },
+          ],
+          required: false,
+        },
+      ],
+    });
+
+    if (!expense) {
+      return res.status(404).json({ message: 'Expense not found.' });
+    }
+
+    if (user && user.role !== 'super_admin' && user.role !== 'admin' && user.outlet_id) {
+      if (expense.outlet_id !== user.outlet_id) {
+        return res.status(403).json({ message: 'Forbidden. You do not have access to this outlet.' });
+      }
+    }
+
+    return res.json(expense);
+  } catch (err) {
+    console.error('Error fetching expense by ID:', err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// Update expense
+const updateExpense = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { item_name, qty, price, total_amount, bill_no, outlet_id, month_key, payment } = req.body;
+    const user = req.user || req.admin;
+
+    const expense = await Expense.findByPk(id, {
+      include: [{ model: Payment, as: 'payments' }],
+      transaction: t,
+    });
+
+    if (!expense) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Expense not found.' });
+    }
+
+    if (user && user.role !== 'super_admin' && user.role !== 'admin' && user.outlet_id) {
+      if (expense.outlet_id !== user.outlet_id) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Forbidden. You do not have access to this outlet.' });
+      }
+    }
+
+    // Validation
+    if (item_name !== undefined && (!item_name || !item_name.trim())) {
+      await t.rollback();
+      return res.status(400).json({ message: 'item_name cannot be empty.' });
+    }
+    if (price !== undefined && Number(price) <= 0) {
+      await t.rollback();
+      return res.status(400).json({ message: 'price must be greater than 0.' });
+    }
+    if (total_amount !== undefined && Number(total_amount) <= 0) {
+      await t.rollback();
+      return res.status(400).json({ message: 'total_amount must be greater than 0.' });
+    }
+
+    const targetOutletId = outlet_id !== undefined ? Number(outlet_id) : expense.outlet_id;
+    const expenseMonth = month_key || expense.month_key || getCurrentMonthKey();
+    const newAmount = total_amount !== undefined ? Number(total_amount) : Number(expense.total_amount);
+    const oldAmount = Number(expense.total_amount);
+
+    // Budget validation if amount increases or outlet/month changed
+    if (newAmount > oldAmount || targetOutletId !== expense.outlet_id || expenseMonth !== expense.month_key) {
+      const budget = await MonthlyBudget.findOne({
+        where: {
+          outlet_id: targetOutletId,
+          month_key: expenseMonth,
+        },
+        transaction: t,
+      });
+
+      if (budget && budget.amount > 0) {
+        const currentExpenses = await Expense.sum('total_amount', {
+          where: {
+            outlet_id: targetOutletId,
+            month_key: expenseMonth,
+          },
+          transaction: t,
+        }) || 0;
+
+        // If it's the same outlet and month, subtract old expense amount
+        const currentWithoutOld = (targetOutletId === expense.outlet_id && expenseMonth === expense.month_key)
+          ? currentExpenses - oldAmount
+          : currentExpenses;
+
+        const remainingBudget = budget.amount - currentWithoutOld;
+        if (newAmount > remainingBudget) {
+          await t.rollback();
+          return res.status(400).json({
+            message: `Expense amount (${newAmount}) exceeds remaining budget (${remainingBudget}) for this outlet in ${expenseMonth}.`,
+          });
+        }
+      }
+    }
+
+    // Update expense
+    await expense.update({
+      item_name: item_name !== undefined ? item_name.trim() : expense.item_name,
+      qty: qty !== undefined ? (qty ? Number(qty) : null) : expense.qty,
+      price: price !== undefined ? Number(price) : expense.price,
+      total_amount: newAmount,
+      bill_no: bill_no !== undefined ? (bill_no ? bill_no.trim() : null) : expense.bill_no,
+      outlet_id: targetOutletId,
+      month_key: expenseMonth,
+    }, { transaction: t });
+
+    // Payment handling
+    if (payment !== undefined) {
+      const existingPayments = await Payment.findAll({
+        where: { expense_id: expense.id },
+        transaction: t,
+      });
+
+      if (payment && Array.isArray(payment.details) && payment.details.length > 0) {
+        const validModes = ['cash', 'card', 'upi', 'bank_transfer', 'cheque'];
+        let totalPaymentAmount = 0;
+        const detailRows = payment.details.map((d) => {
+          const amount = Math.max(0, Number(d.amount) || 0);
+          totalPaymentAmount += amount;
+          if (!validModes.includes(d.paymentMode)) {
+            throw new Error(`Invalid payment mode: ${d.paymentMode}. Must be one of: ${validModes.join(', ')}`);
+          }
+          return { amount, payment_mode: d.paymentMode };
+        });
+
+        if (payment.bankAccountId) {
+          const bank = await Bank.findByPk(payment.bankAccountId, { transaction: t });
+          if (!bank) {
+            await t.rollback();
+            return res.status(400).json({ message: 'Selected bank account not found.' });
+          }
+        }
+
+        const paymentStatus = totalPaymentAmount >= newAmount ? 'completed' : 'pending';
+
+        if (existingPayments.length > 0) {
+          const primaryPayment = existingPayments[0];
+          await primaryPayment.update({
+            total_amount: totalPaymentAmount,
+            status: payment.status || paymentStatus,
+            transaction_reference: (payment.transactionReference || '').trim() || null,
+            notes: (payment.notes || '').trim() || null,
+            payment_date: payment.paymentDate || primaryPayment.payment_date || new Date().toISOString().split('T')[0],
+            bank_account_id: payment.bankAccountId || null,
+          }, { transaction: t });
+
+          await PaymentDetail.destroy({
+            where: { payment_id: primaryPayment.id },
+            transaction: t,
+          });
+
+          await PaymentDetail.bulkCreate(
+            detailRows.map((row) => ({ ...row, payment_id: primaryPayment.id })),
+            { transaction: t }
+          );
+
+          if (existingPayments.length > 1) {
+            const extraIds = existingPayments.slice(1).map((p) => p.id);
+            await PaymentDetail.destroy({ where: { payment_id: extraIds }, transaction: t });
+            await Payment.destroy({ where: { id: extraIds }, transaction: t });
+          }
+        } else {
+          const createdPayment = await Payment.create({
+            expense_id: expense.id,
+            purchase_order_id: null,
+            pos_id: null,
+            total_amount: totalPaymentAmount,
+            status: payment.status || paymentStatus,
+            transaction_reference: (payment.transactionReference || '').trim() || null,
+            notes: (payment.notes || '').trim() || null,
+            payment_date: payment.paymentDate || new Date().toISOString().split('T')[0],
+            bank_account_id: payment.bankAccountId || null,
+          }, { transaction: t });
+
+          await PaymentDetail.bulkCreate(
+            detailRows.map((row) => ({ ...row, payment_id: createdPayment.id })),
+            { transaction: t }
+          );
+        }
+      } else if (payment === null || (Array.isArray(payment.details) && payment.details.length === 0)) {
+        // Remove payment if explicitly cleared
+        if (existingPayments.length > 0) {
+          const paymentIds = existingPayments.map((p) => p.id);
+          await PaymentDetail.destroy({ where: { payment_id: paymentIds }, transaction: t });
+          await Payment.destroy({ where: { id: paymentIds }, transaction: t });
+        }
+      }
+    }
+
+    await t.commit();
+
+    const updatedExpense = await Expense.findByPk(expense.id, {
+      include: [
+        {
+          model: Outlet,
+          attributes: ['id', 'name', 'code'],
+        },
+        {
+          model: Payment,
+          as: 'payments',
+          include: [
+            { model: PaymentDetail, as: 'details' },
+            { model: Bank, as: 'bankAccount' },
+          ],
+          required: false,
+        },
+      ],
+    });
+
+    return res.json(updatedExpense);
+  } catch (err) {
+    await t.rollback();
+    console.error('Error updating expense:', err);
+    return res.status(500).json({ message: err.message || 'Server error.' });
+  }
+};
+
 module.exports = {
   getExpenses,
+  getExpenseById,
   createExpense,
+  updateExpense,
   deleteExpense,
   getBudgetSummary,
   updateMonthlyBudget,

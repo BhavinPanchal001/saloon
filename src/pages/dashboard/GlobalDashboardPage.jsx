@@ -28,14 +28,15 @@ function RevenueBarChart({ data }) {
   const containerRef = useRef(null);
 
   if (!data || data.length === 0) return null;
-  const max = Math.max(...data.map((d) => d.revenue), 1);
+  const max = Math.max(...data.map((d) => Number(d.revenue) || 0), 1);
+  const totalRevenue = data.reduce((s, d) => s + (Number(d.revenue) || 0), 0);
   const barW = 40;
   const gap = 16;
   const totalW = data.length * (barW + gap) - gap;
 
   return (
-    <div className="mt-4 flex flex-col gap-1 relative flex-1 min-h-0">
-      <div ref={containerRef} className="flex-1 min-h-0 relative">
+    <div className="mt-4 flex flex-col gap-2 relative flex-1 min-h-[190px]">
+      <div ref={containerRef} className="flex-1 min-h-[160px] relative">
         <svg 
           width="100%" 
           height="100%" 
@@ -43,43 +44,84 @@ function RevenueBarChart({ data }) {
           className="overflow-visible absolute inset-0"
           preserveAspectRatio="none"
         >
-          {data.map((d, i) => {
-            const barH = Math.max(4, (d.revenue / max) * 180);
-            const x = i * (barW + gap);
-            const y = 200 - barH;
-            const isMax = d.revenue === max && d.revenue > 0;
-            return (
-              <g key={d.day}
-                onMouseEnter={() => setTooltip({ index: i, day: d.day, revenue: d.revenue, x, y })}
-                onMouseLeave={() => setTooltip(null)}
-                style={{ cursor: "pointer" }}
-              >
-                <rect
-                  x={x} y={y} width={barW} height={barH}
-                  rx="5"
-                  fill={isMax ? "#e1b941" : "#235079"}
-                  opacity={isMax ? 1 : 0.18}
-                />
-                {isMax && (
-                  <rect x={x} y={y} width={barW} height={barH} rx="5"
-                    fill="url(#goldGrad)" />
-                )}
-              </g>
-            );
-          })}
           <defs>
             <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#f6efb5" />
               <stop offset="100%" stopColor="#e1b941" />
             </linearGradient>
+            <linearGradient id="navyGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3d7ab0" />
+              <stop offset="100%" stopColor="#235079" />
+            </linearGradient>
           </defs>
+
+          {data.map((d, i) => {
+            const rev = Number(d.revenue) || 0;
+            const barH = rev > 0 ? Math.max(8, (rev / max) * 175) : 0;
+            const x = i * (barW + gap);
+            const y = 195 - barH;
+            const isMax = rev === max && rev > 0;
+
+            return (
+              <g 
+                key={d.day}
+                onMouseEnter={() => setTooltip({ index: i, day: d.day, revenue: rev, x, y: rev > 0 ? y : 150 })}
+                onMouseLeave={() => setTooltip(null)}
+                style={{ cursor: "pointer" }}
+              >
+                {/* Background pillar track */}
+                <rect
+                  x={x}
+                  y={15}
+                  width={barW}
+                  height={180}
+                  rx="6"
+                  fill="rgba(35, 80, 121, 0.05)"
+                  className="transition-colors hover:fill-slate-200/50"
+                />
+
+                {/* Active value bar */}
+                {rev > 0 ? (
+                  <rect
+                    x={x}
+                    y={y}
+                    width={barW}
+                    height={barH}
+                    rx="6"
+                    fill={isMax ? "url(#goldGrad)" : "url(#navyGrad)"}
+                    className="transition-all duration-300 filter drop-shadow-xs"
+                  />
+                ) : (
+                  /* Subtle bottom baseline pip for zero days */
+                  <rect
+                    x={x + 4}
+                    y={192}
+                    width={barW - 8}
+                    height={3}
+                    rx="1.5"
+                    fill="#cbd5e1"
+                    opacity={0.4}
+                  />
+                )}
+              </g>
+            );
+          })}
         </svg>
+
+        {totalRevenue === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="text-xs font-semibold text-slate-400 bg-white/80 backdrop-blur-xs px-3 py-1.5 rounded-full border border-slate-200/60 shadow-xs">
+              No revenue recorded for this week yet
+            </span>
+          </div>
+        )}
       </div>
+
       {tooltip && (
         <div
           className="absolute z-10 pointer-events-none bg-navy-900 text-white text-xs font-bold rounded-lg px-2.5 py-1.5 shadow-lg whitespace-nowrap"
           style={{
-            left: tooltip.x + barW / 2,
+            left: `${((tooltip.x + barW / 2) / totalW) * 100}%`,
             bottom: 200 - tooltip.y + 10,
             transform: "translateX(-50%)",
           }}
@@ -88,9 +130,16 @@ function RevenueBarChart({ data }) {
           <div>{formatCurrency(tooltip.revenue)}</div>
         </div>
       )}
-      <div className="flex gap-0" style={{ width: totalW }}>
+
+      <div className="flex w-full gap-0">
         {data.map((d, i) => (
-          <span key={d.day} className="text-[10px] font-bold text-slate-400 text-center" style={{ width: barW, marginLeft: i > 0 ? gap : 0 }}>{d.day}</span>
+          <span
+            key={d.day}
+            className="text-[10px] font-bold text-slate-400 text-center"
+            style={{ width: `${(barW / totalW) * 100}%`, marginLeft: i > 0 ? `${(gap / totalW) * 100}%` : 0 }}
+          >
+            {d.day}
+          </span>
         ))}
       </div>
     </div>

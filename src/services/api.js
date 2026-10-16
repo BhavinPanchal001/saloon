@@ -240,6 +240,8 @@ export const fetchProductsFromAPI = async (params = {}) => {
     consumptionUnit: p.consumption_unit,
     productMeasure: Number(p.product_measure || 1),
     productMeasureUnit: p.product_measure_unit,
+    isStockable: p.is_stockable !== undefined ? Boolean(p.is_stockable) : true,
+    is_stockable: p.is_stockable !== undefined ? Boolean(p.is_stockable) : true,
     status: p.status,
     images: Array.isArray(p.images) ? p.images : [],
     unitMaster: p.unitMaster ? {
@@ -278,6 +280,7 @@ export const createProductAPI = async (payload) => {
       consumption_unit: payload.consumptionUnit,
       product_measure: payload.productMeasure,
       product_measure_unit: payload.productMeasureUnit,
+      is_stockable: payload.isStockable !== undefined ? payload.isStockable : (payload.is_stockable !== undefined ? payload.is_stockable : true),
       images: Array.isArray(payload.images) ? payload.images : [],
     }),
   });
@@ -461,28 +464,40 @@ export const fetchOutletInventoryFromAPI = async (params = {}) => {
     headers: authHeaders(),
   });
   const data = await handleResponse(res);
-  return data.map((item) => ({
-    id: item.id,
-    outletId: item.outlet_id,
-    outletName: item.Outlet?.name || '',
-    productId: item.product_id,
-    itemName: item.Product?.item_name || '',
-    unitPrice: Number(item.Product?.unit_price || 0),
-    unitMasterId: item.Product?.unit_master_id,
-    currentStock: Number(item.current_stock || 0),
-    createdAt: item.created_at,
-    updatedAt: item.updated_at,
-    unitMaster: item.Product?.unitMaster ? {
-      id: item.Product.unitMaster.id,
-      groupName: item.Product.unitMaster.group_name,
-      primaryUnit: item.Product.unitMaster.primary_unit,
-      primaryAbbr: item.Product.unitMaster.primary_abbr,
-      secondaryUnit: item.Product.unitMaster.secondary_unit,
-      secondaryAbbr: item.Product.unitMaster.secondary_abbr,
-      conversionRatio: Number(item.Product.unitMaster.conversion_ratio),
-    } : null,
-    consumptionUnit: item.Product?.consumption_unit || 'primary',
-  }));
+  return data.map((item) => {
+    const basePrice = Number(item.Product?.unit_price || 0);
+    const outletPrice = item.outlet_price !== undefined && item.outlet_price !== null ? Number(item.outlet_price) : null;
+    const effectivePrice = item.effective_price !== undefined && item.effective_price !== null
+      ? Number(item.effective_price)
+      : (outletPrice !== null ? outletPrice : basePrice);
+
+    return {
+      id: item.id,
+      outletId: item.outlet_id,
+      outletName: item.Outlet?.name || '',
+      productId: item.product_id,
+      itemName: item.Product?.item_name || '',
+      unitPrice: effectivePrice,
+      basePrice: basePrice,
+      outletPrice: outletPrice,
+      unitMasterId: item.Product?.unit_master_id,
+      currentStock: Number(item.current_stock || 0),
+      isStockable: item.Product?.is_stockable !== false && item.Product?.is_stockable !== 0,
+      is_stockable: item.Product?.is_stockable !== false && item.Product?.is_stockable !== 0,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+      unitMaster: item.Product?.unitMaster ? {
+        id: item.Product.unitMaster.id,
+        groupName: item.Product.unitMaster.group_name,
+        primaryUnit: item.Product.unitMaster.primary_unit,
+        primaryAbbr: item.Product.unitMaster.primary_abbr,
+        secondaryUnit: item.Product.unitMaster.secondary_unit,
+        secondaryAbbr: item.Product.unitMaster.secondary_abbr,
+        conversionRatio: Number(item.Product.unitMaster.conversion_ratio),
+      } : null,
+      consumptionUnit: item.Product?.consumption_unit || 'primary',
+    };
+  });
 };
 
 export const issueProductToOutletAPI = async (payload) => {
@@ -801,6 +816,47 @@ export const fetchBankTransactionsFromAPI = async (id) => {
 
 // ─── Expenses ───────────────────────────────────────────────────────────────
 
+const mapExpenseData = (e) => ({
+  id: e.id,
+  itemName: e.item_name,
+  qty: e.qty ? Number(e.qty) : null,
+  price: Number(e.price),
+  totalAmount: Number(e.total_amount),
+  billNo: e.bill_no,
+  outletId: e.outlet_id,
+  monthKey: e.month_key,
+  createdAt: e.created_at,
+  updatedAt: e.updated_at,
+  outlet: e.Outlet
+    ? {
+      id: e.Outlet.id,
+      name: e.Outlet.name,
+      code: e.Outlet.code,
+    }
+    : null,
+  payments: (e.payments || []).map((p) => ({
+    id: p.id,
+    totalAmount: Number(p.total_amount),
+    status: p.status,
+    transactionReference: p.transaction_reference,
+    notes: p.notes,
+    paymentDate: p.payment_date,
+    bankAccountId: p.bank_account_id,
+    bankAccount: p.bankAccount
+      ? {
+        id: p.bankAccount.id,
+        bankName: p.bankAccount.bank_name || p.bankAccount.bankName,
+        accountNumber: p.bankAccount.account_number || p.bankAccount.accountNumber,
+      }
+      : null,
+    details: (p.details || []).map((d) => ({
+      id: d.id,
+      amount: Number(d.amount),
+      paymentMode: d.payment_mode,
+    })),
+  })),
+});
+
 export const fetchExpensesFromAPI = async ({ outletId, monthKey } = {}) => {
   const params = {};
   if (outletId) params.outletId = outletId;
@@ -810,36 +866,15 @@ export const fetchExpensesFromAPI = async ({ outletId, monthKey } = {}) => {
     headers: authHeaders(),
   });
   const data = await handleResponse(res);
-  // Transform snake_case to camelCase for frontend
-  return data.map((e) => ({
-    id: e.id,
-    itemName: e.item_name,
-    qty: e.qty ? Number(e.qty) : null,
-    price: Number(e.price),
-    totalAmount: Number(e.total_amount),
-    billNo: e.bill_no,
-    outletId: e.outlet_id,
-    monthKey: e.month_key,
-    createdAt: e.created_at,
-    updatedAt: e.updated_at,
-    outlet: e.Outlet
-      ? {
-        id: e.Outlet.id,
-        name: e.Outlet.name,
-        code: e.Outlet.code,
-      }
-      : null,
-    payments: (e.payments || []).map((p) => ({
-      id: p.id,
-      totalAmount: Number(p.total_amount),
-      status: p.status,
-      details: (p.details || []).map((d) => ({
-        id: d.id,
-        amount: Number(d.amount),
-        paymentMode: d.payment_mode,
-      })),
-    })),
-  }));
+  return data.map(mapExpenseData);
+};
+
+export const fetchExpenseByIdFromAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/expenses/${id}`, {
+    headers: authHeaders(),
+  });
+  const data = await handleResponse(res);
+  return mapExpenseData(data);
 };
 
 export const createExpenseAPI = async (payload) => {
@@ -859,6 +894,26 @@ export const createExpenseAPI = async (payload) => {
     body: JSON.stringify(body),
   });
   return handleResponse(res);
+};
+
+export const updateExpenseAPI = async (id, payload) => {
+  const body = {};
+  if (payload.itemName !== undefined) body.item_name = payload.itemName;
+  if (payload.qty !== undefined) body.qty = payload.qty;
+  if (payload.price !== undefined) body.price = payload.price;
+  if (payload.totalAmount !== undefined) body.total_amount = payload.totalAmount;
+  if (payload.billNo !== undefined) body.bill_no = payload.billNo;
+  if (payload.outletId !== undefined) body.outlet_id = payload.outletId;
+  if (payload.monthKey !== undefined) body.month_key = payload.monthKey;
+  if (payload.payment !== undefined) body.payment = payload.payment;
+
+  const res = await fetch(`${API_BASE}/expenses/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+  const data = await handleResponse(res);
+  return mapExpenseData(data);
 };
 
 export const deleteExpenseAPI = async (id) => {
@@ -937,6 +992,37 @@ export const fetchBudgetHistoryFromAPI = async ({ outletId, monthKey, limit = 50
 export const fetchAvailableMonthsFromAPI = async () => {
   const res = await fetch(`${API_BASE}/budgets/months`, {
     headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const deleteBudgetAPI = async ({ outletId, monthKey, reason, deleteHistory = false } = {}) => {
+  const params = new URLSearchParams();
+  if (outletId) params.append('outletId', outletId);
+  if (monthKey) params.append('monthKey', monthKey);
+  if (deleteHistory) params.append('deleteHistory', 'true');
+  const query = params.toString();
+  const res = await fetch(`${API_BASE}/budgets${query ? `?${query}` : ''}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+    body: reason ? JSON.stringify({ reason }) : undefined,
+  });
+  return handleResponse(res);
+};
+
+export const deleteBudgetHistoryAPI = async (id) => {
+  const res = await fetch(`${API_BASE}/budgets/history/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const updateBudgetHistoryAPI = async (id, { newAmount, reason } = {}) => {
+  const res = await fetch(`${API_BASE}/budgets/history/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ newAmount, reason }),
   });
   return handleResponse(res);
 };

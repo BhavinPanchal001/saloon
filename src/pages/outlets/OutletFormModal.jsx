@@ -84,7 +84,7 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 md:pl-[calc(280px+1.5rem)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-navy-900/40 backdrop-blur-sm transition-opacity duration-300" 
@@ -92,7 +92,7 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
       />
       
       {/* Modal Card */}
-      <div className="relative w-full max-w-xl bg-white rounded-[2.5rem] shadow-2xl animate-premium-in p-1 flex flex-col max-h-[calc(100vh-3rem)]">
+      <div className="relative w-full max-w-xl bg-white rounded-[2.5rem] shadow-2xl animate-premium-in p-1 flex flex-col max-h-[calc(100dvh-3rem)]">
         <div className="bg-white rounded-[2.2rem] flex flex-col overflow-hidden">
 
           {/* Sticky Header */}
@@ -116,7 +116,7 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
           {/* Scrollable Form Body */}
           <form className="flex flex-col overflow-hidden" onSubmit={handleSubmit}>
             <div className="px-8 py-8 overflow-y-auto space-y-6">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="premium-label">Outlet Name</label>
                   <input
@@ -143,7 +143,7 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="premium-label">City</label>
                   <input
@@ -182,7 +182,7 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="premium-label">Branch Manager</label>
                   <input
@@ -206,7 +206,7 @@ export function OutletFormModal({ isOpen, onClose, outletId, onSave }) {
                     className="premium-input"
                   />
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2 sm:col-span-2">
                   <label className="premium-label">Branch Email</label>
                   <input
                     type="email"

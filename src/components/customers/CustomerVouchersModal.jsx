@@ -17,8 +17,10 @@ import {
   cancelVoucherAPI,
   resendVoucherWhatsAppAPI,
 } from "../../services/api";
+import { COMPANY_INFO } from "../../utils/companyInfo";
 
 export function CustomerVouchersModal({ customer, onClose, onVoucherIssued }) {
+  const currencySymbol = COMPANY_INFO.currency || "RM";
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showIssueForm, setShowIssueForm] = useState(false);
@@ -195,15 +197,15 @@ export function CustomerVouchersModal({ customer, onClose, onVoucherIssued }) {
                   onChange={(e) => setFormData({ ...formData, voucherType: e.target.value })}
                   className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
                 >
-                  <option value="cash">Cash / Gift Value (₹)</option>
-                  <option value="flat">Flat Discount (₹)</option>
+                  <option value="cash">Cash / Gift Value ({currencySymbol})</option>
+                  <option value="flat">Flat Discount ({currencySymbol})</option>
                   <option value="percent">Percentage (%)</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 mb-1">
-                  Value {formData.voucherType === "percent" ? "(%)" : "(₹)"} *
+                  Value {formData.voucherType === "percent" ? "(%)" : `(${currencySymbol})`} *
                 </label>
                 <input
                   type="number"
@@ -219,7 +221,7 @@ export function CustomerVouchersModal({ customer, onClose, onVoucherIssued }) {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-gray-700 mb-1">Min Spend (₹)</label>
+                <label className="block text-[11px] font-semibold text-gray-700 mb-1">Min Spend ({currencySymbol})</label>
                 <input
                   type="number"
                   min="0"
@@ -348,11 +350,11 @@ export function CustomerVouchersModal({ customer, onClose, onVoucherIssued }) {
                       <span className="font-bold text-emerald-700 text-sm">
                         {v.voucher_type === "percent"
                           ? `${Number(v.initial_value)}% OFF`
-                          : `₹${Number(v.initial_value).toFixed(2)} OFF`}
+                          : `${currencySymbol} ${Number(v.initial_value).toFixed(2)} OFF`}
                       </span>
                       {v.voucher_type === "cash" && (
                         <span className="ml-2 text-gray-500 text-[11px]">
-                          (Balance: ₹{Number(v.balance_value).toFixed(2)})
+                          (Balance: {currencySymbol} {Number(v.balance_value).toFixed(2)})
                         </span>
                       )}
                     </div>

@@ -47,6 +47,7 @@ const create = async (req, res) => {
     const {
       item_name, unit_price, unit_master_id, opening_stock,
       purchase_unit, consumption_unit, product_measure, product_measure_unit, images,
+      is_stockable,
     } = req.body;
 
     if (!item_name || unit_price === undefined) {
@@ -80,6 +81,7 @@ const create = async (req, res) => {
       consumption_unit: consumption_unit || 'primary',
       product_measure: Number(product_measure) || 1,
       product_measure_unit: product_measure_unit || 'primary',
+      is_stockable: is_stockable !== undefined ? Boolean(is_stockable) : true,
       images: Array.isArray(images) ? images : [],
     });
 
@@ -98,13 +100,17 @@ const update = async (req, res) => {
     const allowedFields = [
       'item_name', 'unit_price', 'opening_stock', 'unit_master_id',
       'purchase_unit', 'consumption_unit', 'product_measure',
-      'product_measure_unit', 'status', 'images',
+      'product_measure_unit', 'status', 'is_stockable', 'images',
     ];
 
     const updates = {};
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
+
+    if (updates.is_stockable !== undefined) {
+      updates.is_stockable = Boolean(updates.is_stockable);
+    }
 
     if (updates.unit_price !== undefined) {
       const parsedPrice = Number(updates.unit_price);
