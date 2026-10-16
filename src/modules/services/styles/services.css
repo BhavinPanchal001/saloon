@@ -143,6 +143,10 @@
   border-bottom: none;
 }
 
+.service-action-button {
+  @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border p-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2;
+}
+
 /* Keep the service details readable when touch actions need more column space.
    The surrounding region scrolls instead of squeezing badges and prices. */
 @media screen {

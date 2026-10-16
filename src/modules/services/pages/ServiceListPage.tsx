@@ -336,32 +336,40 @@ const ServiceListPage: React.FC = () => {
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
+                        type="button"
                         title="View"
-                        className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 transition-colors hover:bg-slate-50"
+                        aria-label={`View ${service.serviceName || service.service_name}`}
+                        className="service-action-button border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                         onClick={() => navigate(`/services/${service.id}`)}
                       >
-                        <Eye className="h-4 w-4" />
+                        <Eye className="h-5 w-5" aria-hidden="true" />
                       </button>
                       <button
+                        type="button"
                         title="Edit"
-                        className="rounded-lg border border-navy-200 bg-navy-50 p-1.5 text-navy-700 transition-colors hover:bg-navy-100"
+                        aria-label={`Edit ${service.serviceName || service.service_name}`}
+                        className="service-action-button border-navy-200 bg-navy-50 text-navy-700 hover:bg-navy-100"
                         onClick={() => navigate(`/services/edit/${service.id}`)}
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-5 w-5" aria-hidden="true" />
                       </button>
                       <button
+                        type="button"
                         title="Duplicate"
-                        className="rounded-lg border border-indigo-200 bg-indigo-50 p-1.5 text-indigo-700 transition-colors hover:bg-indigo-100"
+                        aria-label={`Duplicate ${service.serviceName || service.service_name}`}
+                        className="service-action-button border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
                         onClick={() => navigate(`/services/add?duplicate=${service.id}`)}
                       >
-                        <Copy className="h-4 w-4" />
+                        <Copy className="h-5 w-5" aria-hidden="true" />
                       </button>
                       <button
+                        type="button"
                         title="Delete"
-                        className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-700 transition-colors hover:bg-rose-100"
+                        aria-label={`Delete ${service.serviceName || service.service_name}`}
+                        className="service-action-button border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
                         onClick={() => setDeleteId(service.id)}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-5 w-5" aria-hidden="true" />
                       </button>
                     </div>
                   </td>
