@@ -68,6 +68,10 @@ const Staff = sequelize.define('Staff', {
     type: DataTypes.ENUM('pending', 'contract_accepted', 'document_uploaded', 'approved'),
     defaultValue: 'pending',
   },
+  status: {
+    type: DataTypes.ENUM('active', 'inactive'),
+    defaultValue: 'inactive',
+  },
   // Address fields
   street: {
     type: DataTypes.TEXT,

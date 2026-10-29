@@ -34,13 +34,25 @@ interface BreakRecord {
 interface AttendanceMember {
   id: string;
   name: string;
+  role?: string;
   attendanceStatus: string;
   assignedOutletName?: string;
-  checkIn: { timestamp: string; photo: string } | null;
-  checkOut: { timestamp: string; photo: string } | null;
+  checkIn: { timestamp: string; photo?: string; isLate?: boolean; lateMinutes?: number } | null;
+  checkOut: { timestamp: string; photo?: string; isEarlyCheckout?: boolean; earlyMinutes?: number } | null;
   breaks: BreakRecord[];
   hasActiveContract?: boolean;
   contractStatus?: string;
+  contractCode?: string;
+  contractTitle?: string;
+  shiftName?: string | null;
+  shiftStartTime?: string | null;
+  shiftEndTime?: string | null;
+  gracePeriod?: number;
+  breakDuration?: number;
+  workWeekName?: string | null;
+  operationalDays?: string[];
+  isWorkingDay?: boolean;
+  isWeeklyOff?: boolean;
 }
 
 interface StatCard {
@@ -64,7 +76,7 @@ export default function AttendancePage() {
   const [modalAction, setModalAction] = useState<"check-in" | "check-out" | "break-in" | "break-out">("check-in");
   const [selectedStaff, setSelectedStaff] = useState<AttendanceMember | null>(null);
   const [isToday, setIsToday] = useState(true);
-  const [filterActiveContract, setFilterActiveContract] = useState(false);
+  const [filterActiveContract, setFilterActiveContract] = useState(true);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);
@@ -249,13 +261,18 @@ export default function AttendancePage() {
 
   const stats = attendance.reduce(
     (acc, member) => {
+      if (member.hasActiveContract === false) {
+        acc.noContract++;
+        return acc;
+      }
       if (member.attendanceStatus === "present") acc.present++;
       else if (member.attendanceStatus === "absent") acc.absent++;
       else if (member.attendanceStatus === "half_day") acc.halfDay++;
       else if (member.attendanceStatus === "paid_leave") acc.paidLeave++;
+      else if (member.attendanceStatus === "weekly_off" || member.isWeeklyOff) acc.weeklyOff++;
       return acc;
     },
-    { present: 0, absent: 0, halfDay: 0, paidLeave: 0 }
+    { present: 0, absent: 0, halfDay: 0, paidLeave: 0, weeklyOff: 0, noContract: 0 }
   );
 
   return (
@@ -263,7 +280,7 @@ export default function AttendancePage() {
       <PageHeader
         eyebrow="Employees"
         title="Attendance Tracking"
-        description="Mark and monitor daily attendance for all staff members with active contracts."
+        description="Mark and monitor daily attendance strictly according to each employee's active contract."
         action={
           <div className="flex items-center gap-3">
             <button
@@ -275,7 +292,7 @@ export default function AttendancePage() {
                   : "bg-white text-navy-700 border-slate-200 hover:bg-slate-50"
               }`}
             >
-              {filterActiveContract ? "Showing Active Contracts" : "Active Contracts Only"}
+              {filterActiveContract ? "Active Contract Staff Only" : "Showing All Staff"}
             </button>
 
             {/* Date picker with prev/next navigation */}
@@ -336,7 +353,7 @@ export default function AttendancePage() {
           { label: "Present", value: stats.present, Icon: UserCheck, color: "text-emerald-600", iconBg: "bg-emerald-50 text-emerald-600" },
           { label: "Absent", value: stats.absent, Icon: UserX, color: "text-rose-600", iconBg: "bg-rose-50 text-rose-600" },
           { label: "Half Day", value: stats.halfDay, Icon: Clock, color: "text-amber-600", iconBg: "bg-amber-50 text-amber-600" },
-          { label: "Paid Leave", value: stats.paidLeave, Icon: Users, color: "text-indigo-600", iconBg: "bg-indigo-50 text-indigo-600" },
+          { label: "Weekly Off / Leave", value: stats.weeklyOff + stats.paidLeave, Icon: Users, color: "text-indigo-600", iconBg: "bg-indigo-50 text-indigo-600" },
         ] as StatCard[]).map(({ label, value, Icon, color, iconBg }) => (
           <div key={label} className="glass-card !p-4 flex items-center gap-3">
             <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
@@ -354,7 +371,7 @@ export default function AttendancePage() {
       <div className="mt-6 glass-card !p-0 overflow-hidden">
         {/* Table header */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-navy-50/50 bg-navy-900/[0.03]">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-navy-400">Staff Name</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-navy-400">Staff & Contract Shift Details</span>
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-navy-400">Actions</span>
         </div>
 
@@ -362,7 +379,7 @@ export default function AttendancePage() {
           <div className="py-12 text-center text-sm text-navy-400">Loading attendance data...</div>
         ) : displayedAttendance.length === 0 ? (
           <div className="py-12 text-center text-sm text-navy-400">
-            {filterActiveContract ? "No staff with an active contract found." : "No staff found for this date."}
+            {filterActiveContract ? "No staff with an active contract found for this date." : "No staff found for this date."}
           </div>
         ) : (
           <div className="divide-y divide-navy-50/50">
@@ -373,22 +390,45 @@ export default function AttendancePage() {
                 <div
                   key={member.id}
                   style={{ zIndex: openMenuId === member.id ? 50 : 1 }}
-                  className={`relative flex items-center justify-between px-6 py-3.5 transition-colors hover:bg-white/50 ${
-                    !isContractActive ? "bg-slate-50/70" : ""
+                  className={`relative flex items-center justify-between px-6 py-4 transition-colors hover:bg-white/50 ${
+                    !isContractActive ? "bg-slate-50/70" : member.isWeeklyOff ? "bg-indigo-50/20" : ""
                   }`}
                 >
-                  <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-sm font-bold ${isContractActive ? "text-navy-900" : "text-slate-500"}`}>
                         {member.name}
                       </span>
-                      {!isContractActive && (
+                      {member.role && (
+                        <span className="text-xs text-navy-400 font-medium">({member.role})</span>
+                      )}
+                      {isContractActive ? (
+                        <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/60">
+                          Active Contract
+                        </span>
+                      ) : (
                         <span className="inline-flex items-center rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 border border-rose-200/60">
-                          Contract Inactive
+                          No Active Contract
+                        </span>
+                      )}
+                      {member.isWeeklyOff && (
+                        <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200/60">
+                          Weekly Off (Contract)
+                        </span>
+                      )}
+                      {member.checkIn?.isLate && (
+                        <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200/60">
+                          Late ({member.checkIn.lateMinutes}m)
+                        </span>
+                      )}
+                      {member.checkOut?.isEarlyCheckout && (
+                        <span className="inline-flex items-center rounded-md bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700 border border-orange-200/60">
+                          Early ({member.checkOut.earlyMinutes}m)
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
+
+                    <div className="flex items-center gap-2 flex-wrap text-xs text-navy-500">
                       <span
                         className={`text-[11px] font-bold uppercase tracking-wide ${
                           member.attendanceStatus === "not_marked"
@@ -399,6 +439,8 @@ export default function AttendancePage() {
                             ? "text-rose-500"
                             : member.attendanceStatus === "half_day"
                             ? "text-amber-600"
+                            : member.attendanceStatus === "weekly_off"
+                            ? "text-indigo-600"
                             : "text-indigo-600"
                         }`}
                       >
@@ -406,24 +448,37 @@ export default function AttendancePage() {
                           ? "Not Marked"
                           : member.attendanceStatus.replace("_", " ")}
                       </span>
-                      {member.assignedOutletName && (
-                        <span className="text-[10px] text-slate-400">· {member.assignedOutletName}</span>
+
+                      {member.shiftName && (
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          · Shift: <strong className="text-navy-700">{member.shiftName}</strong> ({member.shiftStartTime || '--:--'} - {member.shiftEndTime || '--:--'})
+                        </span>
                       )}
+
+                      {member.workWeekName && (
+                        <span className="text-[11px] text-slate-400">· {member.workWeekName}</span>
+                      )}
+
+                      {member.assignedOutletName && (
+                        <span className="text-[11px] text-slate-400">· {member.assignedOutletName}</span>
+                      )}
+
                       {/* Check-in/Check-out times */}
                       {member.checkIn && (
-                        <span className="text-[10px] text-emerald-600 font-medium">
-                          In: {formatTime(member.checkIn.timestamp)}
+                        <span className="text-[11px] text-emerald-600 font-medium">
+                          · In: {formatTime(member.checkIn.timestamp)}
                         </span>
                       )}
                       {member.checkOut && (
-                        <span className="text-[10px] text-orange-600 font-medium">
-                          Out: {formatTime(member.checkOut.timestamp)}
+                        <span className="text-[11px] text-orange-600 font-medium">
+                          · Out: {formatTime(member.checkOut.timestamp)}
                         </span>
                       )}
+
                       {/* Break records */}
                       {member.breaks.map((breakRecord, index) => (
-                        <span key={index} className="text-[10px] text-amber-600 font-medium">
-                          Break {index + 1}: {formatTime(breakRecord.in)} - {breakRecord.out ? formatTime(breakRecord.out) : "ongoing"}
+                        <span key={index} className="text-[11px] text-amber-600 font-medium">
+                          · Break {index + 1}: {formatTime(breakRecord.in)} - {breakRecord.out ? formatTime(breakRecord.out) : "ongoing"}
                         </span>
                       ))}
                     </div>
@@ -431,10 +486,19 @@ export default function AttendancePage() {
 
                   <div className="flex items-center gap-2">
                     {!isContractActive ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-xs font-bold text-rose-600">
-                        <UserX className="h-3.5 w-3.5" />
-                        Attendance Disabled
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-xs font-bold text-rose-600">
+                          <UserX className="h-3.5 w-3.5" />
+                          Attendance Disabled
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/contracts')}
+                          className="px-2.5 py-1 text-[11px] font-bold text-navy-600 hover:text-navy-900 border border-slate-200 rounded-lg bg-white"
+                        >
+                          Add Contract
+                        </button>
+                      </div>
                     ) : (
                       <>
                         {/* Check In Button */}

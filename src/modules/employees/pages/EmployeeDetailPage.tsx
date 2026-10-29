@@ -17,6 +17,20 @@ interface StaffMember {
   baseSalary: number;
   commissionSlab: string;
   contractFileName: string;
+  status?: string;
+  hasActiveContract?: boolean;
+  contractStatus?: string;
+  shiftName?: string;
+  workWeekName?: string;
+  activeContract?: {
+    id: number;
+    code: string;
+    title: string;
+    startDate: string;
+    endDate: string;
+    shiftName?: string;
+    workWeekName?: string;
+  } | null;
 }
 
 const EmployeeDetailPage: React.FC = () => {
@@ -63,7 +77,7 @@ const EmployeeDetailPage: React.FC = () => {
     setIsDeactivating(true);
     try {
       await updateStaffStatus(employee.id, 'inactive');
-      setEmployee(prev => prev ? { ...prev, status: 'inactive' } : null);
+      setEmployee(prev => prev ? { ...prev, status: 'inactive', hasActiveContract: false } : null);
       toast.success('Employee account deactivated successfully');
       setDeactivateModalOpen(false);
     } catch (err) {
@@ -133,6 +147,8 @@ const EmployeeDetailPage: React.FC = () => {
     );
   }
 
+  const isEmployeeActive = employee.hasActiveContract !== false && (employee.status === 'Active' || employee.hasActiveContract);
+
   return (
     <div className="employee-module">
       <header className="module-header">
@@ -165,7 +181,11 @@ const EmployeeDetailPage: React.FC = () => {
             </div>
             <h2 className="text-xl font-semibold mb-1">{employee.name}</h2>
             <p className="text-navy-500 font-medium mb-3">{employee.role}</p>
-            <span className="status-badge status-active">Active</span>
+            {isEmployeeActive ? (
+              <span className="status-badge status-active">Active (Contract Active)</span>
+            ) : (
+              <span className="status-badge !bg-slate-100 !text-slate-600 !border-slate-200">Inactive (No Active Contract)</span>
+            )}
 
             <div className="mt-6 text-left border-t border-navy-100 pt-5 space-y-3">
               <div className="flex items-center gap-3 text-navy-500 text-sm">
@@ -206,8 +226,28 @@ const EmployeeDetailPage: React.FC = () => {
 
         {/* Right Column: Detailed Info */}
         <div className="flex flex-col gap-6">
+          {!isEmployeeActive && (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                  <UserCheck size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-amber-900">No Active Contract</h4>
+                  <p className="text-xs text-amber-700 mt-0.5">This employee does not currently have an active contract. They are marked as Inactive and attendance is disabled until a contract is activated.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/contracts')}
+                className="btn-premium-primary !py-2 !px-4 text-xs font-bold shrink-0 whitespace-nowrap"
+              >
+                Manage Contracts
+              </button>
+            </div>
+          )}
+
           <div className="glass-card">
-            <h3 className="form-section-title mt-0">Employment Information</h3>
+            <h3 className="form-section-title mt-0">Employment & Contract Details</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Employee ID</label>
@@ -224,6 +264,14 @@ const EmployeeDetailPage: React.FC = () => {
               <div>
                 <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Commission Slab</label>
                 <div className="font-semibold text-navy-900">{employee.commissionSlab}</div>
+              </div>
+              <div>
+                <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Contract Shift</label>
+                <div className="font-semibold text-navy-900">{employee.shiftName || (employee.activeContract?.shiftName || 'Not Assigned')}</div>
+              </div>
+              <div>
+                <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Contract Work Week</label>
+                <div className="font-semibold text-navy-900">{employee.workWeekName || (employee.activeContract?.workWeekName || 'Standard')}</div>
               </div>
             </div>
           </div>

@@ -34,14 +34,14 @@ export const EmployeeFilters: React.FC<EmployeeFiltersProps> = ({
       {/* Filters and Actions */}
       <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
         <select 
-          className="premium-input px-3.5 py-2 w-full sm:w-[125px]" 
+          className="premium-input px-3.5 py-2 w-full sm:w-[170px]" 
           style={{ paddingRight: '2rem' }}
           onChange={(e) => onFilterChange({ status: e.target.value })}
         >
           <option value="">All Status</option>
-          <option value="Active">Active</option>
+          <option value="Active">Active (Contract)</option>
+          <option value="Inactive">Inactive (No Contract)</option>
           <option value="On Leave">On Leave</option>
-          <option value="Resigned">Resigned</option>
         </select>
 
         {onExportClick && (

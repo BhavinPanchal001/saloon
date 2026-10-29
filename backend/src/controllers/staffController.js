@@ -20,8 +20,19 @@ const toStaffResponse = (staff) => {
     pincode: staff.pincode || '',
   };
 
-  // Find active contract to extract baseSalary and other salary details if any
-  const activeContract = staff.contracts && staff.contracts.find(c => c.status === 'active');
+  // Find active contract to extract baseSalary, shifts, work weeks and determine employee active status
+  const todayStr = new Date().toISOString().split('T')[0];
+  const activeContract = staff.contracts && staff.contracts.find(c => {
+    if (c.status !== 'active') return false;
+    if (c.start_date && c.start_date > todayStr) return false;
+    if (c.end_date && c.end_date < todayStr) return false;
+    return true;
+  });
+
+  const hasActiveContract = Boolean(activeContract);
+  const status = hasActiveContract ? 'Active' : 'Inactive';
+  const isActive = hasActiveContract;
+
   let baseSalary = 0;
   let contractFileName = 'pending-contract.pdf';
   let shiftId = null;
@@ -68,6 +79,21 @@ const toStaffResponse = (staff) => {
     biometricCode: staff.biometric_code || '',
     joiningDate: staff.joining_date,
     onboardingStatus: staff.onboarding_status,
+    status,
+    isActive,
+    hasActiveContract,
+    contractStatus: hasActiveContract ? 'active' : (staff.contracts && staff.contracts.length > 0 ? staff.contracts[0].status : 'no_contract'),
+    activeContract: activeContract ? {
+      id: activeContract.id,
+      code: activeContract.code,
+      title: activeContract.title,
+      startDate: activeContract.start_date,
+      endDate: activeContract.end_date,
+      shiftId,
+      shiftName,
+      workWeekId,
+      workWeekName,
+    } : null,
     bankDetails,
     address,
     baseSalary,
@@ -86,7 +112,7 @@ const toStaffResponse = (staff) => {
 
 const getAll = async (req, res) => {
   try {
-    const { outletId, search } = req.query;
+    const { outletId, search, status, activeContractOnly } = req.query;
     const where = {};
 
     if (outletId && outletId !== 'undefined' && outletId !== 'null') {
@@ -124,7 +150,16 @@ const getAll = async (req, res) => {
       order: [['first_name', 'ASC']],
     });
 
-    return res.json(staffList.map(toStaffResponse));
+    let mapped = staffList.map(toStaffResponse);
+
+    if (status) {
+      mapped = mapped.filter(s => s.status.toLowerCase() === status.toLowerCase());
+    }
+    if (activeContractOnly === 'true') {
+      mapped = mapped.filter(s => s.hasActiveContract);
+    }
+
+    return res.json(mapped);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error fetching staff members.' });
