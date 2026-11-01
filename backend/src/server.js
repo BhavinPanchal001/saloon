@@ -171,6 +171,40 @@ const startServer = async () => {
         console.log('[Migration] Modifying customer_id in customer_vouchers to allow NULL...');
         await sequelize.query("ALTER TABLE customer_vouchers MODIFY customer_id INT UNSIGNED NULL");
       }
+
+      // Check staff_members table for status column
+      const [staffCols] = await sequelize.query("SHOW COLUMNS FROM staff_members");
+      const staffColNames = staffCols.map(c => c.Field);
+      if (!staffColNames.includes('status')) {
+        console.log('[Migration] Adding status column to staff_members table...');
+        await sequelize.query("ALTER TABLE staff_members ADD COLUMN `status` ENUM('active', 'inactive') DEFAULT 'inactive'");
+      }
+
+      // Sync staff active status according to active contracts
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const [activeContractRows] = await sequelize.query(`
+          SELECT DISTINCT employee_id FROM contracts 
+          WHERE status = 'active' 
+            AND start_date <= '${todayStr}' 
+            AND (end_date IS NULL OR end_date >= '${todayStr}')
+        `);
+        const activeIds = activeContractRows.map(r => r.employee_id).filter(Boolean);
+        if (activeIds.length > 0) {
+          await sequelize.query(`UPDATE staff_members SET status = 'active' WHERE id IN (${activeIds.join(',')})`);
+          await sequelize.query(`UPDATE staff_members SET status = 'inactive' WHERE id NOT IN (${activeIds.join(',')})`);
+        } else {
+          await sequelize.query(`UPDATE staff_members SET status = 'inactive'`);
+        }
+        console.log(`[Sync] Updated staff active status according to contracts. Active staff count: ${activeIds.length}.`);
+      } catch (syncStaffErr) {
+        console.warn('[Sync Warning] Staff status sync:', syncStaffErr.message);
+      }
+
+      // Check attendances table status column to allow weekly_off
+      try {
+        await sequelize.query("ALTER TABLE attendances MODIFY COLUMN `status` ENUM('present', 'absent', 'half_day', 'paid_leave', 'weekly_off', 'not_marked') DEFAULT 'not_marked'");
+      } catch (_) {}
     } catch (colErr) {
       console.error('[Migration Warning] Checking/adding columns:', colErr.message);
     }
@@ -195,8 +229,12 @@ const startServer = async () => {
     } catch (_) {}
 
     // Ensure models & tables exist without creating redundant unique indexes
-    await sequelize.sync();
-    console.log('Database models synchronized successfully.');
+    try {
+      await sequelize.sync();
+      console.log('Database models synchronized successfully.');
+    } catch (syncErr) {
+      console.warn('Sequelize sync notice (tables ready):', syncErr.message);
+    }
 
     // Seed Default Walk-in Guest customer
     try {

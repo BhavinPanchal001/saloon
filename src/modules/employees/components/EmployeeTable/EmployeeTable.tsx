@@ -9,6 +9,8 @@ interface StaffMember {
   assignedOutletName: string;
   baseSalary?: number;
   status?: string;
+  hasActiveContract?: boolean;
+  contractStatus?: string;
 }
 
 interface EmployeeTableProps {
@@ -44,14 +46,6 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
     }).format(amount);
   };
 
-  // Get status badge class
-  const getStatusClass = (status?: string) => {
-    if (!status || status === 'Active') return 'status-active';
-    if (status === 'On Leave') return 'status-on-leave';
-    if (status === 'Resigned') return 'status-resigned';
-    return 'status-active';
-  };
-
   return (
     <div className="glass-card" style={{ padding: 0 }}>
       {/* Desktop/Tablet view: Hidden on mobile screens */}
@@ -61,78 +55,106 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
             <tr>
               <th>Employee</th>
               <th>Role / Outlet</th>
+              <th>Status / Contract</th>
               <th>Base Salary</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {employees.map((emp) => (
-              <tr key={emp.id}>
-                <td>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-navy-100 to-navy-200 flex items-center justify-center font-bold text-navy-600 text-sm">
-                       {getInitials(emp.name)}
+            {employees.map((emp) => {
+              const isActive = emp.hasActiveContract !== false && (emp.status === 'Active' || emp.hasActiveContract);
+              return (
+                <tr key={emp.id}>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-navy-100 to-navy-200 flex items-center justify-center font-bold text-navy-600 text-sm">
+                         {getInitials(emp.name)}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-navy-900">{emp.name}</div>
+                        <div className="text-xs text-navy-400">{emp.id}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-semibold text-navy-900">{emp.name}</div>
-                      <div className="text-xs text-navy-400">{emp.id}</div>
+                  </td>
+                  <td>
+                    <div className="font-medium text-navy-900">{emp.role}</div>
+                    <div className="text-xs text-navy-400">{emp.assignedOutletName}</div>
+                  </td>
+                  <td>
+                    {isActive ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Active Contract
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200/80">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                        No Active Contract (Inactive)
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <div className="text-sm font-medium text-navy-900">{formatSalary(emp.baseSalary)}</div>
+                  </td>
+                  <td>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => onView(emp.id)} 
+                        className="h-9 w-9 flex items-center justify-center rounded-xl border border-navy-100 bg-white/50 text-navy-600 hover:bg-navy-50 hover:text-navy-900 transition-all"
+                        title="View"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button 
+                        onClick={() => onEdit(emp.id)} 
+                        className="h-9 w-9 flex items-center justify-center rounded-xl border border-navy-100 bg-white/50 text-navy-600 hover:bg-navy-50 hover:text-navy-900 transition-all"
+                        title="Edit"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button 
+                        onClick={() => onDelete(emp.id)} 
+                        className="h-9 w-9 flex items-center justify-center rounded-xl border border-rose-100 bg-rose-50/30 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
-                  </div>
-                </td>
-                <td>
-                  <div className="font-medium text-navy-900">{emp.role}</div>
-                  <div className="text-xs text-navy-400">{emp.assignedOutletName}</div>
-                </td>
-                <td>
-                  <div className="text-sm font-medium text-navy-900">{formatSalary(emp.baseSalary)}</div>
-                </td>
-                <td>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => onView(emp.id)} 
-                      className="h-9 w-9 flex items-center justify-center rounded-xl border border-navy-100 bg-white/50 text-navy-600 hover:bg-navy-50 hover:text-navy-900 transition-all"
-                      title="View"
-                    >
-                      <Eye size={16} />
-                    </button>
-                    <button 
-                      onClick={() => onEdit(emp.id)} 
-                      className="h-9 w-9 flex items-center justify-center rounded-xl border border-navy-100 bg-white/50 text-navy-600 hover:bg-navy-50 hover:text-navy-900 transition-all"
-                      title="Edit"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button 
-                      onClick={() => onDelete(emp.id)} 
-                      className="h-9 w-9 flex items-center justify-center rounded-xl border border-rose-100 bg-rose-50/30 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all"
-                      title="Delete"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       {/* Mobile view: Hidden on desktop/tablet screens */}
       <div className="block md:hidden divide-y divide-navy-50/50">
-        {employees.map((emp) => (
-          <div key={emp.id} className="p-4 flex flex-col gap-3">
-            {/* Header info */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-navy-100 to-navy-200 flex items-center justify-center font-bold text-navy-600 text-sm">
-                  {getInitials(emp.name)}
+        {employees.map((emp) => {
+          const isActive = emp.hasActiveContract !== false && (emp.status === 'Active' || emp.hasActiveContract);
+          return (
+            <div key={emp.id} className="p-4 flex flex-col gap-3">
+              {/* Header info */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-navy-100 to-navy-200 flex items-center justify-center font-bold text-navy-600 text-sm">
+                    {getInitials(emp.name)}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-navy-900 text-sm">{emp.name}</div>
+                    <div className="text-[10px] text-navy-400">{emp.id}</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="font-semibold text-navy-900 text-sm">{emp.name}</div>
-                  <div className="text-[10px] text-navy-400">{emp.id}</div>
-                </div>
+                {isActive ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                    Inactive
+                  </span>
+                )}
               </div>
-            </div>
 
             {/* Details Grid */}
             <div className="grid grid-cols-2 gap-2 text-xs py-2 border-t border-b border-navy-50/30 my-1">
@@ -170,8 +192,9 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
                 <Trash2 size={14} />
               </button>
             </div>
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
       
       {/* Pagination Footer - Now shows actual count */}

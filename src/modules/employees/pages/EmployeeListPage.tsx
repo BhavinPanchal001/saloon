@@ -19,6 +19,8 @@ interface StaffMember {
   assignedOutletName: string;
   baseSalary: number;
   status?: string;
+  hasActiveContract?: boolean;
+  contractStatus?: string;
 }
 
 const EmployeeListPage: React.FC = () => {
@@ -68,7 +70,16 @@ const EmployeeListPage: React.FC = () => {
     }
 
     if (filters.status) {
-      result = result.filter(emp => emp.status === filters.status || !emp.status);
+      result = result.filter(emp => {
+        const isEmpActive = emp.hasActiveContract !== false && (emp.status === 'Active' || emp.hasActiveContract);
+        if (filters.status === 'Active') {
+          return isEmpActive;
+        }
+        if (filters.status === 'Inactive') {
+          return !isEmpActive;
+        }
+        return emp.status === filters.status;
+      });
     }
 
     setFilteredEmployees(result);
@@ -77,12 +88,13 @@ const EmployeeListPage: React.FC = () => {
   // Calculate stats from actual data
   const stats = useMemo(() => {
     const total = allEmployees.length;
-    const active = allEmployees.filter(e => !e.status || e.status === 'Active').length;
+    const active = allEmployees.filter(e => e.hasActiveContract !== false && (e.status === 'Active' || e.hasActiveContract)).length;
+    const inactive = total - active;
     const onLeave = allEmployees.filter(e => e.status === 'On Leave').length;
     // Get unique roles as "departments"
     const uniqueRoles = new Set(allEmployees.map(e => e.role)).size;
 
-    return { total, active, onLeave, uniqueRoles };
+    return { total, active, inactive, onLeave, uniqueRoles };
   }, [allEmployees]);
 
   const handleSearch = (query: string) => {
@@ -156,17 +168,17 @@ const EmployeeListPage: React.FC = () => {
         </div>
         <div className="glass-card !p-3.5 sm:!p-4 flex items-center justify-between px-4">
           <div className="flex flex-col">
-            <span className="text-[10px] sm:text-xs text-navy-500 font-bold uppercase tracking-wider">Active</span>
+            <span className="text-[10px] sm:text-xs text-navy-500 font-bold uppercase tracking-wider">Active (Contract)</span>
             <span className="text-lg sm:text-2xl font-extrabold text-emerald-600 mt-1">{stats.active}</span>
           </div>
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse hidden sm:block" />
         </div>
         <div className="glass-card !p-3.5 sm:!p-4 flex items-center justify-between px-4">
           <div className="flex flex-col">
-            <span className="text-[10px] sm:text-xs text-navy-500 font-bold uppercase tracking-wider">On Leave</span>
-            <span className="text-lg sm:text-2xl font-extrabold text-amber-600 mt-1">{stats.onLeave}</span>
+            <span className="text-[10px] sm:text-xs text-navy-500 font-bold uppercase tracking-wider">Inactive (No Contract)</span>
+            <span className="text-lg sm:text-2xl font-extrabold text-slate-500 mt-1">{stats.inactive}</span>
           </div>
-          <div className="w-2.5 h-2.5 rounded-full bg-amber-500 hidden sm:block" />
+          <div className="w-2.5 h-2.5 rounded-full bg-slate-400 hidden sm:block" />
         </div>
         <div className="glass-card !p-3.5 sm:!p-4 flex items-center justify-between px-4">
           <div className="flex flex-col">

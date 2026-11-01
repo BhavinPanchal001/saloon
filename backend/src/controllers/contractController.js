@@ -1,4 +1,5 @@
 const { sequelize } = require('../models/db');
+const { Op } = require('sequelize');
 const {
   Contract,
   Staff,
@@ -11,6 +12,37 @@ const {
   ContractSalaryMapping,
   SalaryComponentMaster,
 } = require('../models');
+
+// Helper to keep Staff status strictly synced with active contract presence
+const syncStaffContractStatus = async (staffId, transaction = null) => {
+  if (!staffId) return;
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const activeContract = await Contract.findOne({
+      where: {
+        employee_id: staffId,
+        status: 'active',
+        start_date: { [Op.lte]: todayStr },
+        [Op.or]: [
+          { end_date: null },
+          { end_date: { [Op.gte]: todayStr } }
+        ]
+      },
+      transaction
+    });
+
+    const staff = await Staff.findByPk(staffId, { transaction });
+    if (staff) {
+      const isNowActive = Boolean(activeContract);
+      await staff.update({
+        status: isNowActive ? 'active' : 'inactive',
+        onboarding_status: isNowActive ? 'approved' : staff.onboarding_status,
+      }, { transaction });
+    }
+  } catch (err) {
+    console.error('Failed to sync staff status from contract:', err.message);
+  }
+};
 
 // Helper to convert DB Contract to rich nested frontend structure
 const toContractResponse = (contract) => {
@@ -205,6 +237,7 @@ const createOrUpdate = async (req, res) => {
       current_version: payload.currentVersion ? Number(payload.currentVersion) : 1,
     };
 
+    let previousEmployeeId = null;
     let contract;
     if (isEditing) {
       contract = await Contract.findByPk(payload.id, { transaction: t });
@@ -212,6 +245,7 @@ const createOrUpdate = async (req, res) => {
         await t.rollback();
         return res.status(404).json({ message: 'Contract not found.' });
       }
+      previousEmployeeId = contract.employee_id;
       await contract.update(flatFields, { transaction: t });
     } else {
       flatFields.code = contractCode;
@@ -247,6 +281,12 @@ const createOrUpdate = async (req, res) => {
     // Commit Transaction
     await t.commit();
 
+    // Synchronize employee active status according to active contract
+    await syncStaffContractStatus(flatFields.employee_id);
+    if (previousEmployeeId && previousEmployeeId !== flatFields.employee_id) {
+      await syncStaffContractStatus(previousEmployeeId);
+    }
+
     // Reload contract with full associations
     const reloadedContract = await Contract.findByPk(contract.id, {
       include: [
@@ -268,18 +308,6 @@ const createOrUpdate = async (req, res) => {
       ],
     });
 
-    // Automatically update staff status and onboarding_status to approved/Active if contract status is active
-    if (flatFields.status && String(flatFields.status).toLowerCase() === 'active') {
-      const staff = await Staff.findByPk(flatFields.employee_id);
-      if (staff) {
-        await staff.update({ 
-          onboarding_status: 'approved',
-          status: 'Active',
-          is_active: true 
-        });
-      }
-    }
-
     return res.json(toContractResponse(reloadedContract));
   } catch (err) {
     await t.rollback();
@@ -295,7 +323,9 @@ const remove = async (req, res) => {
       return res.status(404).json({ message: 'Contract not found.' });
     }
 
+    const employeeId = contract.employee_id;
     await contract.destroy();
+    await syncStaffContractStatus(employeeId);
     return res.json({ success: true, message: 'Contract deleted successfully.' });
   } catch (err) {
     console.error(err);
