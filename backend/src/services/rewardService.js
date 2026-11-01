@@ -1,3 +1,4 @@
+const { calculateRedemption } = require("../utils/redemption");
 const { RewardSetting, LoyaltyTier, LoyaltyLedger, Customer, sequelize } = require('../models');
 
 // Default fallback values
@@ -88,7 +89,8 @@ const processBillLoyalty = async ({ bill, customerId, pointsToRedeem = 0, create
   if (!customerId) return { pointsEarned: 0, pointsRedeemed: 0, discountAmount: 0 };
 
   const settings = await getRewardSettings();
-  const customer = await Customer.findByPk(customerId, { transaction, include: [{ model: LoyaltyTier, as: 'loyaltyTier' }] });
+  const customer = await Customer.findByPk(customerId, { transaction, ...(transaction ? { lock: transaction.LOCK.UPDATE } : {}) });
+  if (customer) customer.loyaltyTier = customer.loyalty_tier_id ? await LoyaltyTier.findByPk(customer.loyalty_tier_id, { transaction }) : null;
   if (!customer) return { pointsEarned: 0, pointsRedeemed: 0, discountAmount: 0 };
 
   let currentTier = customer.loyaltyTier || await evaluateCustomerTier(customer, transaction);
@@ -106,20 +108,11 @@ const processBillLoyalty = async ({ bill, customerId, pointsToRedeem = 0, create
   if (pointsToRedeem > 0) {
     const userPoints = customer.loyalty_points || 0;
     if (userPoints >= minRedeem) {
-      // Max points customer actually has
-      validatedRedeemPoints = Math.min(pointsToRedeem, userPoints);
-      
-      // Calculate monetary value
-      let calculatedDiscount = validatedRedeemPoints * pointValue;
-
-      // Cap discount to max percentage of bill subtotal
-      const maxDiscountCap = (parseFloat(bill.subtotal || bill.total || 0) * maxPercent) / 100;
-      if (calculatedDiscount > maxDiscountCap) {
-        calculatedDiscount = maxDiscountCap;
-        validatedRedeemPoints = Math.floor(calculatedDiscount / pointValue);
-      }
-
-      pointsDiscountAmount = calculatedDiscount;
+      const redemption = calculateRedemption({ requested: pointsToRedeem, available: userPoints, pointValue,
+        minimum: minRedeem, maxPercent,
+        netSales: Math.max(0, Number(bill.subtotal) - Number(bill.discount_amount || 0) - Number(bill.voucher_discount_amount || 0)) });
+      validatedRedeemPoints = redemption.points;
+      pointsDiscountAmount = redemption.discount;
 
       if (validatedRedeemPoints > 0) {
         customer.loyalty_points = Math.max(0, (customer.loyalty_points || 0) - validatedRedeemPoints);

@@ -271,6 +271,8 @@ export const createProductAPI = async (payload) => {
     headers: authHeaders(),
     body: JSON.stringify({
       item_name: payload.itemName,
+      barcode: payload.barcode,
+      opening_unit_cost: payload.openingUnitCost === "" ? null : payload.openingUnitCost,
       unit_price: payload.unitPrice,
       opening_stock: payload.openingStock,
       unit_master_id: payload.unitMasterId,

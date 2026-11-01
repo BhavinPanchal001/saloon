@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, ArrowLeftRight, Pencil, Trash2, Tag, Images, ChevronLeft, ChevronRight, Scissors, ShoppingBag } from "lucide-react";
+import { X, ArrowLeftRight, Pencil, Trash2, Tag, Images, ChevronLeft, ChevronRight, Scissors, ShoppingBag, Barcode } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { ImageUpload } from "../../components/ui/ImageUpload";
 import { AuditHistoryButton, AuditHistoryModal } from "../../components/audit";
@@ -27,8 +27,13 @@ import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase, convertFromBase } from "../../utils/unitConversion";
 
+import { generateProductBarcode } from "../../utils/barcodeLabels";
+import { BarcodePrintModal } from "./components/BarcodePrintModal";
+
 const initialProductForm = {
   itemName: "",
+  barcode: "",
+  openingUnitCost: "",
   unitPrice: "",
   openingStock: "",
   unitMasterId: "",
@@ -69,6 +74,7 @@ export function InventoryPage() {
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const scopedOutletId = isAdmin ? "" : user?.outlet_id || "";
 
+  const [barcodePrintProducts, setBarcodePrintProducts] = useState(null);
   const [activeTab, setActiveTab] = useState("product_master");
   const [outletFilter, setOutletFilter] = useState("");
   const [productMasters, setProductMasters] = useState([]);
@@ -119,7 +125,7 @@ export function InventoryPage() {
   const loadInventoryPage = async () => {
     try {
       const [productList, inventoryItems, outletList, unitMasters, serviceList, packageList, priceList] = await Promise.all([
-        fetchProductsFromAPI(),
+        fetchProductsFromAPI({ status: 'active' }),
         fetchOutletInventoryFromAPI(isAdmin ? {} : { outletId: user?.outlet_id }),
         fetchOutletsFromAPI(),
         fetchUnitMastersFromAPI({ status: 'active' }),
@@ -222,9 +228,10 @@ export function InventoryPage() {
   );
 
   const openEditProduct = (item) => {
+    resetMessages();
     setEditingProduct(item);
     const unitMaster = item.unitMaster;
-    const isSecondary = item.consumptionUnit === 'secondary';
+    const isSecondary = item.productMeasureUnit === 'secondary';
     const rawOpeningStock = item.openingStock ?? item.opening_stock ?? item.centralStock ?? 0;
     const displayStock = unitMaster && isSecondary
       ? Number(rawOpeningStock) * unitMaster.conversionRatio
@@ -232,6 +239,8 @@ export function InventoryPage() {
 
     setEditProductForm({
       itemName: item.itemName,
+      barcode: item.barcode || "",
+      openingUnitCost: item.opening_unit_cost ?? "",
       unitPrice: String(item.unitPrice),
       openingStock: String(displayStock !== undefined && displayStock !== null ? displayStock : ""),
       unitMasterId: item.unitMaster?.id ?? item.unit_master_id ?? "",
@@ -256,6 +265,8 @@ export function InventoryPage() {
 
       await updateProductAPI(editingProduct.id, {
         item_name: editProductForm.itemName,
+        barcode: editProductForm.barcode,
+        opening_unit_cost: editProductForm.openingUnitCost === "" ? null : editProductForm.openingUnitCost,
         unit_price: editProductForm.unitPrice,
         opening_stock: baseOpeningStock,
         unit_master_id: editProductForm.unitMasterId || null,
@@ -274,11 +285,11 @@ export function InventoryPage() {
   };
 
   const handleDeleteProduct = async (item) => {
-    if (!window.confirm(`Delete "${item.itemName}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Archive "${item.itemName}"? It will be removed from the active catalog. Stock and transaction history will be preserved.`)) return;
     resetMessages();
     try {
       await deleteProductAPI(item.id);
-      setFeedback(`"${item.itemName}" deleted.`);
+      setFeedback(`"${item.itemName}" archived. Stock and transaction history have been preserved.`);
       await loadInventoryPage();
     } catch (error) {
       setErrorMessage(error.message || "Unable to delete product.");
@@ -361,7 +372,7 @@ export function InventoryPage() {
       const qtyValue = Number(name === "qty" ? value : current.qty);
 
       if ((name === "productId" || name === "qty") && selectedItem && qtyValue > 0) {
-        next.totalCost = String(selectedItem.unitPrice * qtyValue);
+        next.totalCost = selectedItem.opening_unit_cost == null ? "" : String(Number(selectedItem.opening_unit_cost) * convertToBase(qtyValue, selectedItem.unitMaster?.conversionRatio || 1, current.unit));
       }
 
       if ((name === "productId" || name === "qty") && (!selectedItem || qtyValue <= 0)) {
@@ -556,9 +567,14 @@ export function InventoryPage() {
         description="Create the product master, receive stock through purchase orders, and issue stock to outlets for selling or service use."
         action={
           isAdmin ? (
-            <button type="button" className="btn-premium-primary" onClick={() => setIsProductModalOpen(true)}>
-              Add Product Master
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn-premium-outline" onClick={() => setBarcodePrintProducts(productMasters)} disabled={!productMasters.length}>
+                <Barcode size={16} className="mr-2" /> Print Barcodes
+              </button>
+              <button type="button" className="btn-premium-primary" onClick={() => { resetMessages(); setIsProductModalOpen(true); }}>
+                Add Product Master
+              </button>
+            </div>
           ) : null
         }
       />
@@ -707,6 +723,7 @@ export function InventoryPage() {
                 <thead>
                   <tr>
                     <th>Item Name</th>
+                    <th>Barcode</th>
                     <th>Unit Group</th>
                     <th>Unit Price</th>
                     <th>Central Stock</th>
@@ -751,6 +768,7 @@ export function InventoryPage() {
                           </button>
                         </div>
                       </td>
+                      <td className="font-mono text-xs">{item.barcode || "—"}</td>
                       <td>
                         {item.unitMaster ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-navy-50 px-2.5 py-1 text-[11px] font-semibold text-navy-600">
@@ -817,6 +835,9 @@ export function InventoryPage() {
                           </button>
                           {isAdmin && (
                             <>
+                              <button type="button" onClick={() => setBarcodePrintProducts([item])} className="btn-premium-outline !p-2" title="Print barcode labels" aria-label={`Print barcode labels for ${item.itemName}`}>
+                                <Barcode size={14} />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -843,7 +864,7 @@ export function InventoryPage() {
                                 type="button"
                                 onClick={() => handleDeleteProduct(item)}
                                 className="flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 hover:bg-rose-100 transition-colors"
-                                title="Delete Product"
+                                title="Archive Product"
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -939,6 +960,10 @@ export function InventoryPage() {
       </div>
 
 
+      {barcodePrintProducts && (
+        <BarcodePrintModal products={barcodePrintProducts} onClose={() => setBarcodePrintProducts(null)} />
+      )}
+
       {isEditProductModalOpen && editingProduct ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 px-4 backdrop-blur-sm">
           <div className="card-solid w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -952,6 +977,7 @@ export function InventoryPage() {
               </button>
             </div>
             <form className="mt-8 space-y-6" onSubmit={handleEditProductSubmit}>
+              {errorMessage && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{errorMessage}</p>}
               <div>
                 <label className="premium-label">Item Name</label>
                 <input
@@ -960,17 +986,35 @@ export function InventoryPage() {
                   onChange={(e) => setEditProductForm((c) => ({ ...c, itemName: e.target.value }))}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div>
+                  <label className="premium-label" htmlFor="editProductForm-barcode">Barcode (generated if blank)</label>
+                  <div className="flex gap-2">
+                    <input id="editProductForm-barcode" className="premium-input" maxLength={64} value={editProductForm.barcode}
+                      onChange={(event) => setEditProductForm((current) => ({ ...current, barcode: event.target.value }))}
+                      placeholder="Scan, enter, or generate a code" />
+                    <button type="button" className="btn-premium-outline" onClick={() => setEditProductForm((current) => ({ ...current, barcode: generateProductBarcode() }))}>Generate</button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">Unique per product. Save before printing labels.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="premium-label">Unit Price (RM)</label>
+                  <label className="premium-label">Selling Price per Item / Pack (RM)</label>
                   <input
                     type="number"
                     min="0"
+                    step="0.01"
+                    required
                     className="premium-input"
                     value={editProductForm.unitPrice}
                     onChange={(e) => setEditProductForm((c) => ({ ...c, unitPrice: e.target.value }))}
                   />
                 </div>
+              <div>
+                <label className="premium-label">Opening stock cost per base unit</label>
+                <input type="number" min="0" step="0.000001" className="premium-input" value={editProductForm.openingUnitCost}
+                  onChange={(e) => setEditProductForm((current) => ({ ...current, openingUnitCost: e.target.value }))} placeholder="Unknown" />
+                <p className="mt-1 text-xs text-slate-500">Buying cost per primary stock unit. Applies to remaining uncosted opening stock; previous sales keep their saved costs. Leave blank if unknown.</p>
+              </div>
                 <div>
                   <label className="premium-label">Opening Stock</label>
                   <input
@@ -1069,6 +1113,7 @@ export function InventoryPage() {
 
             <div className="overflow-y-auto flex-1 pr-1 mt-4 custom-scrollbar">
               <form className="space-y-4 pb-2" onSubmit={handleProductSubmit}>
+                {errorMessage && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{errorMessage}</p>}
                 <div>
                   <label className="premium-label">Item Name</label>
                   <input
@@ -1080,12 +1125,24 @@ export function InventoryPage() {
                     placeholder="Retail or service consumption SKU"
                   />
                 </div>
+                <div>
+                  <label className="premium-label" htmlFor="productForm-barcode">Barcode (generated if blank)</label>
+                  <div className="flex gap-2">
+                    <input id="productForm-barcode" className="premium-input" maxLength={64} value={productForm.barcode}
+                      onChange={(event) => setProductForm((current) => ({ ...current, barcode: event.target.value }))}
+                      placeholder="Scan, enter, or generate a code" />
+                    <button type="button" className="btn-premium-outline" onClick={() => setProductForm((current) => ({ ...current, barcode: generateProductBarcode() }))}>Generate</button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">Unique per product. Save before printing labels.</p>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="premium-label">Unit Price (RM)</label>
+                    <label className="premium-label">Selling Price per Item / Pack (RM)</label>
                     <input
                       type="number"
                       min="0"
+                      step="0.01"
+                      required
                       className="premium-input"
                       value={productForm.unitPrice}
                       onChange={(event) =>
@@ -1096,6 +1153,12 @@ export function InventoryPage() {
                       }
                     />
                   </div>
+              <div>
+                <label className="premium-label">Opening stock cost per base unit</label>
+                <input type="number" min="0" step="0.000001" className="premium-input" value={productForm.openingUnitCost}
+                  onChange={(e) => setProductForm((current) => ({ ...current, openingUnitCost: e.target.value }))} placeholder="Unknown" />
+                <p className="mt-1 text-xs text-slate-500">Buying cost per primary stock unit. Applies to remaining uncosted opening stock; previous sales keep their saved costs. Leave blank if unknown.</p>
+              </div>
                   <div>
                     <label className="premium-label">Opening Stock</label>
                     <input

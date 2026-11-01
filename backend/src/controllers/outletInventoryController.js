@@ -1,3 +1,4 @@
+const costs = require("../services/inventoryCostService");
 const { Op } = require('sequelize');
 const { sequelize, OutletInventory, StockIssue, OutletProductPrice, Product, Outlet, Notification } = require('../models');
 const AuditService = require('../services/auditService');
@@ -19,7 +20,7 @@ const getInventory = async (req, res) => {
       include: [
         {
           model: Product,
-          attributes: ['id', 'item_name', 'unit_price', 'unit_master_id', 'purchase_unit', 'consumption_unit'],
+          attributes: ['id', 'item_name', 'barcode', 'unit_price', 'unit_master_id', 'purchase_unit', 'consumption_unit'],
           include: [{ association: 'unitMaster', required: false }]
         },
         { model: Outlet, attributes: ['id', 'name', 'code'] },
@@ -44,22 +45,26 @@ const issueProduct = async (req, res) => {
 
     // Validation
     if (!outletId || outletId === '') {
+      await transaction.rollback();
       return res.status(400).json({ message: 'outletId is required.' });
     }
     if (!productId || productId === '') {
+      await transaction.rollback();
       return res.status(400).json({ message: 'productId is required.' });
     }
     if (qty === undefined || qty === '' || qty === null) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'qty is required.' });
     }
 
     const parsedQty = Number(qty);
     if (isNaN(parsedQty) || parsedQty <= 0) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'qty must be a positive number.' });
     }
 
     // Check product exists
-    const product = await Product.findByPk(productId, { transaction });
+    const product = (await costs.lockProducts([productId], transaction)).get(Number(productId));
     if (!product) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Product not found.' });
@@ -86,61 +91,8 @@ const issueProduct = async (req, res) => {
       item_name: product.item_name
     };
 
-    // Deduct from central stock
-    const newCentralStock = currentCentralStock - parsedQty;
-    await product.update(
-      { central_stock: newCentralStock },
-      { transaction }
-    );
-
-    // Log central stock change
-    await AuditService.logCentralStockOperation('UPDATE', {
-      id: product.id,
-      oldValues: oldProductValues,
-      newValues: { ...oldProductValues, central_stock: newCentralStock },
-      quantityChange: -parsedQty,
-      referenceId: null, // Will be set after stock issue creation
-      referenceType: 'stock_issue',
-      metadata: { operation: 'stock_issue_to_outlet', outletId, productId }
-    }, req, transaction);
-
-    // Find or create outlet inventory record
-    let outletInventory = await OutletInventory.findOne({
-      where: { outlet_id: outletId, product_id: productId },
-      transaction,
-    });
-
-    let oldOutletInventoryValues = null;
-    let inventoryOperation = 'CREATE';
-
-    if (outletInventory) {
-      // Update existing stock
-      inventoryOperation = 'UPDATE';
-      oldOutletInventoryValues = {
-        id: outletInventory.id,
-        outlet_id: outletInventory.outlet_id,
-        product_id: outletInventory.product_id,
-        current_stock: outletInventory.current_stock
-      };
-      
-      const currentStock = parseFloat(outletInventory.current_stock);
-      const newStock = currentStock + parsedQty;
-      
-      await outletInventory.update(
-        { current_stock: newStock },
-        { transaction }
-      );
-    } else {
-      // Create new inventory record
-      const newInventoryData = {
-        outlet_id: outletId,
-        product_id: productId,
-        current_stock: parsedQty,
-      };
-      
-      outletInventory = await OutletInventory.create(newInventoryData, { transaction });
-    }
-
+    const oldOutletInventory = await OutletInventory.findOne({ where: { outlet_id: outletId, product_id: productId }, transaction });
+    const oldOutletInventoryValues = oldOutletInventory ? oldOutletInventory.toJSON() : null;
     // Create stock issue record
     const stockIssue = await StockIssue.create(
       {
@@ -151,6 +103,9 @@ const issueProduct = async (req, res) => {
       },
       { transaction }
     );
+
+    await costs.transfer(product, outletId, parsedQty, stockIssue.id, transaction);
+    const outletInventory = await OutletInventory.findOne({ where: { outlet_id: outletId, product_id: productId }, transaction });
 
     // Log the complete stock issue operation
     await AuditService.logStockIssue({
@@ -274,7 +229,7 @@ const issueProduct = async (req, res) => {
   } catch (err) {
     await transaction.rollback();
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error.' });
   }
 };
 

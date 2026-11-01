@@ -126,7 +126,7 @@ export default function PurchaseOrderPage() {
     (p) =>
       !addedProductIds.has(p.id) &&
       (!searchQuery ||
-        p.itemName.toLowerCase().includes(searchQuery.toLowerCase())),
+        (p.itemName.toLowerCase().includes(searchQuery.toLowerCase()) || p.barcode?.includes(searchQuery))),
   );
 
   // Add a product to the order
@@ -137,7 +137,8 @@ export default function PurchaseOrderPage() {
         productId: product.id,
         productName: product.itemName,
         qty: 1,
-        unitPrice: product.unitPrice,
+        unitPrice: Number(product.opening_unit_cost || 0),
+        barcode: product.barcode,
       },
     ]);
     setSearchQuery("");
@@ -156,7 +157,7 @@ export default function PurchaseOrderPage() {
   };
 
   const setQty = (productId, value) => {
-    const qty = Math.max(1, Number(value) || 1);
+    const qty = Math.max(0.0001, Number(value) || 0.0001);
     setOrderItems((prev) =>
       prev.map((item) =>
         item.productId === productId ? { ...item, qty } : item,
@@ -500,7 +501,7 @@ export default function PurchaseOrderPage() {
                         </button>
                         <input
                           type="number"
-                          min="1"
+                          min="0.0001" step="any"
                           value={item.qty}
                           onChange={(e) => setQty(item.productId, e.target.value)}
                           className="w-14 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-sm font-semibold text-navy-900"
@@ -554,7 +555,7 @@ export default function PurchaseOrderPage() {
                       <button onClick={() => updateQty(item.productId, -1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500">
                         <Minus className="h-3.5 w-3.5" />
                       </button>
-                      <input type="number" min="1" value={item.qty} onChange={(e) => setQty(item.productId, e.target.value)} className="w-12 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-sm font-semibold" />
+                      <input type="number" min="0.0001" step="any" value={item.qty} onChange={(e) => setQty(item.productId, e.target.value)} className="w-12 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-sm font-semibold" />
                       <button onClick={() => updateQty(item.productId, 1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500">
                         <Plus className="h-3.5 w-3.5" />
                       </button>

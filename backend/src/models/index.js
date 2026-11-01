@@ -1,6 +1,8 @@
 const { sequelize, Sequelize } = require('./db');
 
 // Import all models first
+const InventoryLot = require("./InventoryLot");
+const InventoryMovement = require("./InventoryMovement");
 const BankTransaction = require('./BankTransaction');
 const Product = require('./Product');
 const Outlet = require('./Outlet');
@@ -243,6 +245,8 @@ CustomerVoucher.belongsTo(Bill, { foreignKey: 'issued_from_bill_id', as: 'source
 Bill.hasOne(CustomerVoucher, { foreignKey: 'issued_from_bill_id', as: 'awardedVoucher' });
 
 module.exports = {
+  InventoryLot,
+  InventoryMovement,
   sequelize,
   Sequelize,
   Admin,

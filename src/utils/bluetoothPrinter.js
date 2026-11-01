@@ -621,6 +621,7 @@ export const printBluetoothReceipt = async (billData, options = {}) => {
       const qty = String(item.qty || 1);
       const amount = formatAmt(Number(item.price || 0) * Number(item.qty || 1));
       encoder.tableRow(num + name, qty, amount);
+      if (item.barcode) encoder.line(`   Code: ${item.barcode}`);
 
       const talent = item.staffAssigned || item.staff_assigned || item.staffName;
       if (talent) {

@@ -1,3 +1,5 @@
+const localReportDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+import { formatCurrency } from "../../utils/format";
 import React, { useState, useEffect } from "react";
 import {
   BarChart3,
@@ -69,12 +71,12 @@ export function ReportsPage() {
 
   const [outlets, setOutlets] = useState([]);
   const [selectedOutlet, setSelectedOutlet] = useState(user?.outlet_id || "");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(localReportDate(new Date()));
   const [startDate, setStartDate] = useState(
-    new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0]
+    localReportDate(new Date(Date.now() - 30 * 86400000))
   );
   const [endDate, setEndDate] = useState(
-    new Date().toISOString().split("T")[0]
+    localReportDate(new Date())
   );
 
   const [reportData, setReportData] = useState(null);
@@ -482,7 +484,7 @@ export function ReportsPage() {
                     </div>
                     <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl shadow-sm space-y-1">
                       <span className="text-xs font-bold text-emerald-700 uppercase">Total Inventory Asset Valuation</span>
-                      <p className="text-2xl font-bold text-emerald-800">₹{fmt(reportData?.totalValuation, 2)}</p>
+                      <p className="text-2xl font-bold text-emerald-800">{reportData?.totalValuation === null ? "Cost unknown" : formatCurrency(reportData?.totalValuation || 0)}</p>
                     </div>
                   </div>
 
@@ -508,9 +510,9 @@ export function ReportsPage() {
                               <td className="px-4 py-3 text-slate-500 text-xs font-mono">{i.sku}</td>
                               <td className="px-4 py-3 text-slate-600">{i.category}</td>
                               <td className="px-4 py-3 text-center font-bold text-slate-800">{i.currentStock} {i.unit}</td>
-                              <td className="px-4 py-3 text-right text-slate-600">₹{fmt(i.costPrice, 2)}</td>
+                              <td className="px-4 py-3 text-right text-slate-600">{i.costPrice === null ? "Unknown" : formatCurrency(i.costPrice)}</td>
                               <td className="px-4 py-3 text-right text-slate-800 font-semibold">₹{fmt(i.sellingPrice, 2)}</td>
-                              <td className="px-4 py-3 text-right font-bold text-emerald-600">₹{fmt(i.totalValuation, 2)}</td>
+                              <td className="px-4 py-3 text-right font-bold text-emerald-600">{i.totalValuation === null ? "Unknown" : formatCurrency(i.totalValuation)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -903,24 +905,47 @@ export function ReportsPage() {
               {/* PROFIT & LOSS REPORT */}
               {selectedReportId === "pnl" && (
                 <div className="space-y-6">
+                  <p className="text-xs text-slate-500">Report dates use {reportData?.timeZone || "the business time zone"}.</p>
+                  {reportData?.unknownCostLines > 0 && (
+                    <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                      {reportData.unknownCostLines} sale lines have unknown buying costs. Profit remains unknown until a cost basis is available; historical sales are not recalculated from today's prices.
+                    </p>
+                  )}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-2xl border bg-white p-5"><p className="text-xs uppercase text-slate-500">Cost of goods / consumed materials</p><p className="mt-1 text-xl font-bold">{reportData?.costOfGoodsSold === null ? `Unknown (${formatCurrency(reportData?.knownCostOfGoodsSold || 0)} known)` : formatCurrency(reportData?.costOfGoodsSold || 0)}</p></div>
+                    <div className="rounded-2xl border bg-white p-5"><p className="text-xs uppercase text-slate-500">Gross profit</p><p className="mt-1 text-xl font-bold">{reportData?.grossProfit === null ? "Cost unknown" : formatCurrency(reportData?.grossProfit || 0)}</p></div>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-1">
                       <span className="text-xs font-semibold text-slate-400 uppercase">Net Sales Revenue</span>
-                      <p className="text-2xl font-bold text-indigo-600">₹{fmt(reportData?.netRevenue)}</p>
+                      <p className="text-2xl font-bold text-indigo-600">{formatCurrency(reportData?.netRevenue || 0)}</p>
                     </div>
                     <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-1">
                       <span className="text-xs font-semibold text-slate-400 uppercase">Total Expenses</span>
-                      <p className="text-2xl font-bold text-rose-600">₹{fmt(reportData?.totalExpenses)}</p>
+                      <p className="text-2xl font-bold text-rose-600">{formatCurrency(reportData?.totalExpenses || 0)}</p>
                     </div>
                     <div className={`p-5 rounded-2xl border shadow-sm space-y-1 ${
                       (reportData?.netProfit || 0) >= 0 ? "bg-emerald-50 border-emerald-100" : "bg-rose-50 border-rose-100"
                     }`}>
-                      <span className="text-xs font-semibold uppercase text-slate-600">Net Profit (Margin {reportData?.profitMarginPercent || 0}%)</span>
+                      <span className="text-xs font-semibold uppercase text-slate-600">Net Profit {reportData?.profitMarginPercent == null ? "" : `(Margin ${reportData.profitMarginPercent}%)`}</span>
                       <p className={`text-2xl font-bold ${
                         (reportData?.netProfit || 0) >= 0 ? "text-emerald-700" : "text-rose-700"
                       }`}>
-                        ₹{fmt(reportData?.netProfit)}
+                        {reportData?.netProfit === null ? "Cost unknown" : formatCurrency(reportData?.netProfit || 0)}
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-100 bg-white p-6 space-y-4">
+                    <h3 className="text-base font-bold text-slate-800">Product profit by barcode</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead><tr className="border-b text-xs uppercase text-slate-500"><th className="p-3">Product</th><th className="p-3">Barcode</th><th className="p-3">Qty</th><th className="p-3">Net sales</th><th className="p-3">Cost</th><th className="p-3">Gross profit</th><th className="p-3">Margin</th></tr></thead>
+                        <tbody>{(reportData?.productProfits || []).map((item) => (
+                          <tr key={`${item.productId}:${item.barcode}`} className="border-b last:border-0"><td className="p-3 font-medium">{item.name}</td><td className="p-3 font-mono">{item.barcode || "Not recorded"}</td><td className="p-3">{item.qtySold}</td><td className="p-3">{formatCurrency(item.netRevenue)}</td><td className="p-3">{item.costTotal === null ? "Unknown" : formatCurrency(item.costTotal)}</td><td className="p-3 font-semibold">{item.grossProfit === null ? "Unknown" : formatCurrency(item.grossProfit)}</td><td className="p-3">{item.marginPercent === null ? "—" : `${item.marginPercent}%`}</td></tr>
+                        ))}</tbody>
+                      </table>
+                      {!reportData?.productProfits?.length && <p className="py-4 text-sm text-slate-500">No product sales in this period.</p>}
                     </div>
                   </div>
 
@@ -930,7 +955,7 @@ export function ReportsPage() {
                       {Object.entries(reportData?.expensesByCategory || {}).map(([cat, amt]) => (
                         <div key={cat} className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex justify-between items-center">
                           <span className="text-sm font-semibold text-slate-700">{cat}</span>
-                          <span className="text-sm font-bold text-rose-600">₹{fmt(amt)}</span>
+                          <span className="text-sm font-bold text-rose-600">{formatCurrency(amt)}</span>
                         </div>
                       ))}
                     </div>

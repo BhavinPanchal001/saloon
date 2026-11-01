@@ -128,9 +128,9 @@ const globalSearch = async (req, res) => {
       tasks.push(
         Product.findAll({
           where: {
-            item_name: { [Op.like]: searchPattern },
+            [Op.or]: [{ item_name: { [Op.like]: searchPattern } }, { barcode: { [Op.like]: searchPattern } }],
           },
-          attributes: ['id', 'item_name', 'unit_price', 'central_stock', 'status'],
+          attributes: ['id', 'item_name', 'barcode', 'unit_price', 'central_stock', 'status'],
           limit,
           order: [['item_name', 'ASC']],
         })

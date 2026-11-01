@@ -1,3 +1,7 @@
+const { csvCell } = require("../utils/csvCell");
+const { getProfitData } = require("../services/profitReportService");
+const { InventoryLot, OutletProductPrice } = require("../models");
+const Decimal = require("decimal.js");
 const {
   Bill,
   BillLineItem,
@@ -117,67 +121,10 @@ const getShiftEndReport = async (req, res) => {
 // GET /api/reports/profit-loss?outletId=&startDate=&endDate=
 const getProfitAndLossReport = async (req, res) => {
   try {
-    const { outletId, startDate, endDate } = req.query;
-
-    const whereBill = { status: { [Op.in]: ['paid', 'completed'] } };
-    const whereExpense = {};
-
-    if (outletId) {
-      whereBill.outlet_id = outletId;
-      whereExpense.outlet_id = outletId;
-    }
-
-    if (startDate && endDate) {
-      const start = new Date(`${startDate}T00:00:00.000Z`);
-      const end = new Date(`${endDate}T23:59:59.999Z`);
-      whereBill.createdAt = { [Op.between]: [start, end] };
-      whereExpense.createdAt = { [Op.between]: [start, end] };
-    }
-
-    // Revenue
-    const bills = await Bill.findAll({ where: whereBill });
-    let grossRevenue = 0;
-    let totalDiscount = 0;
-    let taxCollected = 0;
-
-    bills.forEach((b) => {
-      grossRevenue += Number(b.subtotal);
-      totalDiscount += Number(b.discount_amount || 0);
-      taxCollected += Number(b.tax || 0);
-    });
-
-    const netRevenue = grossRevenue - totalDiscount;
-
-    // Expenses
-    const expenses = await Expense.findAll({ where: whereExpense });
-    let totalExpenses = 0;
-    const expensesByCategory = {};
-
-    expenses.forEach((exp) => {
-      const amt = Number(exp.total_amount);
-      totalExpenses += amt;
-      const cat = exp.item_name || 'General';
-      expensesByCategory[cat] = (expensesByCategory[cat] || 0) + amt;
-    });
-
-    const netProfit = netRevenue - totalExpenses;
-    const profitMarginPercent = netRevenue > 0 ? ((netProfit / netRevenue) * 100).toFixed(2) : 0;
-
-    return res.json({
-      startDate: startDate || null,
-      endDate: endDate || null,
-      grossRevenue,
-      totalDiscount,
-      netRevenue,
-      taxCollected,
-      totalExpenses,
-      expensesByCategory,
-      netProfit,
-      profitMarginPercent: Number(profitMarginPercent),
-    });
+    return res.json(await getProfitData(req.query));
   } catch (err) {
     console.error('Error generating profit and loss report:', err);
-    return res.status(500).json({ message: 'Server error generating P&L report.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error generating P&L report.' });
   }
 };
 
@@ -369,7 +316,7 @@ const exportReportCSV = async (req, res) => {
       const data = await getStockSummaryReportData({ outletId });
       csvRows.push(['Product Name', 'SKU', 'Category', 'Unit', 'Available Stock', 'Cost Price', 'Selling Price', 'Valuation (INR)'].join(','));
       (data.items || []).forEach((i) => {
-        csvRows.push([`"${i.name}"`, `"${i.sku}"`, `"${i.category}"`, `"${i.unit}"`, i.currentStock, i.costPrice.toFixed(2), i.sellingPrice.toFixed(2), i.totalValuation.toFixed(2)].join(','));
+        csvRows.push([`"${i.name}"`, `"${i.sku}"`, `"${i.category}"`, `"${i.unit}"`, i.currentStock, (i.costPrice === null ? 'Unknown' : i.costPrice.toFixed(2)), i.sellingPrice.toFixed(2), (i.totalValuation === null ? 'Unknown' : i.totalValuation.toFixed(2))].join(','));
       });
     } else if (type === 'low-stock') {
       const data = await getLowStockReportData({ outletId });
@@ -419,36 +366,13 @@ const exportReportCSV = async (req, res) => {
       csvRows.push(['Shift Date', 'Total Bills', 'Net Sales Revenue', 'Cash Expenses', 'Expected Cash in Drawer'].join(','));
       csvRows.push([`"${targetDate}"`, bills.length, netSales.toFixed(2), cashExp.toFixed(2), (netSales - cashExp).toFixed(2)].join(','));
     } else if (type === 'pnl') {
-      const whereBill = { status: { [Op.in]: ['paid', 'completed'] } };
-      const whereExpense = {};
-      if (outletId) {
-        whereBill.outlet_id = outletId;
-        whereExpense.outlet_id = outletId;
-      }
-      if (startDate && endDate) {
-        const start = new Date(`${startDate}T00:00:00.000Z`);
-        const end = new Date(`${endDate}T23:59:59.999Z`);
-        whereBill.createdAt = { [Op.between]: [start, end] };
-        whereExpense.createdAt = { [Op.between]: [start, end] };
-      }
-      const bills = await Bill.findAll({ where: whereBill });
-      const expenses = await Expense.findAll({ where: whereExpense });
-
-      let grossRev = bills.reduce((acc, b) => acc + Number(b.subtotal || 0), 0);
-      let disc = bills.reduce((acc, b) => acc + Number(b.discount_amount || 0), 0);
-      let netRev = grossRev - disc;
-      let totalExp = expenses.reduce((acc, e) => acc + Number(e.total_amount || 0), 0);
-      let netProfit = netRev - totalExp;
-
-      csvRows.push(['Gross Revenue', 'Discounts', 'Net Revenue', 'Total Expenses', 'Net Profit', 'Profit Margin %'].join(','));
-      csvRows.push([
-        grossRev.toFixed(2),
-        disc.toFixed(2),
-        netRev.toFixed(2),
-        totalExp.toFixed(2),
-        netProfit.toFixed(2),
-        netRev > 0 ? ((netProfit / netRev) * 100).toFixed(2) : '0.00',
-      ].join(','));
+      const data = await getProfitData({ outletId, startDate, endDate });
+      csvRows.push(['Gross Revenue', 'Discounts', 'Net Revenue', 'Known COGS', 'COGS', 'Gross Profit', 'Expenses', 'Net Profit', 'Unknown Cost Lines'].join(','));
+      csvRows.push([data.grossRevenue, data.totalDiscount, data.netRevenue, data.knownCostOfGoodsSold, data.costOfGoodsSold ?? 'Unknown', data.grossProfit ?? 'Unknown', data.totalExpenses, data.netProfit ?? 'Unknown', data.unknownCostLines].join(','));
+      csvRows.push('');
+      csvRows.push(['Product', 'Barcode', 'Quantity', 'Net Sales', 'Cost', 'Gross Profit', 'Margin %'].join(','));
+      const csv = csvCell;
+      data.productProfits.forEach((item) => csvRows.push([csv(item.name), csv(item.barcode), item.qtySold, item.netRevenue, item.costTotal ?? 'Unknown', item.grossProfit ?? 'Unknown', item.marginPercent ?? 'Unknown'].join(',')));
     } else if (type === 'credit') {
       const customers = await Customer.findAll({
         attributes: ['id', 'name', 'phone', 'email', 'credit_balance'],
@@ -474,7 +398,7 @@ const exportReportCSV = async (req, res) => {
     return res.send(csvContent);
   } catch (err) {
     console.error('Error exporting CSV report:', err);
-    return res.status(500).json({ message: 'Server error exporting CSV report.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error exporting CSV report.' });
   }
 };
 
@@ -541,47 +465,7 @@ const exportReportPDF = async (req, res) => {
         paymentBreakdown,
       };
     } else if (type === 'pnl') {
-      const whereBill = { status: { [Op.in]: ['paid', 'completed'] } };
-      const whereExpense = {};
-      if (outletId) {
-        whereBill.outlet_id = outletId;
-        whereExpense.outlet_id = outletId;
-      }
-      if (startDate && endDate) {
-        const start = new Date(`${startDate}T00:00:00.000Z`);
-        const end = new Date(`${endDate}T23:59:59.999Z`);
-        whereBill.createdAt = { [Op.between]: [start, end] };
-        whereExpense.createdAt = { [Op.between]: [start, end] };
-      }
-      const bills = await Bill.findAll({ where: whereBill });
-      const expenses = await Expense.findAll({ where: whereExpense });
-
-      let grossRevenue = 0;
-      let totalDiscount = 0;
-      bills.forEach((b) => {
-        grossRevenue += Number(b.subtotal || 0);
-        totalDiscount += Number(b.discount_amount || 0);
-      });
-      const netRevenue = grossRevenue - totalDiscount;
-
-      let totalExpenses = 0;
-      const expensesByCategory = {};
-      expenses.forEach((e) => {
-        const amt = Number(e.total_amount || 0);
-        totalExpenses += amt;
-        const cat = e.item_name || 'General';
-        expensesByCategory[cat] = (expensesByCategory[cat] || 0) + amt;
-      });
-      const netProfit = netRevenue - totalExpenses;
-      const profitMarginPercent = netRevenue > 0 ? ((netProfit / netRevenue) * 100).toFixed(2) : 0;
-
-      reportData = {
-        netRevenue,
-        totalExpenses,
-        netProfit,
-        profitMarginPercent: Number(profitMarginPercent),
-        expensesByCategory,
-      };
+      reportData = await getProfitData({ outletId, startDate, endDate });
     } else if (type === 'credit') {
       const customers = await Customer.findAll({
         attributes: ['id', 'name', 'phone', 'email', 'credit_balance'],
@@ -625,7 +509,7 @@ const exportReportPDF = async (req, res) => {
     return res.send(pdfBuffer);
   } catch (err) {
     console.error('Error exporting PDF report:', err);
-    return res.status(500).json({ message: 'Server error exporting PDF report.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error exporting PDF report.' });
   }
 };
 
@@ -690,42 +574,31 @@ const getStockSummaryReportData = async ({ outletId }) => {
   let totalStockQty = 0;
   let totalValuation = 0;
 
+  const lots = await InventoryLot.findAll({ where: outletId ? { location_id: Number(outletId) } : {} });
+  const outletPrices = outletId ? await OutletProductPrice.findAll({ where: { outlet_id: outletId } }) : [];
+  let unknownCostProducts = 0;
   const items = products.map((p) => {
-    let currentStock = 0;
-    const invList = p.OutletInventories || p.outlet_inventories || [];
-    if (outletId) {
-      const inv = invList.find((i) => String(i.outlet_id) === String(outletId));
-      currentStock = inv ? Number(inv.current_stock || 0) : 0;
-    } else {
-      currentStock = invList.reduce((acc, i) => acc + Number(i.current_stock || 0), 0);
-    }
-    if (!outletId && currentStock === 0 && p.central_stock) {
-      currentStock = Number(p.central_stock || 0);
-    }
-    const costPrice = Number(p.unit_price || 0);
-    const sellingPrice = Number(p.unit_price || 0);
-    const itemValuation = currentStock * costPrice;
-
-    totalStockQty += currentStock;
-    totalValuation += itemValuation;
-
-    return {
-      id: p.id,
-      name: p.item_name || 'Product',
-      sku: `PROD-${p.id}`,
-      category: 'Product',
-      unit: p.unitMaster?.name || 'Pcs',
-      currentStock,
-      costPrice,
-      sellingPrice,
-      totalValuation: itemValuation,
-    };
+    const productLots = lots.filter((lot) => Number(lot.product_id) === Number(p.id));
+    const stock = productLots.reduce((sum, lot) => sum.plus(lot.remaining_qty), new Decimal(0));
+    const known = productLots.every((lot) => Number(lot.remaining_qty) === 0 || lot.unit_cost !== null);
+    const value = productLots.reduce((sum, lot) => sum.plus(lot.unit_cost === null ? 0 : new Decimal(lot.remaining_qty).times(lot.unit_cost)), new Decimal(0));
+    const itemValuation = known ? Number(value.toFixed(2)) : null;
+    if (!known) unknownCostProducts++;
+    totalStockQty += Number(stock);
+    totalValuation += Number(value);
+    return { id: p.id, name: p.item_name, sku: p.barcode || `PROD-${p.id}`, barcode: p.barcode,
+      category: 'Product', unit: p.unitMaster?.primary_abbr || 'Pcs', currentStock: Number(stock),
+      costPrice: known && stock.gt(0) ? Number(value.div(stock).toFixed(6)) : known ? 0 : null,
+      sellingPrice: Number(outletPrices.find((price) => price.product_id === p.id)?.price ?? p.unit_price),
+      totalValuation: itemValuation, knownValuation: Number(value.toFixed(2)) };
   });
 
   return {
     totalProducts,
     totalStockQty,
-    totalValuation,
+    totalValuation: unknownCostProducts ? null : Number(totalValuation.toFixed(2)),
+    knownValuation: Number(totalValuation.toFixed(2)),
+    unknownCostProducts,
     items,
   };
 };

@@ -121,7 +121,7 @@ class BaseWhatsAppProvider {
     let itemsText = '';
     if (lineItems.length > 0) {
       itemsText = lineItems.map((item, index) => {
-        const name = item.itemName || item.item_name || 'Item';
+        const name = (item.itemName || item.item_name || 'Item') + (item.barcode ? ` [${item.barcode}]` : '');
         const qty = item.qty || 1;
         const price = Number(item.price) || 0;
         const totalItemPrice = price * qty;

@@ -11,6 +11,12 @@ const Product = sequelize.define('Product', {
     type: DataTypes.STRING(200),
     allowNull: false,
   },
+  barcode: {
+    type: DataTypes.STRING(64),
+    allowNull: true,
+    unique: 'products_barcode_unique',
+  },
+  opening_unit_cost: { type: DataTypes.DECIMAL(18, 6), allowNull: true },
   unit_price: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,

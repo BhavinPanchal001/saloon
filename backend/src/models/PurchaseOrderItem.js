@@ -6,8 +6,11 @@ const PurchaseOrderItem = sequelize.define('PurchaseOrderItem', {
   purchase_order_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
   product_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
   product_name: { type: DataTypes.STRING(200), allowNull: false },
-  qty: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  unit_price: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+  qty: { type: DataTypes.DECIMAL(16, 4), allowNull: false },
+  barcode: { type: DataTypes.STRING(64), allowNull: true },
+  entered_qty: { type: DataTypes.DECIMAL(16, 4), allowNull: true },
+  entered_unit: { type: DataTypes.STRING(20), allowNull: true },
+  unit_price: { type: DataTypes.DECIMAL(18, 6), allowNull: false },
   line_total: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
 }, {
   tableName: 'purchase_order_items',
