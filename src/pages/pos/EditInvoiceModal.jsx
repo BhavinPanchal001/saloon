@@ -1,9 +1,13 @@
+import { resizeInvoiceLine, catalogItemKey, findCatalogItem } from "../../utils/invoiceConsumption";
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Trash2, Save, User, Scissors, Package as PackageIcon, ShoppingBag, Percent, DollarSign, Loader2 } from "lucide-react";
 import { fetchPOSCatalogFromAPI, fetchStaff, updateBillAPI } from "../../services/api";
 import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
+
+import { TalentPicker } from "../../components/pos/TalentPicker";
+import { getTalentIds, getTalentNames } from "../../utils/talentAssignments";
 
 export function EditInvoiceModal({ bill, onClose, onSuccess }) {
   const toast = useToastStore();
@@ -19,6 +23,7 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
   const [lineItems, setLineItems] = useState(
     (bill?.lineItems || []).map((item) => ({
       ...item,
+      billLineId: item.id,
       qty: Number(item.qty) || 1,
       price: Number(item.price) || 0,
       staffAssigned: item.staffAssigned || "",
@@ -60,7 +65,7 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
 
   const discountAmount = useMemo(() => {
     const val = Number(discountValue) || 0;
-    if (discountType === "fixed") {
+    if (["flat", "fixed"].includes(discountType)) {
       return Math.min(subtotal, val);
     }
     return (subtotal * val) / 100;
@@ -75,7 +80,7 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
   }, [subtotal, discountAmount, tax]);
 
   const total = useMemo(() => {
-    return Math.max(0, subtotal - discountAmount + calculatedTax);
+    return Math.max(0, subtotal - discountAmount - Number(bill?.voucherDiscountAmount || 0) - Number(bill?.pointsDiscountAmount || 0) + calculatedTax);
   }, [subtotal, discountAmount, calculatedTax]);
 
   const totalPaid = useMemo(() => {
@@ -86,21 +91,25 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
 
   const handleAddItem = (catalogItemId) => {
     if (!catalogItemId) return;
-    const item = catalog.find((c) => String(c.id) === String(catalogItemId));
+    const item = findCatalogItem(catalog, catalogItemId);
     if (!item) return;
 
     setLineItems((prev) => [
       ...prev,
       {
         id: item.id,
+        billLineId: null,
+        barcode: item.barcode,
         itemId: item.id,
         itemType: item.itemType || item.type || "service",
         itemName: item.name || item.itemName,
         qty: 1,
         price: Number(item.price) || 0,
         staffAssigned: "",
-        productConsumption: item.productConsumption || null,
-        includedServices: item.includedServices || null,
+        productConsumption: (item.type || item.itemType) === 'product' ? { unit: 'pack', abbr: 'item' }
+          : (item.productLinkages || []).map((link) => ({ productId: link.inventoryId, qty: link.quantityUsed, unit: link.consumptionUnit || 'primary' })),
+        includedServices: item.includedServices || item.serviceItems?.map((service) => ({ serviceId: service.serviceId, serviceName: service.serviceName, sessions: service.sessions,
+          productConsumption: (service.productLinkages || []).map((link) => ({ productId: link.inventoryId, qty: Number(link.quantityUsed) * Number(service.sessions || 1), unit: link.consumptionUnit || 'primary' })) })) || null,
       },
     ]);
     setSelectedCatalogId("");
@@ -117,7 +126,7 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
   const handleItemChange = (index, field, value) => {
     setLineItems((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
+      next[index] = field === "qty" ? resizeInvoiceLine(next[index], value) : { ...next[index], [field]: value };
       return next;
     });
   };
@@ -135,11 +144,16 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
         customer,
         lineItems: lineItems.map((item) => ({
           itemId: item.itemId || item.id,
+          billLineId: item.billLineId,
+          barcode: item.barcode,
+          unit: item.productConsumption?.unit || "primary",
+          unitAbbr: item.productConsumption?.abbr,
           itemType: item.itemType,
           itemName: item.itemName,
           qty: Number(item.qty) || 1,
           price: Number(item.price) || 0,
-          staffAssigned: item.staffAssigned || null,
+          staffIds: getTalentIds(item, staffList),
+          staffAssigned: getTalentNames(getTalentIds(item, staffList), staffList).join(", ") || null,
           productConsumption: item.productConsumption || null,
           includedServices: item.includedServices || null,
         })),
@@ -235,7 +249,7 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
                 >
                   <option value="">+ Add Item from Catalog...</option>
                   {catalog.map((item) => (
-                    <option key={item.id} value={item.id}>
+                    <option key={catalogItemKey(item)} value={catalogItemKey(item)}>
                       [{item.itemType?.toUpperCase() || "ITEM"}] {item.name || item.itemName} ({formatCurrency(item.price)})
                     </option>
                   ))}
@@ -278,25 +292,19 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <select
-                          value={item.staffAssigned || ""}
-                          onChange={(e) => handleItemChange(idx, "staffAssigned", e.target.value)}
-                          className="premium-input !py-1 !px-2 !text-xs w-full"
-                        >
-                          <option value="">None / Unassigned</option>
-                          {staffList.map((s) => (
-                            <option key={s.id} value={s.fullName || s.name || s.id}>
-                              {s.fullName || s.name}
-                            </option>
-                          ))}
-                        </select>
+                        <TalentPicker
+                          staff={staffList}
+                          value={getTalentIds(item, staffList)}
+                          onChange={(ids) => handleItemChange(idx, "staffIds", ids)}
+                          label={`Assign talents for ${item.itemName}`}
+                        />
                       </td>
                       <td className="px-4 py-3 text-center">
                         <input
                           type="number"
-                          min="1"
+                          min="0.0001" step="any"
                           value={item.qty}
-                          onChange={(e) => handleItemChange(idx, "qty", Math.max(1, parseInt(e.target.value) || 1))}
+                          onChange={(e) => handleItemChange(idx, "qty", Math.max(0.0001, Number(e.target.value) || 0.0001))}
                           className="premium-input !py-1 !px-2 !text-xs text-center w-16"
                         />
                       </td>

@@ -1,0 +1,12 @@
+{
+  "managerRole": "outlet_manager",
+  "managerUserType": "admin",
+  "createStatus": 201,
+  "editStatus": 200,
+  "archiveStatus": 200,
+  "uiProduct": {
+    "status": "inactive",
+    "baseOpeningStock": "1.2500",
+    "baseCentralStock": "1.2500"
+  }
+}

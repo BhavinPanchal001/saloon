@@ -1,3 +1,5 @@
+const { checkoutHash, assertSameCheckout } = require("../utils/checkoutRequest");
+const costs = require("../services/inventoryCostService");
 const { Op } = require('sequelize');
 const {
   Service,
@@ -19,6 +21,9 @@ const {
   LoyaltyTier,
   sequelize,
 } = require('../models');
+const stockOverride = (req) => ({ allowNegative: req.body.allowOutOfStockCheckout === true && (
+  ['admin', 'super_admin'].includes(req.user?.role) || req.user?.permissions?.includes('*') || req.user?.permissions?.includes('inventory:override_stock')
+) });
 const rewardService = require('../services/rewardService');
 
 // Self-healing DB Migration helper: ensures pos_terminal_id and pos_shift_id columns exist on bills table in MySQL
@@ -98,7 +103,8 @@ const generateBillNumber = async (outletId, outletCode) => {
 const getCatalog = async (req, res) => {
   try {
     const { outletId } = req.query;
-    const outletIdNum = outletId ? parseInt(outletId, 10) : null;
+    const outletIdNum = req.user?.outlet_id && !['admin', 'super_admin'].includes(req.user.role)
+      ? Number(req.user.outlet_id) : outletId ? parseInt(outletId, 10) : null;
 
     // Fetch all active services
     const services = await Service.findAll({
@@ -323,6 +329,9 @@ const getCatalog = async (req, res) => {
       return {
         id: product.id,
         type: 'product',
+        barcode: product.barcode,
+        productMeasure: Number(product.product_measure || 1),
+        productMeasureUnit: product.product_measure_unit || "primary",
         name: product.item_name,
         price: outletPrice !== undefined ? outletPrice : basePrice,
         basePrice,
@@ -364,12 +373,12 @@ const checkout = async (req, res) => {
       paymentMethod,
       bankId,
       outletId,
-      subtotal,
+      subtotal: requestedSubtotal,
       discountType,
       discountValue,
       discountAmount,
       tax,
-      total,
+      total: requestedTotal,
       lineItems,
       paymentDetails,
       transactionReference,
@@ -400,116 +409,42 @@ const checkout = async (req, res) => {
       return res.status(400).json({ message: 'lineItems are required.' });
     }
 
+    costs.validateLines(lineItems);
+    const subtotal = Number(costs.money(lineItems.reduce((sum, item) => sum.plus(costs.numeric(item.price, 'Selling price').times(costs.positive(item.qty))), costs.D(0))));
+    const nonnegative = (value, label) => {
+      const amount = costs.D(value || 0);
+      if (!amount.isFinite() || amount.lt(0)) costs.invalid(`${label} must be non-negative.`);
+      return Number(costs.money(amount));
+    };
+    const saleDiscount = nonnegative(discountAmount, 'Discount');
+    const voucherDiscount = nonnegative(voucherDiscountAmount, 'Voucher discount');
+    if (saleDiscount + voucherDiscount > subtotal) costs.invalid('Discounts exceed the sale subtotal.');
+    let total = Number(costs.money(costs.D(subtotal).minus(saleDiscount).minus(voucherDiscount).plus(nonnegative(tax, 'Tax'))));
+
     // Check outlet exists
-    const outlet = await Outlet.findByPk(outletId, { transaction });
+    const outlet = await Outlet.findByPk(outletId, { transaction, lock: transaction.LOCK.UPDATE });
     if (!outlet) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Outlet not found.' });
     }
 
-    // Fetch outlet inventory for stock validation
-    const outletInventory = await OutletInventory.findAll({
-      where: { outlet_id: outletId },
-      include: [{ model: Product, include: [{ model: UnitMaster, as: 'unitMaster' }] }],
-      transaction,
-    });
-
-    // Build stock lookup map (productId -> { currentStock, unitMaster })
-    const stockMap = {};
-    for (const inv of outletInventory) {
-      stockMap[inv.product_id] = {
-        currentStock: parseFloat(inv.current_stock),
-        unitMaster: inv.Product?.unitMaster,
-      };
+    if (req.user?.outlet_id && !['admin', 'super_admin'].includes(req.user.role) && Number(req.user.outlet_id) !== Number(outletId)) {
+      const error = new Error('You cannot sell stock from another outlet.'); error.status = 403; throw error;
     }
-
-    // Fetch services for package consumption validation
-    const serviceIds = new Set();
-    for (const item of lineItems) {
-      if (item.itemType === 'package' && item.includedServices?.length > 0) {
-        for (const svc of item.includedServices) {
-          serviceIds.add(svc.serviceId);
-        }
+    const requestKey = req.body.checkoutKey;
+    const requestHash = checkoutHash(req.body);
+    if (requestKey !== undefined && (typeof requestKey !== 'string' || !/^[a-zA-Z0-9_-]{8,64}$/.test(requestKey))) costs.invalid('Invalid checkout request key.');
+    if (requestKey) {
+      const existing = await Bill.findOne({ where: { request_key: requestKey }, transaction });
+      if (existing) {
+        assertSameCheckout(existing, requestHash);
+        if (Number(existing.outlet_id) !== Number(outletId)) costs.invalid('Checkout request belongs to another outlet.');
+        await transaction.rollback();
+        req.params = { ...req.params, id: existing.id };
+        return getBillById(req, res);
       }
     }
-
-    const servicesMap = {};
-    if (serviceIds.size > 0) {
-      const services = await Service.findAll({
-        where: { id: Array.from(serviceIds) },
-        transaction,
-      });
-      for (const s of services) {
-        servicesMap[s.id] = s;
-      }
-    }
-
-    // Validate stock for all items
-    const stockErrors = [];
-
-    for (const item of lineItems) {
-      // 1. Direct product sales
-      if (item.itemType === 'product') {
-        const stockInfo = stockMap[item.itemId];
-        if (!stockInfo || stockInfo.currentStock < item.qty) {
-          stockErrors.push({
-            itemName: item.itemName,
-            type: 'product',
-            required: item.qty,
-            available: stockInfo?.currentStock || 0,
-            shortfall: item.qty - (stockInfo?.currentStock || 0),
-          });
-        }
-      }
-
-      // 2. Service product consumptions
-      if (item.itemType === 'service' && item.productConsumption?.length > 0) {
-        for (const consumption of item.productConsumption) {
-          const stockInfo = stockMap[consumption.productId];
-          const totalNeeded = consumption.qty;
-          if (!stockInfo || stockInfo.currentStock < totalNeeded) {
-            stockErrors.push({
-              itemName: `${item.itemName} → Product #${consumption.productId}`,
-              type: 'service-consumption',
-              required: totalNeeded,
-              available: stockInfo?.currentStock || 0,
-              shortfall: totalNeeded - (stockInfo?.currentStock || 0),
-            });
-          }
-        }
-      }
-
-      // 3. Package service consumptions — use frontend-sent productConsumption per service
-      if (item.itemType === 'package' && item.includedServices?.length > 0) {
-        for (const svcItem of item.includedServices) {
-          if (!svcItem.productConsumption?.length) continue;
-
-          for (const consumption of svcItem.productConsumption) {
-            const stockInfo = stockMap[consumption.productId];
-            const totalNeeded = Number(consumption.qty);
-            if (!stockInfo || stockInfo.currentStock < totalNeeded) {
-              stockErrors.push({
-                itemName: `${item.itemName} → ${svcItem.serviceName} → Product #${consumption.productId}`,
-                type: 'package-consumption',
-                required: totalNeeded,
-                available: stockInfo?.currentStock || 0,
-                shortfall: totalNeeded - (stockInfo?.currentStock || 0),
-              });
-            }
-          }
-        }
-      }
-    }
-
-    // If any stock errors and out-of-stock checkout is NOT allowed, reject the checkout
-    if (stockErrors.length > 0 && !allowOutOfStockCheckout) {
-      await transaction.rollback();
-      return res.status(400).json({
-        message: `Insufficient stock for ${stockErrors.length} item(s). Out-of-stock checkout is disabled in Settings.`,
-        stockErrors,
-      });
-    }
-
+    // Costs and all stock requirements are validated atomically by applyBillLines below.
     // Generate bill number
     const billNumber = await generateBillNumber(outletId, outlet.code);
 
@@ -584,6 +519,8 @@ const checkout = async (req, res) => {
     const bill = await Bill.create(
       {
         bill_number: billNumber,
+        request_key: req.body.checkoutKey || null,
+        request_hash: requestHash,
         outlet_id: outletId,
         customer_id: targetCustomer?.id || null,
         customer_name: customer?.name || targetCustomer?.name || null,
@@ -591,7 +528,7 @@ const checkout = async (req, res) => {
         payment_method: effectivePaymentMethod,
         bank_id: bankId || null,
         subtotal: subtotal || 0,
-        discount_type: discountType || null,
+        discount_type: ['flat', 'fixed'].includes(discountType) ? 'flat' : discountType || null,
         discount_value: discountValue || 0,
         discount_amount: discountAmount || 0,
         tax: tax || 0,
@@ -630,129 +567,7 @@ const checkout = async (req, res) => {
       }
     }
 
-    // Auto-award next-visit reward voucher based on bill total & active rules
-    try {
-      const { awardBillVoucher } = require('./voucherController');
-      await awardBillVoucher({
-        bill,
-        customer: targetCustomer,
-        userId: req.user?.id || req.admin?.id || req.body.createdBy || null,
-        transaction,
-      });
-    } catch (vAwardErr) {
-      console.warn('[Checkout] Auto-award voucher error (non-blocking):', vAwardErr.message);
-    }
-
-    // Create line items
-    const lineItemRecords = lineItems.map((item) => ({
-      bill_id: bill.id,
-      item_id: item.itemId,
-      item_type: item.itemType,
-      item_name: item.itemName,
-      qty: item.qty,
-      price: item.price,
-      staff_assigned: item.staffAssigned || null,
-      product_consumption: item.itemType === 'product' ? { unit: item.unit, abbr: item.unitAbbr } : (item.productConsumption || null),
-      included_services: item.includedServices || null,
-    }));
-
-    await BillLineItem.bulkCreate(lineItemRecords, { transaction });
-
-    // Deduct stock for product consumption from services
-    for (const item of lineItems) {
-      if (item.itemType === 'service' && item.productConsumption && item.productConsumption.length > 0) {
-        for (const consumption of item.productConsumption) {
-          const product = await Product.findByPk(consumption.productId, {
-            include: [{ model: UnitMaster, as: 'unitMaster' }],
-            transaction,
-          });
-
-          if (!product) continue;
-
-          // Convert consumption to base unit
-          const consumptionUnit = consumption.unit || 'primary';
-          const baseDeduction = convertToBase(
-            consumption.qty,
-            product.unitMaster?.conversion_ratio,
-            consumptionUnit
-          );
-
-          // Find outlet inventory
-          const invRecord = await OutletInventory.findOne({
-            where: { outlet_id: outletId, product_id: consumption.productId },
-            transaction,
-          });
-
-          if (invRecord) {
-            const currentStock = parseFloat(invRecord.current_stock);
-            const newStock = currentStock - baseDeduction;
-            await invRecord.update({ current_stock: newStock }, { transaction });
-          }
-        }
-      }
-    }
-
-    // Deduct stock for direct product sales
-    for (const item of lineItems) {
-      if (item.itemType === 'product') {
-        const product = await Product.findByPk(item.itemId, {
-          include: [{ model: UnitMaster, as: 'unitMaster' }],
-          transaction,
-        });
-
-        const unit = item.unit || 'primary';
-        const deduction = product && product.unitMaster
-          ? convertToBase(Number(item.qty), Number(product.unitMaster.conversion_ratio), unit)
-          : Number(item.qty);
-
-        const invRecord = await OutletInventory.findOne({
-          where: { outlet_id: outletId, product_id: item.itemId },
-          transaction,
-        });
-
-        if (invRecord) {
-          const currentStock = parseFloat(invRecord.current_stock);
-          const newStock = currentStock - deduction;
-          await invRecord.update({ current_stock: newStock }, { transaction });
-        }
-      }
-    }
-
-    // Deduct stock for package service consumptions — use frontend-sent productConsumption
-    for (const item of lineItems) {
-      if (item.itemType === 'package' && item.includedServices?.length > 0) {
-        for (const svcItem of item.includedServices) {
-          if (!svcItem.productConsumption?.length) continue;
-
-          for (const consumption of svcItem.productConsumption) {
-            const product = await Product.findByPk(consumption.productId, {
-              include: [{ model: UnitMaster, as: 'unitMaster' }],
-              transaction,
-            });
-
-            if (!product) continue;
-
-            const consumptionUnit = consumption.unit || 'primary';
-            const baseDeduction = convertToBase(
-              Number(consumption.qty),
-              product.unitMaster?.conversion_ratio,
-              consumptionUnit
-            );
-
-            const invRecord = await OutletInventory.findOne({
-              where: { outlet_id: outletId, product_id: consumption.productId },
-              transaction,
-            });
-
-            if (invRecord) {
-              const currentStock = parseFloat(invRecord.current_stock);
-              const newStock = currentStock - baseDeduction;
-              await invRecord.update({ current_stock: newStock }, { transaction });
-            }
-          }
-        }
-      }
-    }
+    await costs.applyBillLines(bill, lineItems, [], transaction, stockOverride(req));
 
     // Process loyalty points earning and redemption
     let loyaltyResult = { pointsEarned: 0, pointsRedeemed: 0, discountAmount: 0 };
@@ -771,8 +586,12 @@ const checkout = async (req, res) => {
         points_earned: loyaltyResult.pointsEarned,
         points_redeemed: loyaltyResult.pointsRedeemed,
         points_discount_amount: loyaltyResult.discountAmount,
+        total: Number(costs.money(costs.D(total).minus(loyaltyResult.discountAmount))),
+        status: totalPaid >= Number(costs.money(costs.D(total).minus(loyaltyResult.discountAmount))) ? 'paid' : totalPaid > 0 ? 'partially_paid' : 'unpaid',
       }, { transaction });
 
+      total = Number(bill.total);
+      await targetCustomer.reload({ transaction, lock: transaction.LOCK.UPDATE });
       // Handle Store Credit & Unpaid due charges
       let newCreditBalance = Number(targetCustomer.credit_balance || 0);
 
@@ -810,6 +629,19 @@ const checkout = async (req, res) => {
       if (newCreditBalance !== Number(targetCustomer.credit_balance || 0)) {
         await targetCustomer.update({ credit_balance: newCreditBalance }, { transaction });
       }
+    }
+
+    // Auto-award next-visit reward voucher based on bill total & active rules
+    try {
+      const { awardBillVoucher } = require('./voucherController');
+      await awardBillVoucher({
+        bill,
+        customer: targetCustomer,
+        userId: req.user?.id || req.admin?.id || req.body.createdBy || null,
+        transaction,
+      });
+    } catch (vAwardErr) {
+      console.warn('[Checkout] Auto-award voucher error (non-blocking):', vAwardErr.message);
     }
 
     // Use the first non-cash detail's bank as the primary bank for the Payment record
@@ -871,6 +703,7 @@ const checkout = async (req, res) => {
       voucherId: completeBill.voucher_id,
       voucherCode: completeBill.voucher_code,
       voucherDiscountAmount: Number(completeBill.voucher_discount_amount || 0),
+      pointsDiscountAmount: Number(completeBill.points_discount_amount || 0),
       awardedVoucherId: completeBill.awarded_voucher_id || null,
       awardedVoucherCode: completeBill.awarded_voucher_code || null,
       awardedVoucherAmount: Number(completeBill.awarded_voucher_amount || 0),
@@ -890,7 +723,9 @@ const checkout = async (req, res) => {
         itemName: li.item_name,
         qty: li.qty,
         price: Number(li.price),
+        ...costs.saleSnapshot(li),
         staffAssigned: li.staff_assigned,
+        staffIds: li.staff_ids,
         productConsumption: li.product_consumption,
         includedServices: li.included_services,
       })),
@@ -941,9 +776,10 @@ const checkout = async (req, res) => {
 
     return res.status(201).json(response);
   } catch (err) {
-    await transaction.rollback();
+    if (!transaction.finished) await transaction.rollback();
     console.error('Error during checkout:', err);
-    return res.status(500).json({ message: 'Server error during checkout.' });
+    const retry = ['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT'].includes(err.original?.code);
+    return res.status(retry ? 409 : err.status || 500).json({ message: retry ? 'Stock changed while processing. Retry this checkout with the same request key.' : err.status ? err.message : 'Server error during checkout.' });
   }
 };
 
@@ -1013,6 +849,7 @@ const getBills = async (req, res) => {
       voucherId: bill.voucher_id,
       voucherCode: bill.voucher_code,
       voucherDiscountAmount: Number(bill.voucher_discount_amount || 0),
+      pointsDiscountAmount: Number(bill.points_discount_amount || 0),
       awardedVoucherId: bill.awarded_voucher_id || null,
       awardedVoucherCode: bill.awarded_voucher_code || null,
       awardedVoucherAmount: Number(bill.awarded_voucher_amount || 0),
@@ -1032,7 +869,9 @@ const getBills = async (req, res) => {
         itemName: li.item_name,
         qty: li.qty,
         price: Number(li.price),
+        ...costs.saleSnapshot(li),
         staffAssigned: li.staff_assigned,
+        staffIds: li.staff_ids,
         productConsumption: li.product_consumption,
         includedServices: li.included_services,
       })),
@@ -1074,6 +913,10 @@ const getBillById = async (req, res) => {
       return res.status(404).json({ message: 'Bill not found.' });
     }
 
+    if (req.user?.outlet_id && !['admin', 'super_admin'].includes(req.user.role) && Number(req.user.outlet_id) !== Number(bill.outlet_id)) {
+      return res.status(403).json({ message: 'You cannot access another outlet invoice.' });
+    }
+
     // Format response
     const response = {
       id: bill.id,
@@ -1096,6 +939,7 @@ const getBillById = async (req, res) => {
       voucherId: bill.voucher_id,
       voucherCode: bill.voucher_code,
       voucherDiscountAmount: Number(bill.voucher_discount_amount || 0),
+      pointsDiscountAmount: Number(bill.points_discount_amount || 0),
       awardedVoucherId: bill.awarded_voucher_id || null,
       awardedVoucherCode: bill.awarded_voucher_code || null,
       awardedVoucherAmount: Number(bill.awarded_voucher_amount || 0),
@@ -1115,7 +959,9 @@ const getBillById = async (req, res) => {
         itemName: li.item_name,
         qty: li.qty,
         price: Number(li.price),
+        ...costs.saleSnapshot(li),
         staffAssigned: li.staff_assigned,
+        staffIds: li.staff_ids,
         productConsumption: li.product_consumption,
         includedServices: li.included_services,
       })),
@@ -1299,6 +1145,7 @@ const addBillPayment = async (req, res) => {
       voucherId: completeBill.voucher_id,
       voucherCode: completeBill.voucher_code,
       voucherDiscountAmount: Number(completeBill.voucher_discount_amount || 0),
+      pointsDiscountAmount: Number(completeBill.points_discount_amount || 0),
       awardedVoucherId: completeBill.awarded_voucher_id || null,
       awardedVoucherCode: completeBill.awarded_voucher_code || null,
       awardedVoucherAmount: Number(completeBill.awarded_voucher_amount || 0),
@@ -1318,7 +1165,9 @@ const addBillPayment = async (req, res) => {
         itemName: li.item_name,
         qty: li.qty,
         price: Number(li.price),
+        ...costs.saleSnapshot(li),
         staffAssigned: li.staff_assigned,
+        staffIds: li.staff_ids,
         productConsumption: li.product_consumption,
         includedServices: li.included_services,
       })),
@@ -1371,6 +1220,7 @@ const updateBill = async (req, res) => {
       paymentNotes,
     } = req.body;
 
+    await Bill.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
     const bill = await Bill.findByPk(id, {
       include: [
         { model: BillLineItem, as: 'lineItems' },
@@ -1392,187 +1242,37 @@ const updateBill = async (req, res) => {
       if (customer.phone !== undefined) bill.customer_phone = customer.phone.trim() || '';
     }
 
-    // 2. Process Line Items update if provided
-    if (Array.isArray(lineItems) && lineItems.length > 0) {
-      // Step A: Restore inventory for existing line items
-      for (const oldItem of bill.lineItems) {
-        if (oldItem.item_type === 'product') {
-          const product = await Product.findByPk(oldItem.item_id, {
-            include: [{ model: UnitMaster, as: 'unitMaster' }],
-            transaction,
-          });
-          const unit = oldItem.product_consumption?.unit || 'primary';
-          const restoration = product && product.unitMaster
-            ? convertToBase(Number(oldItem.qty), Number(product.unitMaster.conversion_ratio), unit)
-            : Number(oldItem.qty);
-
-          const invRecord = await OutletInventory.findOne({
-            where: { outlet_id: outletId, product_id: oldItem.item_id },
-            transaction,
-          });
-          if (invRecord) {
-            const currentStock = parseFloat(invRecord.current_stock);
-            await invRecord.update({ current_stock: currentStock + restoration }, { transaction });
-          }
-        } else if (oldItem.item_type === 'service' && oldItem.product_consumption?.length > 0) {
-          for (const consumption of oldItem.product_consumption) {
-            const product = await Product.findByPk(consumption.productId, {
-              include: [{ model: UnitMaster, as: 'unitMaster' }],
-              transaction,
-            });
-            if (!product) continue;
-            const consumptionUnit = consumption.unit || 'primary';
-            const baseRestoration = convertToBase(
-              Number(consumption.qty),
-              product.unitMaster?.conversion_ratio,
-              consumptionUnit
-            );
-            const invRecord = await OutletInventory.findOne({
-              where: { outlet_id: outletId, product_id: consumption.productId },
-              transaction,
-            });
-            if (invRecord) {
-              const currentStock = parseFloat(invRecord.current_stock);
-              await invRecord.update({ current_stock: currentStock + baseRestoration }, { transaction });
-            }
-          }
-        } else if (oldItem.item_type === 'package' && oldItem.included_services?.length > 0) {
-          for (const svcItem of oldItem.included_services) {
-            if (!svcItem.productConsumption?.length) continue;
-            for (const consumption of svcItem.productConsumption) {
-              const product = await Product.findByPk(consumption.productId, {
-                include: [{ model: UnitMaster, as: 'unitMaster' }],
-                transaction,
-              });
-              if (!product) continue;
-              const consumptionUnit = consumption.unit || 'primary';
-              const baseRestoration = convertToBase(
-                Number(consumption.qty),
-                product.unitMaster?.conversion_ratio,
-                consumptionUnit
-              );
-              const invRecord = await OutletInventory.findOne({
-                where: { outlet_id: outletId, product_id: consumption.productId },
-                transaction,
-              });
-              if (invRecord) {
-                const currentStock = parseFloat(invRecord.current_stock);
-                await invRecord.update({ current_stock: currentStock + baseRestoration }, { transaction });
-              }
-            }
-          }
-        }
-      }
-
-      // Step B: Delete old line items
-      await BillLineItem.destroy({ where: { bill_id: bill.id }, transaction });
-
-      // Step C: Create new line items
-      const lineItemRecords = lineItems.map((item) => ({
-        bill_id: bill.id,
-        item_id: item.itemId || item.id,
-        item_type: item.itemType || 'service',
-        item_name: item.itemName,
-        qty: Number(item.qty) || 1,
-        price: Number(item.price) || 0,
-        staff_assigned: item.staffAssigned || null,
-        product_consumption: item.itemType === 'product' ? { unit: item.unit, abbr: item.unitAbbr } : (item.productConsumption || null),
-        included_services: item.includedServices || null,
-      }));
-      await BillLineItem.bulkCreate(lineItemRecords, { transaction });
-
-      // Step D: Deduct inventory for new line items
-      for (const item of lineItems) {
-        if (item.itemType === 'service' && item.productConsumption?.length > 0) {
-          for (const consumption of item.productConsumption) {
-            const product = await Product.findByPk(consumption.productId, {
-              include: [{ model: UnitMaster, as: 'unitMaster' }],
-              transaction,
-            });
-            if (!product) continue;
-            const consumptionUnit = consumption.unit || 'primary';
-            const baseDeduction = convertToBase(
-              Number(consumption.qty),
-              product.unitMaster?.conversion_ratio,
-              consumptionUnit
-            );
-            const invRecord = await OutletInventory.findOne({
-              where: { outlet_id: outletId, product_id: consumption.productId },
-              transaction,
-            });
-            if (invRecord) {
-              const currentStock = parseFloat(invRecord.current_stock);
-              await invRecord.update({ current_stock: currentStock - baseDeduction }, { transaction });
-            }
-          }
-        } else if (item.itemType === 'product') {
-          const product = await Product.findByPk(item.itemId || item.id, {
-            include: [{ model: UnitMaster, as: 'unitMaster' }],
-            transaction,
-          });
-          const unit = item.unit || 'primary';
-          const deduction = product && product.unitMaster
-            ? convertToBase(Number(item.qty), Number(product.unitMaster.conversion_ratio), unit)
-            : Number(item.qty);
-
-          const invRecord = await OutletInventory.findOne({
-            where: { outlet_id: outletId, product_id: item.itemId || item.id },
-            transaction,
-          });
-          if (invRecord) {
-            const currentStock = parseFloat(invRecord.current_stock);
-            await invRecord.update({ current_stock: currentStock - deduction }, { transaction });
-          }
-        } else if (item.itemType === 'package' && item.includedServices?.length > 0) {
-          for (const svcItem of item.includedServices) {
-            if (!svcItem.productConsumption?.length) continue;
-            for (const consumption of svcItem.productConsumption) {
-              const product = await Product.findByPk(consumption.productId, {
-                include: [{ model: UnitMaster, as: 'unitMaster' }],
-                transaction,
-              });
-              if (!product) continue;
-              const consumptionUnit = consumption.unit || 'primary';
-              const baseDeduction = convertToBase(
-                Number(consumption.qty),
-                product.unitMaster?.conversion_ratio,
-                consumptionUnit
-              );
-              const invRecord = await OutletInventory.findOne({
-                where: { outlet_id: outletId, product_id: consumption.productId },
-                transaction,
-              });
-              if (invRecord) {
-                const currentStock = parseFloat(invRecord.current_stock);
-                await invRecord.update({ current_stock: currentStock - baseDeduction }, { transaction });
-              }
-            }
-          }
-        }
-      }
+    if (req.user?.outlet_id && !['admin', 'super_admin'].includes(req.user.role) && Number(req.user.outlet_id) !== Number(outletId)) {
+      const error = new Error('You cannot edit another outlet invoice.'); error.status = 403; throw error;
     }
+    if (lineItems !== undefined) await costs.applyBillLines(bill, lineItems, bill.lineItems, transaction, stockOverride(req));
 
     // 3. Update totals & discounts
-    const calculatedSubtotal = subtotal !== undefined
-      ? Number(subtotal)
-      : (Array.isArray(lineItems) ? lineItems.reduce((s, item) => s + (Number(item.qty) * Number(item.price)), 0) : Number(bill.subtotal));
+    const calculatedSubtotal = Array.isArray(lineItems)
+      ? Number(costs.money(lineItems.reduce((sum, item) => sum.plus(costs.positive(item.qty).times(costs.numeric(item.price, 'Selling price'))), costs.D(0))))
+      : Number(bill.subtotal);
 
     const calcDiscountType = discountType !== undefined ? discountType : bill.discount_type;
     const calcDiscountValue = discountValue !== undefined ? Number(discountValue) : Number(bill.discount_value);
 
-    let calcDiscountAmount = 0;
+    let calcDiscountAmount = Number(bill.discount_amount || 0);
     if (discountAmount !== undefined) {
       calcDiscountAmount = Number(discountAmount);
-    } else if (calcDiscountType === 'fixed') {
+    } else if (['flat', 'fixed'].includes(calcDiscountType)) {
       calcDiscountAmount = Math.min(calculatedSubtotal, calcDiscountValue);
     } else if (calcDiscountType === 'percent' || calcDiscountType === 'percentage') {
       calcDiscountAmount = (calculatedSubtotal * calcDiscountValue) / 100;
     }
 
-    const calculatedTax = tax !== undefined ? Number(tax) : Number(bill.tax);
-    const calculatedTotal = total !== undefined
-      ? Number(total)
-      : Math.max(0, calculatedSubtotal - calcDiscountAmount + calculatedTax);
+    calcDiscountAmount = Number(costs.numeric(calcDiscountAmount, 'Discount', { places: 2 }));
+    const calculatedTax = Number(costs.numeric(tax !== undefined ? tax : bill.tax, 'Tax', { places: 2 }));
+    const voucherDiscount = Number(bill.voucher_discount_amount || 0);
+    if (req.body.voucherDiscountAmount !== undefined && Number(req.body.voucherDiscountAmount) !== voucherDiscount) costs.invalid('Voucher redemption cannot be changed through invoice editing.');
+    if (![calculatedTax, calcDiscountAmount, voucherDiscount].every((v) => Number.isFinite(v) && v >= 0)
+        || calcDiscountAmount + voucherDiscount > calculatedSubtotal) costs.invalid('Invalid tax or sale discounts.');
+    const pointsDiscount = Number(bill.points_discount_amount || 0);
+    if (calcDiscountAmount + voucherDiscount + pointsDiscount > calculatedSubtotal) costs.invalid('Existing redeemed discounts exceed the edited subtotal.');
+    const calculatedTotal = Number(costs.money(costs.D(calculatedSubtotal).minus(calcDiscountAmount).minus(voucherDiscount).minus(pointsDiscount).plus(calculatedTax)));
 
     // 4. Replace payments if paymentDetails provided in the request
     const validModes = ['cash', 'card', 'upi', 'bank_transfer', 'cheque', 'store_credit'];
@@ -1628,7 +1328,7 @@ const updateBill = async (req, res) => {
 
     await bill.update({
       subtotal: calculatedSubtotal,
-      discount_type: calcDiscountType || null,
+      discount_type: ['flat', 'fixed'].includes(calcDiscountType) ? 'flat' : calcDiscountType || null,
       discount_value: calcDiscountValue || 0,
       discount_amount: calcDiscountAmount || 0,
       tax: calculatedTax,
@@ -1671,6 +1371,7 @@ const updateBill = async (req, res) => {
       voucherId: completeBill.voucher_id,
       voucherCode: completeBill.voucher_code,
       voucherDiscountAmount: Number(completeBill.voucher_discount_amount || 0),
+      pointsDiscountAmount: Number(completeBill.points_discount_amount || 0),
       awardedVoucherId: completeBill.awarded_voucher_id || null,
       awardedVoucherCode: completeBill.awarded_voucher_code || null,
       awardedVoucherAmount: Number(completeBill.awarded_voucher_amount || 0),
@@ -1690,7 +1391,9 @@ const updateBill = async (req, res) => {
         itemName: li.item_name,
         qty: li.qty,
         price: Number(li.price),
+        ...costs.saleSnapshot(li),
         staffAssigned: li.staff_assigned,
+        staffIds: li.staff_ids,
         productConsumption: li.product_consumption,
         includedServices: li.included_services,
       })),
@@ -1715,9 +1418,9 @@ const updateBill = async (req, res) => {
       bill: response,
     });
   } catch (err) {
-    await transaction.rollback();
+    if (!transaction.finished) await transaction.rollback();
     console.error('Error updating invoice:', err);
-    return res.status(500).json({ message: 'Server error updating invoice.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error updating invoice.' });
   }
 };
 
@@ -1777,6 +1480,7 @@ const sendWhatsAppBill = async (req, res) => {
       voucherId: bill.voucher_id,
       voucherCode: bill.voucher_code,
       voucherDiscountAmount: Number(bill.voucher_discount_amount || 0),
+      pointsDiscountAmount: Number(bill.points_discount_amount || 0),
       awardedVoucherId: bill.awarded_voucher_id || null,
       awardedVoucherCode: bill.awarded_voucher_code || null,
       awardedVoucherAmount: Number(bill.awarded_voucher_amount || 0),
@@ -1799,7 +1503,9 @@ const sendWhatsAppBill = async (req, res) => {
         itemName: li.item_name,
         qty: li.qty,
         price: Number(li.price),
+        ...costs.saleSnapshot(li),
         staffAssigned: li.staff_assigned,
+        staffIds: li.staff_ids,
         staff_assigned: li.staff_assigned,
         productConsumption: li.product_consumption,
         product_consumption: li.product_consumption,

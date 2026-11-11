@@ -400,6 +400,7 @@ const printReceipt = async (billData) => {
         const amount = formatCurrency(Number(item.price || 0) * Number(item.qty || 1));
         const rowLines = formatTableRow(num + name, qty, amount, lineWidth);
         rowLines.forEach((l) => printer.text(l));
+        if (item.barcode) printer.text(`   Code: ${item.barcode}`);
 
         const talent = item.staffAssigned || item.staff_assigned;
         if (talent) {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { useToastStore } from "../../stores/toastStore";
 
 const initialFormState = {
@@ -18,6 +19,8 @@ export function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState(initialFormState);
   const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const validateForm = () => {
     const newErrors = {};
@@ -222,15 +225,29 @@ export function RegisterPage() {
                     <label className="label-text" htmlFor="password">
                       Password
                     </label>
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      className={`input-field ${errors.password ? "border-rose-300 focus:border-rose-500" : ""}`}
-                      placeholder="Create a strong password"
-                      value={form.password}
-                      onChange={handleChange}
-                    />
+                    <div className="relative">
+                      <input
+                        id="password"
+                        name="password"
+                        type={showPassword ? "text" : "password"}
+                        className={`input-field pr-12 ${errors.password ? "border-rose-300 focus:border-rose-500" : ""}`}
+                        placeholder="Create a strong password"
+                        value={form.password}
+                        onChange={handleChange}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                     {errors.password ? (
                       <p className="mt-1 text-xs text-rose-600">{errors.password}</p>
                     ) : (
@@ -245,15 +262,29 @@ export function RegisterPage() {
                     <label className="label-text" htmlFor="confirmPassword">
                       Confirm Password
                     </label>
-                    <input
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type="password"
-                      className={`input-field ${errors.confirmPassword ? "border-rose-300 focus:border-rose-500" : ""}`}
-                      placeholder="Confirm your password"
-                      value={form.confirmPassword}
-                      onChange={handleChange}
-                    />
+                    <div className="relative">
+                      <input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        className={`input-field pr-12 ${errors.confirmPassword ? "border-rose-300 focus:border-rose-500" : ""}`}
+                        placeholder="Confirm your password"
+                        value={form.confirmPassword}
+                        onChange={handleChange}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                     {errors.confirmPassword && (
                       <p className="mt-1 text-xs text-rose-600">{errors.confirmPassword}</p>
                     )}

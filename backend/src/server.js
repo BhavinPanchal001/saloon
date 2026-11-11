@@ -68,52 +68,52 @@ const startServer = async () => {
 
     // Ensure new tables exist before alter sync
     const tablesBeforeSync = await queryInterface.showAllTables();
+    if (!tablesBeforeSync.includes('loyalty_tiers')) {
+      console.log('[Migration] Creating loyalty_tiers table...');
+      const LoyaltyTier = require('./models/LoyaltyTier');
+      await LoyaltyTier.sync();
+    }
     if (!tablesBeforeSync.includes('customers')) {
       console.log('[Migration] Creating customers table...');
       const Customer = require('./models/Customer');
-      await Customer.sync({ force: true });
+      await Customer.sync();
     }
     if (!tablesBeforeSync.includes('appointments')) {
       console.log('[Migration] Creating appointments table...');
       const Appointment = require('./models/Appointment');
-      await Appointment.sync({ force: true });
+      await Appointment.sync();
     }
 
     if (!tablesBeforeSync.includes('pos_terminals')) {
       console.log('[Migration] Creating pos_terminals table...');
       const PosTerminal = require('./models/PosTerminal');
-      await PosTerminal.sync({ force: true });
+      await PosTerminal.sync();
     }
     if (!tablesBeforeSync.includes('pos_shifts')) {
       console.log('[Migration] Creating pos_shifts table...');
       const PosShift = require('./models/PosShift');
-      await PosShift.sync({ force: true });
+      await PosShift.sync();
     }
     if (!tablesBeforeSync.includes('pos_shift_movements')) {
       console.log('[Migration] Creating pos_shift_movements table...');
       const PosShiftMovement = require('./models/PosShiftMovement');
-      await PosShiftMovement.sync({ force: true });
+      await PosShiftMovement.sync();
     }
 
-    if (!tablesBeforeSync.includes('loyalty_tiers')) {
-      console.log('[Migration] Creating loyalty_tiers table...');
-      const LoyaltyTier = require('./models/LoyaltyTier');
-      await LoyaltyTier.sync({ force: true });
-    }
     if (!tablesBeforeSync.includes('loyalty_ledgers')) {
       console.log('[Migration] Creating loyalty_ledgers table...');
       const LoyaltyLedger = require('./models/LoyaltyLedger');
-      await LoyaltyLedger.sync({ force: true });
+      await LoyaltyLedger.sync();
     }
     if (!tablesBeforeSync.includes('reward_settings')) {
       console.log('[Migration] Creating reward_settings table...');
       const RewardSetting = require('./models/RewardSetting');
-      await RewardSetting.sync({ force: true });
+      await RewardSetting.sync();
     }
     if (!tablesBeforeSync.includes('customer_vouchers')) {
       console.log('[Migration] Creating customer_vouchers table...');
       const CustomerVoucher = require('./models/CustomerVoucher');
-      await CustomerVoucher.sync({ force: true });
+      await CustomerVoucher.sync();
     }
 
     // Ensure columns exist on customers and bills tables
@@ -302,13 +302,13 @@ const startServer = async () => {
     if (!tables.includes('coupons')) {
       console.log('[Migration] Creating coupons table...');
       const { Coupon } = require('./models');
-      await Coupon.sync({ force: true });
+      await Coupon.sync();
       console.log('[Migration] Table coupons created successfully.');
     }
  if (!tables.includes('customer_ledgers')) {
       console.log('[Migration] Creating customer_ledgers table...');
       const CustomerLedger = require('./models/CustomerLedger');
-      await CustomerLedger.sync({ force: true });
+      await CustomerLedger.sync();
       console.log('[Migration] Table customer_ledgers created successfully.');
     }
     // Run migration check for admins table

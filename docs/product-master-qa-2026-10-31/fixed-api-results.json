@@ -1,0 +1,208 @@
+{
+  "database": "glowy_product_qa_1793445837623",
+  "results": [
+    {
+      "name": "unauthenticated reads are blocked",
+      "pass": true,
+      "evidence": {
+        "status": 401,
+        "body": {
+          "message": "Access denied. No token provided."
+        }
+      }
+    },
+    {
+      "name": "create with opening stock, unit group and leading-zero barcode",
+      "pass": true,
+      "evidence": {
+        "status": 201,
+        "body": {
+          "images": [],
+          "status": "active",
+          "id": 111,
+          "item_name": "QA API Shampoo",
+          "barcode": "000123456789",
+          "unit_price": 25.5,
+          "opening_stock": 2,
+          "central_stock": "2.0000",
+          "opening_unit_cost": 10,
+          "unit_master_id": 28,
+          "purchase_unit": "primary",
+          "consumption_unit": "primary",
+          "product_measure": "1.0000",
+          "product_measure_unit": "primary",
+          "updatedAt": "2026-10-31T11:23:58.495Z",
+          "createdAt": "2026-10-31T11:23:58.489Z"
+        }
+      }
+    },
+    {
+      "name": "opening stock and cost lot are persisted",
+      "pass": true,
+      "evidence": {
+        "id": 135,
+        "product_id": 111,
+        "location_id": 0,
+        "source_key": "opening-adjust:111:1793445838491:0.09549542928160226",
+        "received_at": "2026-10-31T11:23:58.000Z",
+        "remaining_qty": "2.0000",
+        "unit_cost": "10.000000",
+        "createdAt": "2026-10-31T11:23:58.000Z",
+        "updatedAt": "2026-10-31T11:23:58.000Z"
+      }
+    },
+    {
+      "name": "list search by barcode and invalid status handling",
+      "pass": true,
+      "evidence": {
+        "searchCount": 1,
+        "invalidStatus": 400
+      }
+    },
+    {
+      "name": "duplicate barcode rejected",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "body": {
+          "message": "This barcode is already assigned to another product."
+        }
+      }
+    },
+    {
+      "name": "generated barcode when blank",
+      "pass": true,
+      "evidence": {
+        "status": 201,
+        "body": {
+          "images": [],
+          "status": "active",
+          "id": 113,
+          "item_name": "QA generated barcode",
+          "barcode": "GLP-479C373430754A41",
+          "unit_price": 0,
+          "opening_stock": 0,
+          "central_stock": 0,
+          "opening_unit_cost": null,
+          "unit_master_id": null,
+          "purchase_unit": "primary",
+          "consumption_unit": "primary",
+          "product_measure": "1.0000",
+          "product_measure_unit": "primary",
+          "updatedAt": "2026-10-31T11:23:58.512Z",
+          "createdAt": "2026-10-31T11:23:58.512Z"
+        }
+      }
+    },
+    {
+      "name": "invalid numeric barcode rejected",
+      "pass": true,
+      "evidence": {
+        "status": 400,
+        "body": {
+          "message": "Barcode must contain 1–64 printable ASCII characters."
+        }
+      }
+    },
+    {
+      "name": "negative selling price and opening stock rejected",
+      "pass": true,
+      "evidence": "Both 400"
+    },
+    {
+      "name": "edit price, name, stock and preserve identity",
+      "pass": true,
+      "evidence": {
+        "status": 200,
+        "body": {
+          "images": [],
+          "id": 111,
+          "item_name": "QA API Shampoo edited",
+          "barcode": "000123456789",
+          "opening_unit_cost": "10.000000",
+          "unit_price": 30,
+          "central_stock": "3.0000",
+          "opening_stock": 3,
+          "unit_master_id": 28,
+          "purchase_unit": "primary",
+          "consumption_unit": "primary",
+          "product_measure": "1.0000",
+          "product_measure_unit": "primary",
+          "status": "active",
+          "createdAt": "2026-10-31T11:23:58.000Z",
+          "updatedAt": "2026-10-31T11:23:58.524Z"
+        }
+      }
+    },
+    {
+      "name": "unit group cannot change after inventory history",
+      "pass": true,
+      "evidence": {
+        "status": 400,
+        "body": {
+          "message": "Cannot change the base unit group after inventory history exists. Create a separate product instead."
+        }
+      }
+    },
+    {
+      "name": "archive preserves history and hides product from active filter",
+      "pass": true,
+      "evidence": {
+        "archive": {
+          "status": 200,
+          "body": {
+            "message": "Product archived to preserve its barcode, stock and cost history."
+          }
+        },
+        "detailStatus": "inactive"
+      }
+    },
+    {
+      "name": "blank product name must be rejected",
+      "pass": true,
+      "evidence": {
+        "status": 400,
+        "body": {
+          "message": "Item name must contain 1–200 characters."
+        }
+      }
+    },
+    {
+      "name": "null selling price on edit must be rejected",
+      "pass": true,
+      "evidence": {
+        "status": 400,
+        "body": {
+          "message": "Selling price is required."
+        }
+      }
+    },
+    {
+      "name": "missing product update returns 404",
+      "pass": true,
+      "evidence": {
+        "status": 404,
+        "body": {
+          "message": "Product not found."
+        }
+      }
+    },
+    {
+      "name": "invalid unit group returns validation error",
+      "pass": true,
+      "evidence": {
+        "status": 400,
+        "body": {
+          "message": "Invalid unit group. Please select an existing unit group."
+        }
+      }
+    },
+    {
+      "name": "manager access remains unchanged (bug 1 excluded)",
+      "pass": true,
+      "evidence": {
+        "status": 201
+      }
+    }
+  ]
+}

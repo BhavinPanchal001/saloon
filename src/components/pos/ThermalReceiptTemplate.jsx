@@ -168,6 +168,7 @@ export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters =
               <span className="w-5 text-black/70">{idx + 1}.</span>
               <div className="flex-1 pr-1">
                 <span className="font-semibold">{name}</span>
+                {item.barcode && <div className="text-[9px] text-black/70">Code: {item.barcode}</div>}
                 {talent && (
                   <div className="text-[9px] text-black/80 font-medium">
                     Served by: {talent}

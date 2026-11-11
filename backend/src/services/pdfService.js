@@ -336,7 +336,7 @@ function generateInvoicePDFBuffer(bill) {
   // --- TABLE ROWS ---
   let rowY = tableTopY - 38;
   lineItems.slice(0, 12).forEach((item, idx) => {
-    const rawName = item.itemName || item.item_name || 'Item';
+    const rawName = (item.itemName || item.item_name || 'Item') + (item.barcode ? ` [${item.barcode}]` : '');
     const name = sanitizeText(rawName, 32);
     const rawType = item.itemType || item.item_type || 'service';
     const type = sanitizeText(rawType.toUpperCase(), 12);
@@ -593,7 +593,7 @@ function generateThermalInvoicePDFBuffer(bill, options = {}) {
   const itemColChars = is58mm ? 12 : 16;
   let itemsHeight = 0;
   const processedItems = lineItems.map((item, idx) => {
-    const rawName = item.itemName || item.item_name || 'Item';
+    const rawName = (item.itemName || item.item_name || 'Item') + (item.barcode ? ` [${item.barcode}]` : '');
     const nameLines = wrapText(rawName, itemColChars);
     const qty = String(item.qty || 1);
     const price = Number(item.price) || 0;
@@ -939,6 +939,7 @@ function generateThermalInvoicePDFBuffer(bill, options = {}) {
 }
 
 function generateReportPDFBuffer(type, data, metadata = {}) {
+  if (type === "pnl") return require("./profitPdfService").generateProfitPDF(data, metadata);
   const COMPANY_INFO = getCompanyInfo();
   const commands = [];
 
@@ -1079,14 +1080,15 @@ function generateReportPDFBuffer(type, data, metadata = {}) {
   } else if (type === 'pnl') {
     const netRev = Number(data.netRevenue || 0).toLocaleString('en-IN');
     const exp = Number(data.totalExpenses || 0).toLocaleString('en-IN');
-    const netProfit = Number(data.netProfit || 0).toLocaleString('en-IN');
-    const margin = data.profitMarginPercent || 0;
+    const netProfit = data.netProfit === null ? 'Unknown cost' : Number(data.netProfit || 0).toLocaleString('en-IN');
+    const margin = data.profitMarginPercent === null ? 'Unknown' : data.profitMarginPercent || 0;
 
     commands.push('0.3 0.35 0.45 rg');
     commands.push(`BT /F2 8.5 Tf 50 ${currentY - 18} Td (NET REVENUE: Rs.${netRev}   |   TOTAL EXPENSES: Rs.${exp}) Tj ET`);
     commands.push(`BT /F2 8.5 Tf 50 ${currentY - 34} Td (NET PROFIT: Rs.${netProfit} (Margin ${margin}%)) Tj ET`);
 
-    currentY -= 65;
+    commands.push(`BT /F2 8.5 Tf 50 ${currentY - 50} Td (COGS: ${data.costOfGoodsSold === null ? 'Unknown' : data.costOfGoodsSold || 0} | GROSS PROFIT: ${data.grossProfit === null ? 'Unknown' : data.grossProfit || 0} | UNKNOWN COST LINES: ${data.unknownCostLines || 0}) Tj ET`);
+    currentY -= 80;
 
     commands.push('0.12 0.23 0.54 rg');
     commands.push(`BT /F2 11 Tf 40 ${currentY} Td (Expenses Breakdown by Category) Tj ET`);
@@ -1137,7 +1139,7 @@ function generateReportPDFBuffer(type, data, metadata = {}) {
       rowY -= 22;
     });
   } else if (type === 'stock-summary') {
-    const val = Number(data.totalValuation || 0).toLocaleString('en-IN');
+    const val = data.totalValuation === null ? 'Unknown cost' : Number(data.totalValuation || 0).toLocaleString('en-IN');
     commands.push('0.3 0.35 0.45 rg');
     commands.push(`BT /F2 8.5 Tf 50 ${currentY - 18} Td (PRODUCTS: ${data.totalProducts || 0}   |   STOCK UNITS: ${data.totalStockQty || 0}   |   VALUATION: Rs.${val}) Tj ET`);
 
@@ -1161,8 +1163,8 @@ function generateReportPDFBuffer(type, data, metadata = {}) {
     items.slice(0, 18).forEach((item) => {
       const name = sanitizeText(item.name, 22);
       const cat = sanitizeText(item.category, 14);
-      const cost = Number(item.costPrice || 0).toFixed(2);
-      const itemVal = Number(item.totalValuation || 0).toLocaleString('en-IN');
+      const cost = item.costPrice === null ? 'Unknown' : Number(item.costPrice || 0).toFixed(2);
+      const itemVal = item.totalValuation === null ? 'Unknown' : Number(item.totalValuation || 0).toLocaleString('en-IN');
 
       commands.push('0.2 0.25 0.35 rg');
       commands.push(`BT /F2 8 Tf 45 ${rowY} Td (${name}) Tj ET`);

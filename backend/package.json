@@ -11,14 +11,14 @@
     "db:migrate:undo": "node scripts/migrate.js --undo",
     "db:seed": "npx sequelize-cli db:seed:all",
     "db:seed:undo": "npx sequelize-cli db:seed:undo:all",
-    "db:setup:sqlserver": "node scripts/setup-sqlserver.js",
-    "db:admin": "node scripts/create-admin.js"
+    "test:inventory": "node scripts/test_inventory_isolated.js"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "decimal.js": "^10.6.0",
     "dotenv": "^16.4.5",
     "escpos": "^3.0.0-alpha.6",
     "escpos-usb": "^3.0.0-alpha.4",

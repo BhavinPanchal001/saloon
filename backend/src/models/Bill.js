@@ -7,6 +7,8 @@ const Bill = sequelize.define('Bill', {
     autoIncrement: true,
     primaryKey: true,
   },
+  request_hash: { type: DataTypes.STRING(64), allowNull: true },
+  request_key: { type: DataTypes.STRING(64), allowNull: true, unique: true },
   bill_number: {
     type: DataTypes.STRING(50),
     allowNull: false,

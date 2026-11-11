@@ -29,6 +29,13 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// Account type identifies the storage model, not the user's business authority.
+const requireBusinessAdmin = (req, res, next) => {
+  const user = req.user || req.admin;
+  if (!ADMIN_ROLES.includes(user?.role)) return res.status(403).json({ message: 'Forbidden. Administrator role required.' });
+  next();
+};
+
 const requirePermission = (permissionKey) => {
   return (req, res, next) => {
     const user = req.user || req.admin;
@@ -78,6 +85,7 @@ module.exports = {
   authenticateToken: authenticate,
   verifyToken: authenticate,
   requireAdmin,
+  requireBusinessAdmin,
   requirePermission,
   authenticateCustomer,
 };

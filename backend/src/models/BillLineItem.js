@@ -24,16 +24,26 @@ const BillLineItem = sequelize.define('BillLineItem', {
     allowNull: false,
   },
   qty: {
-    type: DataTypes.INTEGER.UNSIGNED,
+    type: DataTypes.DECIMAL(16, 4),
     allowNull: false,
     defaultValue: 1,
   },
   price: {
-    type: DataTypes.DECIMAL(10, 2),
+    type: DataTypes.DECIMAL(18, 6),
     allowNull: false,
   },
+  barcode: { type: DataTypes.STRING(64), allowNull: true },
+  base_qty: { type: DataTypes.DECIMAL(16, 4), allowNull: true },
+  cost_total: { type: DataTypes.DECIMAL(16, 2), allowNull: true },
+  cost_allocations: { type: DataTypes.JSON, allowNull: true },
+  stock_requirements: { type: DataTypes.JSON, allowNull: true },
+  stock_signature: { type: DataTypes.TEXT, allowNull: true },
   staff_assigned: {
-    type: DataTypes.STRING(50),
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  staff_ids: {
+    type: DataTypes.JSON,
     allowNull: true,
   },
   product_consumption: {

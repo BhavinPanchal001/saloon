@@ -30,6 +30,8 @@ const permissionCategories = [
     category: "POS & Billing",
     icon: CreditCard,
     permissions: [
+      { key: "inventory:override_stock", label: "Allow out-of-stock checkout when enabled" },
+      { key: "reports:view", label: "View cost and profit reports" },
       { key: "pos:view", label: "View Point of Sale & Bills History" },
       { key: "pos:create", label: "Perform Checkout & Generate Invoices" },
     ],

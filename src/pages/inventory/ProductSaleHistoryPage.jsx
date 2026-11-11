@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, ShoppingBag, Scissors, Calendar, User, Store, X } from "lucide-react";
-import { fetchProductsFromAPI, fetchBillsFromAPI, fetchServicesFromAPI } from "../../services/api";
+import { fetchProductsFromAPI, fetchBillsFromAPI, fetchServicesFromAPI, fetchProfitLossReportAPI, fetchOutletInventoryFromAPI } from "../../services/api";
 import { useAuthStore } from "../../stores/authStore";
 import { formatCurrency } from "../../utils/format";
 
@@ -11,6 +11,8 @@ export function ProductSaleHistoryPage() {
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
+  const canViewCost = isAdmin || user?.permissions?.includes("reports:view") || user?.permissions?.includes("*");
+  const [profitSales, setProfitSales] = useState([]);
   const [product, setProduct] = useState(null);
   const [saleHistory, setSaleHistory] = useState([]);
   const [servicesList, setServicesList] = useState([]);
@@ -78,10 +80,12 @@ export function ProductSaleHistoryPage() {
         setIsLoading(true);
         setError("");
 
-        const [products, bills, services] = await Promise.all([
+        const [products, bills, services, profit, inventory] = await Promise.all([
           fetchProductsFromAPI(),
           fetchBillsFromAPI(isAdmin ? {} : { outletId: user?.outlet_id }),
           fetchServicesFromAPI(),
+          canViewCost ? fetchProfitLossReportAPI(isAdmin ? undefined : user?.outlet_id).catch(() => null) : Promise.resolve(null),
+          fetchOutletInventoryFromAPI(isAdmin ? {} : { outletId: user?.outlet_id }),
         ]);
 
         const foundProduct = products.find((p) => String(p.id) === String(id));
@@ -89,8 +93,12 @@ export function ProductSaleHistoryPage() {
           setError("Product not found.");
           return;
         }
-        setProduct(foundProduct);
+        const issuedStock = inventory
+          .filter((item) => String(item.productId) === String(id))
+          .reduce((total, item) => total + (Number(item.currentStock) || 0), 0);
+        setProduct({ ...foundProduct, issuedStock });
         setServicesList(services);
+        setProfitSales((profit?.productSales || []).filter((sale) => String(sale.productId) === String(id)));
 
         const historyItems = [];
         bills.forEach((bill) => {
@@ -122,14 +130,26 @@ export function ProductSaleHistoryPage() {
                 customerName: bill.customer?.name || 'Walk-in Customer',
                 outletName: bill.Outlet?.name || bill.outletName || 'Default Outlet',
                 soldAs: 'Direct Sale',
+                billLineId: item.id,
+                barcode: item.barcode,
                 qty: item.qty,
                 unit: unitAbbr,
                 price: Number(item.price),
                 total: Number(item.price) * Number(item.qty),
               });
             }
+            if (type === 'package') {
+              (item.includedServices || []).forEach((svc) => {
+                (svc.productConsumption || []).filter((c) => String(c.productId) === String(id)).forEach((c) => historyItems.push({
+                  billId: bill.id, billNumber: bill.billNumber, createdAt: bill.createdAt,
+                  customerName: bill.customer?.name || 'Walk-in Customer', outletName: bill.outletName,
+                  soldAs: 'Consumed in Package', serviceName: `${name} → ${svc.serviceName}`, qty: c.qty,
+                  unit: c.unit === 'secondary' ? foundProduct.unitMaster?.secondaryAbbr : foundProduct.unitMaster?.primaryAbbr,
+                }));
+              });
+            }
             // Case 2: Product was consumed as part of a service
-            else if (type === 'service' && consumption) {
+            if (type === 'service' && consumption) {
               const consumptions = Array.isArray(consumption) ? consumption : [];
               const matchingConsumption = consumptions.find(
                 (c) => String(c.productId || c.inventoryId || c.inventory_id) === String(id)
@@ -234,6 +254,7 @@ export function ProductSaleHistoryPage() {
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Product Info</p>
               <h3 className="mt-2 text-2xl font-bold text-navy-900">{product.itemName}</h3>
+              <p className="mt-1 font-mono text-xs text-slate-500">Barcode: {product.barcode || "Not recorded"}</p>
             </div>
 
             <div className="border-t border-slate-100 pt-4 space-y-4 text-sm">
@@ -327,6 +348,11 @@ export function ProductSaleHistoryPage() {
                   key={index}
                   className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
                 >
+                  {record.barcode && <p className="mb-2 font-mono text-xs text-slate-500">Barcode: {record.barcode}</p>}
+                  {canViewCost && record.soldAs === "Direct Sale" && (() => {
+                    const sale = profitSales.find((entry) => entry.lineId === record.billLineId);
+                    return <p className="mb-3 rounded-lg bg-slate-50 p-2 text-xs text-slate-600">Net sales: {sale ? formatCurrency(sale.netRevenue) : "Unavailable"} · Buying cost: {sale?.costTotal == null ? "Unknown" : formatCurrency(sale.costTotal)} · Gross profit: {sale?.grossProfit == null ? "Unknown" : formatCurrency(sale.grossProfit)}</p>;
+                  })()}
                   {/* Card Header row */}
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-50 pb-3 mb-4">
                     <div className="flex items-center gap-3">

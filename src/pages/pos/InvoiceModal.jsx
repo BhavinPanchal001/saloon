@@ -433,6 +433,7 @@ export function InvoiceModal({ bill, onClose, defaultTemplate }) {
                       <td className="invoice-td-num">{i + 1}</td>
                       <td className="invoice-td-name">
                         <div className="font-semibold">{item.itemName}</div>
+                        {item.barcode && <div className="text-xs text-slate-500">Code: {item.barcode}</div>}
                         {talent && (
                           <div className="text-[11px] text-slate-500 font-medium mt-0.5">
                             Served by: <span className="text-slate-800 font-bold">{talent}</span>

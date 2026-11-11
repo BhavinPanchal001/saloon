@@ -1,3 +1,4 @@
+const costs = require("../services/inventoryCostService");
 const { Op } = require('sequelize');
 const { sequelize } = require('../models/db');
 const fs = require('fs');
@@ -32,6 +33,9 @@ const toItemResponse = (item) => ({
   id: item.id,
   productId: item.product_id,
   productName: item.product_name,
+  barcode: item.barcode,
+  enteredQty: item.entered_qty === null ? null : Number(item.entered_qty),
+  enteredUnit: item.entered_unit,
   qty: Number(item.qty),
   unitPrice: Number(item.unit_price),
   lineTotal: Number(item.line_total),
@@ -143,7 +147,7 @@ const getAll = async (req, res) => {
     return res.json(orders.map(toResponse));
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error.' });
   }
 };
 
@@ -166,7 +170,7 @@ const getOne = async (req, res) => {
     if (!po) return res.status(404).json({ message: 'Purchase order not found.' });
     return res.json(toResponse(po));
   } catch (err) {
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error.' });
   }
 };
 
@@ -200,8 +204,8 @@ const create = async (req, res) => {
     }
 
     // Validate all product IDs exist
-    const productIds = items.map((i) => Number(i.productId));
-    const products = await Product.findAll({ where: { id: productIds }, transaction: t });
+    const productIds = [...new Set(items.map((i) => Number(i.productId)))];
+    const products = [...(await costs.lockProducts(productIds, t)).values()];
     if (products.length !== productIds.length) {
       await t.rollback();
       return res.status(400).json({ message: 'One or more product IDs are invalid.' });
@@ -211,13 +215,21 @@ const create = async (req, res) => {
     // Calculate totals
     let subtotal = 0;
     const itemRows = items.map((item) => {
-      const qty = Math.max(1, Math.round(Number(item.qty) || 1));
-      const unitPrice = Math.max(0, Number(item.unitPrice) || 0);
-      const lineTotal = qty * unitPrice;
+      const product = productMap[Number(item.productId)];
+      const enteredQty = costs.positive(item.qty);
+      const unit = item.unit || 'primary';
+      const qty = Number(costs.baseQuantity(enteredQty, unit, product));
+      const enteredPrice = costs.D(item.unitPrice);
+      if (!enteredPrice.isFinite() || enteredPrice.lt(0)) costs.invalid('Purchase cost must be a non-negative number.');
+      const lineTotal = Number(costs.money(enteredQty.times(enteredPrice)));
+      const unitPrice = Number(enteredQty.times(enteredPrice).div(qty).toFixed(6));
       subtotal += lineTotal;
       return {
         product_id: Number(item.productId),
         product_name: productMap[Number(item.productId)].item_name,
+        barcode: product.barcode,
+        entered_qty: enteredQty.toFixed(4),
+        entered_unit: unit,
         qty,
         unit_price: unitPrice,
         line_total: lineTotal,
@@ -252,13 +264,7 @@ const create = async (req, res) => {
       { transaction: t }
     );
 
-    // Increment central_stock for each item (auto-receive)
-    for (const item of itemRows) {
-      await Product.increment(
-        { central_stock: item.qty },
-        { where: { id: item.product_id }, transaction: t }
-      );
-    }
+    for (const item of createdItems) await costs.receivePurchase(item, t);
 
     // Create payment if provided
     let createdPayment = null;
@@ -338,7 +344,7 @@ const create = async (req, res) => {
     if (err.name === 'SequelizeUniqueConstraintError') {
       return res.status(409).json({ message: 'PO number collision — please retry.' });
     }
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error.' });
   }
 };
 
@@ -366,13 +372,14 @@ const approve = async (req, res) => {
     return res.json(toResponse(po));
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error.' });
   }
 };
 
 const receive = async (req, res) => {
   const t = await sequelize.transaction();
   try {
+    await PurchaseOrder.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
     const po = await PurchaseOrder.findByPk(req.params.id, {
       include: [{ model: PurchaseOrderItem, as: 'items' }],
       transaction: t,
@@ -383,13 +390,8 @@ const receive = async (req, res) => {
       return res.status(400).json({ message: `Cannot receive a PO with status "${po.status}". Approve it first.` });
     }
 
-    // Increment central_stock for each item
-    for (const item of po.items) {
-      await Product.increment(
-        { central_stock: item.qty },
-        { where: { id: item.product_id }, transaction: t }
-      );
-    }
+    await costs.lockProducts(po.items.map((item) => item.product_id), t);
+    for (const item of po.items) await costs.receivePurchase(item, t);
 
     await po.update({ status: 'received', received_at: new Date() }, { transaction: t });
     await t.commit();
@@ -410,7 +412,7 @@ const receive = async (req, res) => {
   } catch (err) {
     await t.rollback();
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error.' });
   }
 };
 
@@ -441,7 +443,7 @@ const cancel = async (req, res) => {
     return res.json(toResponse(po));
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error.' });
   }
 };
 
@@ -494,8 +496,8 @@ const update = async (req, res) => {
     await PurchaseOrderItem.destroy({ where: { purchase_order_id: poId }, transaction: t });
 
     // Validate product IDs and create new items
-    const productIds = items.map((i) => Number(i.productId));
-    const products = await Product.findAll({ where: { id: productIds }, transaction: t });
+    const productIds = [...new Set(items.map((i) => Number(i.productId)))];
+    const products = [...(await costs.lockProducts(productIds, t)).values()];
     if (products.length !== productIds.length) {
       await t.rollback();
       return res.status(400).json({ message: 'One or more product IDs are invalid.' });
@@ -505,14 +507,22 @@ const update = async (req, res) => {
     // Calculate new totals
     let subtotal = 0;
     const itemRows = items.map((item) => {
-      const qty = Math.max(1, Math.round(Number(item.qty) || 1));
-      const unitPrice = Math.max(0, Number(item.unitPrice) || 0);
-      const lineTotal = qty * unitPrice;
+      const product = productMap[Number(item.productId)];
+      const enteredQty = costs.positive(item.qty);
+      const unit = item.unit || 'primary';
+      const qty = Number(costs.baseQuantity(enteredQty, unit, product));
+      const enteredPrice = costs.D(item.unitPrice);
+      if (!enteredPrice.isFinite() || enteredPrice.lt(0)) costs.invalid('Purchase cost must be a non-negative number.');
+      const lineTotal = Number(costs.money(enteredQty.times(enteredPrice)));
+      const unitPrice = Number(enteredQty.times(enteredPrice).div(qty).toFixed(6));
       subtotal += lineTotal;
       return {
         purchase_order_id: poId,
         product_id: Number(item.productId),
         product_name: productMap[Number(item.productId)].item_name,
+        barcode: product.barcode,
+        entered_qty: enteredQty.toFixed(4),
+        entered_unit: unit,
         qty,
         unit_price: unitPrice,
         line_total: lineTotal,
@@ -665,7 +675,7 @@ const remove = async (req, res) => {
   } catch (err) {
     await t.rollback();
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error.' });
   }
 };
 
@@ -682,7 +692,7 @@ const removeAttachment = async (req, res) => {
     return res.json({ message: 'Attachment deleted.' });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error.' });
   }
 };
 
