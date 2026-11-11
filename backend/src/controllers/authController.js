@@ -11,6 +11,22 @@ const OTP_EXPIRY_MINUTES = 10;
 
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 
+const getAccountAccess = async (admin) => {
+  const employee = await Staff.findOne({ where: { user_id: admin.id }, include: [{ model: Role, as: 'role' }] });
+  if (!employee) return { userType: 'admin', role: admin.role, permissions: ['*'] };
+  if (employee.access_role) {
+    const { getAppRole } = await import('../../../shared/appRoles.js');
+    const role = getAppRole(employee.access_role);
+    return role ? { userType: 'staff', role: role.value, permissions: role.permissions } : null;
+  }
+  if (!employee.role?.is_active) return null;
+  return {
+    userType: 'staff',
+    role: employee.role.name,
+    permissions: Array.isArray(employee.role.permissions) ? employee.role.permissions : [],
+  };
+};
+
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -27,6 +43,8 @@ const login = async (req, res) => {
     if (admin && admin.is_active) {
       const isMatch = await bcrypt.compare(password, admin.password);
       if (isMatch) {
+        const access = await getAccountAccess(admin);
+        if (!access) return res.status(403).json({ message: 'Your assigned role is inactive. Contact your administrator.' });
         if (admin.totp_enabled && admin.totp_secret) {
           return res.json({
             requires2FA: true,
@@ -36,13 +54,13 @@ const login = async (req, res) => {
           });
         }
 
-        const permissions = ['*']; // Admins have full access
+        const { permissions } = access;
         const payload = {
           id: admin.id,
           email: admin.email,
-          role: admin.role,
+          role: access.role,
           outlet_id: admin.outlet_id || null,
-          userType: 'admin',
+          userType: access.userType,
           permissions,
         };
 
@@ -54,9 +72,9 @@ const login = async (req, res) => {
           id: admin.id,
           name: admin.name,
           email: admin.email,
-          role: admin.role,
+          role: access.role,
           outlet_id: admin.outlet_id || null,
-          userType: 'admin',
+          userType: access.userType,
           totp_enabled: admin.totp_enabled,
           permissions,
         };
@@ -118,8 +136,10 @@ const verifyOTP = async (req, res) => {
       await admin.update({ otp_code: null, otp_expires_at: null });
     }
 
+    const access = await getAccountAccess(admin);
+    if (!access) return res.status(403).json({ message: 'Your assigned role is inactive. Contact your administrator.' });
     const token = jwt.sign(
-      { id: admin.id, email: admin.email, role: admin.role, outlet_id: admin.outlet_id || null },
+      { id: admin.id, email: admin.email, ...access, outlet_id: admin.outlet_id || null },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -127,10 +147,11 @@ const verifyOTP = async (req, res) => {
     return res.json({
       token,
       admin: {
+        ...access,
         id: admin.id,
         name: admin.name,
         email: admin.email,
-        role: admin.role,
+        role: access.role,
         outlet_id: admin.outlet_id || null,
         totp_enabled: admin.totp_enabled,
       },

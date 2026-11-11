@@ -37,7 +37,6 @@ import {
   fetchLowStockReportAPI,
   fetchPurchaseOrdersReportAPI,
   fetchEmployeeAttendanceReportAPI,
-  fetchEmployeePayrollReportAPI,
   fetchGstr2ReportAPI,
   fetchOutletsFromAPI,
   downloadReportFileAPI,
@@ -112,8 +111,6 @@ export function ReportsPage() {
         data = await fetchPurchaseOrdersReportAPI(selectedOutlet, startDate, endDate);
       } else if (selectedReportId === "employee-attendance") {
         data = await fetchEmployeeAttendanceReportAPI(selectedOutlet, startDate, endDate);
-      } else if (selectedReportId === "employee-payroll") {
-        data = await fetchEmployeePayrollReportAPI();
       } else if (selectedReportId === "gstr2") {
         data = await fetchGstr2ReportAPI(selectedOutlet, startDate, endDate);
       } else if (selectedReportId === "credit") {
@@ -196,13 +193,12 @@ export function ReportsPage() {
     },
     {
       key: "employee",
-      title: "Employee & Payroll Reports",
+      title: "Employee Reports",
       icon: Users,
       badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
       iconColor: "text-indigo-600 bg-indigo-100",
       reports: [
         { id: "employee-attendance", name: "Employee Attendance Report", desc: "Audit Present, Absent, Half-day, and Leave records per staff member." },
-        { id: "employee-payroll", name: "Employee Salary & Commission Report", desc: "Base salary, service commissions earned, PF deductions, and net payout." },
       ],
     },
     {
@@ -658,54 +654,6 @@ export function ReportsPage() {
                               <td className="px-4 py-3 text-center font-bold text-rose-600">{s.absent} days</td>
                               <td className="px-4 py-3 text-center font-bold text-amber-600">{s.halfDay} days</td>
                               <td className="px-4 py-3 text-center font-bold text-blue-600">{s.leave} days</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* EMPLOYEE PAYROLL REPORT */}
-              {selectedReportId === "employee-payroll" && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-1">
-                      <span className="text-xs font-semibold text-slate-400 uppercase">Staff Count</span>
-                      <p className="text-2xl font-bold text-slate-800">{reportData?.totalEmployees || 0}</p>
-                    </div>
-                    <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl shadow-sm space-y-1">
-                      <span className="text-xs font-bold text-indigo-700 uppercase">Total Monthly Net Payroll Outflow</span>
-                      <p className="text-2xl font-bold text-indigo-800">₹{fmt(reportData?.totalPayrollSpend)}</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-                    <h3 className="text-base font-bold text-slate-800">Staff Salary & Commission Breakdown Register</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-bold">
-                          <tr>
-                            <th className="px-4 py-3">Staff Name</th>
-                            <th className="px-4 py-3">Role</th>
-                            <th className="px-4 py-3 text-right">Base Salary</th>
-                            <th className="px-4 py-3 text-right">Commissions</th>
-                            <th className="px-4 py-3 text-right">Gross Salary</th>
-                            <th className="px-4 py-3 text-right">PF Deductions</th>
-                            <th className="px-4 py-3 text-right">Net Payout</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {(reportData?.payrollSummary || []).map((s) => (
-                            <tr key={s.id} className="hover:bg-slate-50/70">
-                              <td className="px-4 py-3 font-semibold text-slate-800">{s.name}</td>
-                              <td className="px-4 py-3 text-slate-600">{s.role}</td>
-                              <td className="px-4 py-3 text-right text-slate-600">₹{fmt(s.baseSalary)}</td>
-                              <td className="px-4 py-3 text-right text-emerald-600 font-semibold">+₹{fmt(s.commissionAmount)}</td>
-                              <td className="px-4 py-3 text-right text-slate-800 font-semibold">₹{fmt(s.grossSalary)}</td>
-                              <td className="px-4 py-3 text-right text-rose-600">-₹{fmt(s.deductions)}</td>
-                              <td className="px-4 py-3 text-right font-bold text-indigo-600">₹{fmt(s.netSalary)}</td>
                             </tr>
                           ))}
                         </tbody>

@@ -886,11 +886,7 @@ export const saveStaff = async (payload) => {
     role: payload.role || "",
     roleId: payload.roleId || "",
     assignedOutletId: payload.assignedOutletId || "",
-    baseSalary: Number(payload.baseSalary || 0),
     commissionSlab: payload.commissionSlab || "Tier 1",
-    pfDeduction: Number(payload.pfDeduction || 0),
-    taxType: payload.taxType || "percentage",
-    taxValue: Number(payload.taxValue || 0),
     contractFileName: payload.contractFileName || payload.contractFile?.name || "pending-contract.pdf",
     advances: payload.advances || [],
     biometricCode: payload.biometricCode || "",
@@ -1354,32 +1350,6 @@ export const checkoutBill = async (payload) => {
   return clone(newBill);
 };
 
-export const generatePayrollPreview = async ({ outletId } = {}) => {
-  await delay(450);
-
-  const filteredStaff = filterByOutlet(staffMembers, outletId, "assignedOutletId");
-
-  return clone(
-    filteredStaff.map((staff) => {
-      const commissions = commissionMap[staff.commissionSlab] || 0;
-      const taxes =
-        staff.taxType === "percentage"
-          ? (staff.baseSalary * staff.taxValue) / 100
-          : staff.taxValue;
-      const advanceEmi = staff.advances.reduce((sum, advance) => sum + advance.emi, 0);
-      const netPay =
-        staff.baseSalary + commissions - taxes - staff.pfDeduction - advanceEmi;
-
-      return {
-        ...withOutletName(staff),
-        commissions,
-        taxes,
-        advanceEmi,
-        netPay,
-      };
-    }),
-  );
-};
 
 export const fetchDashboardMetrics = async ({ role, outletId } = {}) => {
   await delay();
@@ -1614,10 +1584,6 @@ export const receivePurchaseOrder = async (orderId) => {
   return clone(purchaseOrders[orderIndex]);
 };
 
-export const generatePayrollPreviewOrders = async () => {
-  await delay();
-  return clone(purchaseOrders);
-};
 
 const defaultSettings = {
   profile: {
@@ -1783,30 +1749,7 @@ export const deleteEmployee = async (staffId) => {
   return { success: true, message: "Employee deleted successfully" };
 };
 
-export const exportPayrollToCSV = (records) => {
-  const headers = ["Employee ID", "Name", "Role", "Base Salary", "Allowances", "Commissions", "Deductions", "Net Pay", "Status"];
-  const rows = records.map(r => [
-    r.employeeId,
-    r.name,
-    r.role,
-    r.baseSalary,
-    r.allowances,
-    r.commissions,
-    r.deductions,
-    r.netPay,
-    r.status
-  ]);
-  return [headers, ...rows];
-};
 
-export const calculateAllSalaries = async (month) => {
-  await delay(1000);
-  return {
-    success: true,
-    message: `Salaries calculated for ${month}`,
-    calculatedCount: staffMembers.length,
-  };
-};
 
 // Calculate commission for a specific employee
 export const fetchEmployeeCommission = async (staffId, month) => {
@@ -1827,50 +1770,6 @@ export const fetchEmployeeCommission = async (staffId, month) => {
   });
 };
 
-// Fetch payroll records with commission calculation for all employees
-export const fetchPayrollWithCommission = async (month) => {
-  await delay(800);
-
-  const payrollRecords = staffMembers.map((staff) => {
-    const { totalSales, saleCount } = calculateEmployeeMonthlySales(staff.id, month);
-    const commissionData = calculateCommission(totalSales, saleCount);
-
-    // Calculate base salary components
-    const baseSalary = staff.baseSalary || 30000;
-    const pfDeduction = staff.pfDeduction || Math.round(baseSalary * 0.12);
-    const taxDeduction = staff.taxType === "percentage"
-      ? Math.round((baseSalary * staff.taxValue) / 100)
-      : staff.taxValue || 0;
-
-    // Fixed allowances
-    const allowances = 3500; // HRA + Medical + Travel
-
-    // Total commission from badge system
-    const commissionAmount = commissionData.amount;
-
-    // Calculate net pay
-    const grossPay = baseSalary + allowances + commissionAmount;
-    const totalDeductions = pfDeduction + taxDeduction;
-    const netPay = grossPay - totalDeductions;
-
-    return {
-      id: staff.id,
-      employeeId: staff.id,
-      name: staff.name,
-      role: staff.role,
-      baseSalary,
-      allowances,
-      commissions: commissionAmount,
-      deductions: totalDeductions,
-      netPay,
-      status: 'calculated',
-      attendance: { present: 24, absent: 1, leaves: 1 }, // Mock attendance
-      commissionInfo: commissionData,
-    };
-  });
-
-  return clone(payrollRecords);
-};
 
 // Get commission badge configuration
 export const fetchCommissionBadgeConfig = async () => {
@@ -1919,9 +1818,7 @@ let contracts = [
     endDate: "2026-12-31",
     status: "active",
     notes: "Annual contract with performance review",
-    salaryComponents: [
-      { id: "sal_basic", name: "Basic Salary", type: "earning", calculationType: "fixed", amount: 32000 },
-    ],
+
     overtime: { enabled: true, type: "1.5x", rateCalculation: "fixed_hourly", rateValue: 200 },
     holidayGroupIds: ["hol_default"],
     leaveAllocations: [],
@@ -1947,9 +1844,7 @@ let contracts = [
     endDate: "2027-01-31",
     status: "active",
     notes: "Specialist role with commission structure",
-    salaryComponents: [
-      { id: "sal_basic", name: "Basic Salary", type: "earning", calculationType: "fixed", amount: 36000 },
-    ],
+
     overtime: { enabled: true, type: "1.5x", rateCalculation: "fixed_hourly", rateValue: 225 },
     holidayGroupIds: ["hol_default"],
     leaveAllocations: [],
@@ -1975,9 +1870,7 @@ let contracts = [
     endDate: "2026-12-31",
     status: "active",
     notes: "Front desk management role",
-    salaryComponents: [
-      { id: "sal_basic", name: "Basic Salary", type: "earning", calculationType: "fixed", amount: 24000 },
-    ],
+
     overtime: { enabled: false, type: "none", rateCalculation: "fixed_hourly", rateValue: 0 },
     holidayGroupIds: ["hol_default"],
     leaveAllocations: [],
@@ -1989,129 +1882,7 @@ let contracts = [
   },
 ];
 
-// Salary Masters Data
-let salaryMasters = [
-  {
-    id: "sal_basic",
-    name: "Basic Salary",
-    code: "BASIC",
-    description: "Base monthly salary component",
-    type: "earning",
-    calculationType: "fixed",
-    defaultAmount: 30000,
-    isActive: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z"
-  },
-  {
-    id: "sal_hra",
-    name: "House Rent Allowance (HRA)",
-    code: "HRA",
-    description: "Housing allowance for rented accommodation",
-    type: "earning",
-    calculationType: "percentage",
-    defaultAmount: 40,
-    isActive: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z"
-  },
-  {
-    id: "sal_da",
-    name: "Dearness Allowance",
-    code: "DA",
-    description: "Cost of living adjustment allowance",
-    type: "earning",
-    calculationType: "percentage",
-    defaultAmount: 10,
-    isActive: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z"
-  },
-  {
-    id: "sal_medical",
-    name: "Medical Allowance",
-    code: "MEDICAL",
-    description: "Medical and health-related expenses",
-    type: "earning",
-    calculationType: "fixed",
-    defaultAmount: 1500,
-    isActive: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z"
-  },
-  {
-    id: "sal_travel",
-    name: "Travel Allowance",
-    code: "TRAVEL",
-    description: "Transportation and travel expenses",
-    type: "earning",
-    calculationType: "fixed",
-    defaultAmount: 2000,
-    isActive: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z"
-  },
-  {
-    id: "sal_pf_emp",
-    name: "Provident Fund - Employee",
-    code: "PF_EMP",
-    description: "Employee contribution to provident fund",
-    type: "deduction",
-    calculationType: "percentage",
-    defaultAmount: 12,
-    isActive: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z"
-  },
-  {
-    id: "sal_pf_employer",
-    name: "Provident Fund - Employer",
-    code: "PF_EMPLOYER",
-    description: "Employer contribution to provident fund",
-    type: "deduction",
-    calculationType: "percentage",
-    defaultAmount: 12,
-    isActive: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z"
-  },
-  {
-    id: "sal_professional_tax",
-    name: "Professional Tax",
-    code: "PROF_TAX",
-    description: "State professional tax deduction",
-    type: "deduction",
-    calculationType: "fixed",
-    defaultAmount: 200,
-    isActive: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z"
-  },
-  {
-    id: "sal_tds",
-    name: "Tax Deducted at Source (TDS)",
-    code: "TDS",
-    description: "Income tax deduction",
-    type: "deduction",
-    calculationType: "percentage",
-    defaultAmount: 10,
-    isActive: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z"
-  },
-  {
-    id: "sal_esi",
-    name: "Employee State Insurance",
-    code: "ESI",
-    description: "State insurance contribution",
-    type: "deduction",
-    calculationType: "percentage",
-    defaultAmount: 1.75,
-    isActive: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z"
-  }
-];
+
 
 const withContractPresentation = (contract) => {
   const employee = staffMembers.find((s) => s.id === contract.employeeId);
@@ -2175,71 +1946,10 @@ export const deleteContract = async (contractId) => {
   return { success: true, message: "Contract deleted successfully" };
 };
 
-// Salary Masters API Functions
-export const fetchSalaryMasters = async () => {
-  await delay(300);
-  return clone(salaryMasters);
-};
 
-export const fetchSalaryMasterById = async (id) => {
-  await delay(300);
-  const salaryMaster = salaryMasters.find((sm) => sm.id === id);
-  if (!salaryMaster) {
-    throw new Error("Salary master not found");
-  }
-  return clone(salaryMaster);
-};
 
-export const saveSalaryMaster = async (payload) => {
-  await delay(400);
 
-  const salaryMaster = {
-    id: payload.id || createId("sal"),
-    name: payload.name,
-    code: payload.code || payload.name.substring(0, 3).toUpperCase(),
-    description: payload.description || "",
-    type: payload.type,
-    calculationType: payload.calculationType,
-    defaultAmount: Number(payload.defaultAmount),
-    isActive: payload.isActive !== undefined ? payload.isActive : true,
-    createdAt: payload.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
 
-  const existingIndex = salaryMasters.findIndex((sm) => sm.id === salaryMaster.id);
-
-  if (existingIndex >= 0) {
-    salaryMasters[existingIndex] = { ...salaryMasters[existingIndex], ...salaryMaster };
-  } else {
-    salaryMasters = [salaryMaster, ...salaryMasters];
-  }
-
-  return clone(salaryMaster);
-};
-
-export const deleteSalaryMaster = async (id) => {
-  await delay(400);
-  const index = salaryMasters.findIndex((sm) => sm.id === id);
-  if (index === -1) {
-    throw new Error("Salary master not found");
-  }
-  salaryMasters = salaryMasters.filter((sm) => sm.id !== id);
-  return { success: true, message: "Salary master deleted successfully" };
-};
-
-export const toggleSalaryMasterStatus = async (id) => {
-  await delay(300);
-  const index = salaryMasters.findIndex((sm) => sm.id === id);
-  if (index === -1) {
-    throw new Error("Salary master not found");
-  }
-  salaryMasters[index] = {
-    ...salaryMasters[index],
-    isActive: !salaryMasters[index].isActive,
-    updatedAt: new Date().toISOString(),
-  };
-  return clone(salaryMasters[index]);
-};
 
 // ─── Multi-product Purchase Order ────────────────────────────────────────────
 

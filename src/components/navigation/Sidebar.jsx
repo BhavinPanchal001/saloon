@@ -113,10 +113,9 @@ const adminNav = [
     ],
   },
   {
-    section: "HR & Payroll",
+    section: "HR",
     icon: DollarSign,
     links: [
-      { label: "Payroll", to: "/payroll", icon: Wallet, exact: true },
       { label: "Commission Rules", to: "/payroll/commission-masters", icon: Briefcase },
     ],
   },
@@ -196,10 +195,9 @@ const staffNav = [
     ],
   },
   {
-    section: "HR & Payroll",
+    section: "HR",
     icon: DollarSign,
     links: [
-      { label: "Payroll", to: "/payroll", icon: Wallet, exact: true, permission: "payroll:view" },
       { label: "Commission Rules", to: "/payroll/commission-masters", icon: Briefcase, permission: "payroll:view" },
     ],
   },
@@ -356,7 +354,7 @@ export function Sidebar({ isOpen, onClose, collapsed = false, onToggleCollapse }
                 </p>
                 <h1 className="mt-3 text-3xl text-white">Glow to go</h1>
                 <p className="mt-2 max-w-[14rem] text-sm text-slate-300">
-                  Retail, services, payroll, and branch operations in one salon cockpit.
+                  Retail, services, and branch operations in one salon cockpit.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0 pr-1">

@@ -23,6 +23,7 @@ const rewardService = require('../services/rewardService');
 
 // Self-healing DB Migration helper: ensures pos_terminal_id and pos_shift_id columns exist on bills table in MySQL
 (async () => {
+  if (sequelize.getDialect() === 'mssql') return;
   try {
     const queryInterface = sequelize.getQueryInterface();
     const tables = await queryInterface.showAllTables();

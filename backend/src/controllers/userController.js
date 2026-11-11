@@ -1,10 +1,10 @@
 const bcrypt = require('bcryptjs');
-const { Admin, Outlet, sequelize } = require('../models');
+const { Admin, Staff, Outlet, sequelize } = require('../models');
 
 // Helper to ensure admins table role & outlet_id columns exist & support custom roles
 let roleColumnAltered = false;
 const ensureColumnsFlexible = async () => {
-  if (roleColumnAltered) return;
+  if (roleColumnAltered || sequelize.getDialect() === 'mssql') return;
   try {
     await sequelize.query("ALTER TABLE admins MODIFY COLUMN role VARCHAR(50) DEFAULT 'admin'");
   } catch {}
@@ -85,6 +85,8 @@ const getUserById = async (req, res) => {
 const createUser = async (req, res) => {
   try {
     const { name, email, password, role, outlet_id } = req.body;
+    const { getAppRole } = await import('../../../shared/appRoles.js');
+    if (!getAppRole(role)) return res.status(400).json({ message: 'Select a valid app user role.' });
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required.' });
@@ -105,7 +107,7 @@ const createUser = async (req, res) => {
       name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
-      role: role || 'admin',
+      role,
       outlet_id: outlet_id ? Number(outlet_id) : null,
       is_active: true,
     });
@@ -136,6 +138,8 @@ const updateUser = async (req, res) => {
     await ensureColumnsFlexible();
 
     const updateData = {};
+    const { getAppRole } = await import('../../../shared/appRoles.js');
+    if (role && role !== user.role && !getAppRole(role)) return res.status(400).json({ message: 'Select a valid app user role.' });
     if (name) updateData.name = name.trim();
     if (email) {
       const normalizedEmail = email.toLowerCase().trim();
@@ -160,7 +164,12 @@ const updateUser = async (req, res) => {
       updateData.is_active = Boolean(is_active);
     }
 
-    await user.update(updateData);
+    await sequelize.transaction(async transaction => {
+      await user.update(updateData, { transaction });
+      if (role && getAppRole(role)) {
+        await Staff.update({ access_role: role }, { where: { user_id: user.id }, transaction });
+      }
+    });
 
     const updatedUser = await Admin.findByPk(id, {
       attributes: { exclude: ['password', 'otp_code', 'totp_secret'] },

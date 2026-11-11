@@ -10,7 +10,6 @@ import {
   fetchContractTypes, deleteContractType, toggleContractTypeStatus,
   fetchHolidayTemplates, deleteHolidayTemplate,
   fetchHolidays, deleteHoliday,
-  fetchSalaryMasters, deleteSalaryMaster, toggleSalaryMasterStatus
 } from '../../../../services/api';
 import { useToastStore } from '../../../../stores/toastStore';
 
@@ -22,7 +21,6 @@ const MASTER_TABS = [
   { id: 'workweeks', label: 'Work Weeks', icon: Calendar },
   { id: 'holidays', label: 'Holidays', icon: Shield },
   { id: 'types', label: 'Contract Types', icon: Briefcase },
-  { id: 'salary', label: 'Salary Components', icon: DollarSign },
 ];
 
 const ContractMastersPage: React.FC = () => {
@@ -57,9 +55,6 @@ const ContractMastersPage: React.FC = () => {
       } else if (activeTab === 'types') {
         const data = await fetchContractTypes();
         setMastersList(data);
-      } else if (activeTab === 'salary') {
-        const data = await fetchSalaryMasters();
-        setMastersList(data);
       } else if (activeTab === 'holidays') {
         const [templates, occasions] = await Promise.all([
           fetchHolidayTemplates(),
@@ -93,8 +88,6 @@ const ContractMastersPage: React.FC = () => {
         updated = await toggleWorkWeekStatus(item.id);
       } else if (activeTab === 'types') {
         updated = await toggleContractTypeStatus(item.id);
-      } else if (activeTab === 'salary') {
-        updated = await toggleSalaryMasterStatus(item.id);
       }
       
       if (updated) {
@@ -123,8 +116,6 @@ const ContractMastersPage: React.FC = () => {
         await deleteWorkWeek(id);
       } else if (activeTab === 'types') {
         await deleteContractType(id);
-      } else if (activeTab === 'salary') {
-        await deleteSalaryMaster(id);
       } else if (activeTab === 'holidays') {
         if (isOccasion) {
           await deleteHoliday(id);
@@ -165,22 +156,6 @@ const ContractMastersPage: React.FC = () => {
                 : 'bg-slate-50 text-slate-500 border-slate-200'
             }`}>
               {item.isEmployee ? 'Employee Role' : 'Vendor/Other'}
-            </span>
-          </div>
-        );
-      case 'salary':
-        return (
-          <div className="flex items-center gap-3">
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-              item.type === 'earning' 
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                : 'bg-rose-50 text-rose-700 border-rose-200'
-            }`}>
-              {item.type === 'earning' ? 'Earning' : 'Deduction'}
-            </span>
-            <span className="text-xs text-slate-500 font-bold capitalize">{item.calculationType}</span>
-            <span className="text-sm font-extrabold text-slate-700">
-              {item.calculationType === 'percentage' ? `${item.defaultAmount ?? 0}%` : `RM ${Number(item.defaultAmount ?? 0).toLocaleString()}`}
             </span>
           </div>
         );
@@ -308,7 +283,7 @@ const ContractMastersPage: React.FC = () => {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Name</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">{activeTab === 'leaves' ? 'Code' : activeTab === 'salary' ? 'Code' : 'Info / Code'}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">{activeTab === 'leaves' ? 'Code' : 'Info / Code'}</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Details</th>
                 {activeTab !== 'leaves' && activeTab !== 'holidays' && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Status</th>}
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Actions</th>

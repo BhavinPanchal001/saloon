@@ -5,6 +5,7 @@ const { getWhatsAppConfig } = require('../services/whatsapp/config');
 
 // Self-healing DB Migration helper: ensures tables and bill columns exist in MySQL immediately
 (async () => {
+  if (sequelize.getDialect() === 'mssql') return;
   try {
     const queryInterface = sequelize.getQueryInterface();
     const tables = await queryInterface.showAllTables();

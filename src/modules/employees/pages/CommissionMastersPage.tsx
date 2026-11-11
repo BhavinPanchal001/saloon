@@ -139,10 +139,10 @@ const CommissionMastersPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               className="btn-premium-outline flex items-center gap-2"
-              onClick={() => navigate('/payroll')}
+              onClick={() => navigate('/employees')}
             >
               <ArrowLeft size={16} />
-              Back to Payroll
+              Back to Employees
             </button>
             <button
               className="btn-premium-primary flex items-center gap-2"

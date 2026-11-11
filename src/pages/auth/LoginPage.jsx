@@ -65,14 +65,14 @@ export function LoginPage() {
             </h1>
             <p className="mt-6 max-w-xl text-base leading-8 text-slate-300">
               A multi-outlet salon management POS with branch-sensitive access, inventory-aware
-              services, staff-linked billing, and payroll-ready operational flows.
+              services, staff-linked billing, and employee management-ready operational flows.
             </p>
 
             <div className="mt-10 grid gap-4 md:grid-cols-3">
               {[
                 ["Role-aware routing", "Super Admin sees the whole network. Outlet Managers stay scoped."],
                 ["Mocked async APIs", "Promise-based data lets us build UI now and connect Supabase later."],
-                ["Retail + services", "Catalog, POS, expenses, HR, and payroll all sit on one frontend foundation."],
+                ["Retail + services", "Catalog, POS, expenses, HR, and employee management all sit on one frontend foundation."],
               ].map(([title, description]) => (
                 <div
                   key={title}

@@ -3,7 +3,7 @@ import { X, Save, Plus, Trash } from 'lucide-react';
 import { 
   saveRole, saveShift, saveLeaveType, 
   saveWorkWeek, saveContractType, saveHolidayTemplate, 
-  saveHoliday, saveSalaryMaster, fetchHolidayTemplates 
+  saveHoliday, fetchHolidayTemplates 
 } from '../../../../services/api';
 import { useToastStore } from '../../../../stores/toastStore';
 
@@ -69,8 +69,6 @@ const MasterFormModal: React.FC<MasterFormModalProps> = ({
         setReqDocs([]);
       } else if (masterType === 'holidays') {
         setFormData({ name: '', occasionName: '', type: 'National', description: '', isRecurring: true, isActive: true, startDate: '', endDate: '' });
-      } else if (masterType === 'salary') {
-        setFormData({ name: '', code: '', type: 'earning', calculationType: 'fixed', defaultAmount: 0, isActive: true });
       }
     }
   }, [isOpen, initialData, masterType]);
@@ -152,9 +150,6 @@ const MasterFormModal: React.FC<MasterFormModalProps> = ({
           }
           savedRecord = await saveHoliday(formData);
         }
-      } else if (masterType === 'salary') {
-        if (!formData.name) throw new Error('Salary component name is required');
-        savedRecord = await saveSalaryMaster(formData);
       }
 
       toast.success('Master record saved successfully');
@@ -751,89 +746,6 @@ const MasterFormModal: React.FC<MasterFormModalProps> = ({
                 </div>
               </div>
             )}
-          </div>
-        );
-
-      case 'salary':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Component Name*</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Basic Salary" 
-                  className="premium-input w-full"
-                  value={formData.name || ''} 
-                  onChange={(e) => handleFieldChange('name', e.target.value)} 
-                  required 
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Internal Code*</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. SAL-BAS" 
-                  className="premium-input w-full"
-                  value={formData.code || ''} 
-                  onChange={(e) => handleFieldChange('code', e.target.value)} 
-                  required 
-                />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Component Type*</label>
-                <select 
-                  className="premium-input w-full"
-                  value={formData.type || 'earning'}
-                  onChange={(e) => handleFieldChange('type', e.target.value)}
-                >
-                  <option value="earning">Earning</option>
-                  <option value="deduction">Deduction</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Calculation Mode*</label>
-                <select 
-                  className="premium-input w-full"
-                  value={formData.calculationType || 'fixed'}
-                  onChange={(e) => handleFieldChange('calculationType', e.target.value)}
-                >
-                  <option value="fixed">Fixed Amount</option>
-                  <option value="percentage">Percentage (%)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Default Value*</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
-                  {formData.calculationType === 'percentage' ? '%' : 'INR '}
-                </span>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  className="premium-input w-full pl-14"
-                  value={formData.defaultAmount || 0} 
-                  onChange={(e) => handleFieldChange('defaultAmount', e.target.value)} 
-                  required
-                />
-              </div>
-            </div>
-            <div className="pt-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={formData.isActive} 
-                  onChange={() => handleCheckboxChange('isActive')}
-                  className="w-4 h-4 rounded text-indigo-600 accent-indigo-600" 
-                />
-                Is Active Salary Component
-              </label>
-            </div>
           </div>
         );
 

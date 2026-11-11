@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   User, Briefcase, Shield, 
-  CreditCard, FileText, CheckCircle 
+  CreditCard, CheckCircle
 } from 'lucide-react';
 import { ProfileSection } from './ProfileSection';
 import { EmploymentSection } from './EmploymentSection';
@@ -10,6 +10,10 @@ import { AuthSection } from './AuthSection';
 import { BankSection } from './BankSection';
 import { fetchStaffProfile, saveStaff } from '../../../../services/api';
 import { useToastStore } from '../../../../stores/toastStore';
+
+import { APP_ROLES, toAppRoleValue } from '../../../../../shared/appRoles.js';
+import { splitEmployeePhone, digitsOnly } from '../../../../../shared/employeePhone.js';
+import { normalizeEmployee, validateEmployee, fieldTab } from '../../../../../shared/employeeValidation.js';
 
 type FormTab = 'profile' | 'employment' | 'auth' | 'bank';
 
@@ -19,13 +23,21 @@ export const EmployeeForm: React.FC = () => {
   const toast = useToastStore();
   const [activeTab, setActiveTab] = useState<FormTab>('profile');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(Boolean(id));
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const roles = APP_ROLES;
 
   const [formData, setFormData] = useState<any>({
     firstName: '',
     middleName: '',
     lastName: '',
     phone: '',
+    phoneCountryCode: '',
+    phoneCountry: '',
     email: '',
+    password: '',
+    accountEnabled: true,
     personalEmail: '',
     dob: '',
     gender: '',
@@ -36,11 +48,7 @@ export const EmployeeForm: React.FC = () => {
     roleId: '',
     assignedOutletId: '',
     onboardingStatus: 'approved',
-    baseSalary: '',
     commissionSlab: 'Tier 1',
-    pfDeduction: '',
-    taxType: 'percentage',
-    taxValue: '',
     address: {
       street: '',
       city: '',
@@ -69,27 +77,27 @@ export const EmployeeForm: React.FC = () => {
         if (data) {
           setFormData({
             id: data.id,
+            employeeCode: data.employeeCode || '',
+            password: '',
+            userId: data.userId,
+            accountEnabled: data.accountEnabled ?? true,
             firstName: data.firstName || data.name?.split(' ')[0] || '',
             middleName: data.middleName || '',
             lastName: data.lastName || data.name?.split(' ')[1] || '',
             name: data.name,
-            phone: data.phone || '',
+            ...splitEmployeePhone(data.phone || ''),
             email: data.email || '',
             personalEmail: data.personalEmail || '',
             dob: data.dob || '',
             gender: data.gender || '',
-            maritalStatus: data.maritalStatus || '',
+            maritalStatus: data.maritalStatus || data.marital_status || '',
             biometricCode: data.biometricCode || '',
             joiningDate: data.joiningDate || '',
-            role: data.role || '',
+            role: toAppRoleValue(data.role),
             roleId: data.roleId || '',
             assignedOutletId: data.assignedOutletId || '',
             onboardingStatus: data.onboardingStatus || 'approved',
-            baseSalary: data.baseSalary || '',
             commissionSlab: data.commissionSlab || 'Tier 1',
-            pfDeduction: data.pfDeduction || '',
-            taxType: data.taxType || 'percentage',
-            taxValue: data.taxValue || '',
             address: {
               street: data.address?.street || '',
               city: data.address?.city || '',
@@ -109,14 +117,26 @@ export const EmployeeForm: React.FC = () => {
           });
         }
       } catch (err) {
+        setLoadFailed(true);
         toast.error('Failed to load employee profile for editing');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     loadEmployee();
   }, [id]);
 
+  const clearError = (field: string) => setErrors(previous => {
+    const next = { ...previous };
+    delete next[field];
+    return next;
+  });
+
   const handleInputChange = (field: string, value: any) => {
+    if (field === 'phone') value = digitsOnly(value);
+    clearError(field);
+    if (field === 'phoneCountryCode') clearError('phone');
     setFormData((prev: any) => ({
       ...prev,
       [field]: value
@@ -124,6 +144,7 @@ export const EmployeeForm: React.FC = () => {
   };
 
   const handleAddressChange = (field: string, value: any) => {
+    clearError('address.' + field);
     setFormData((prev: any) => ({
       ...prev,
       address: {
@@ -134,6 +155,7 @@ export const EmployeeForm: React.FC = () => {
   };
 
   const handleBankChange = (field: string, value: any) => {
+    clearError('bankDetails.' + field);
     setFormData((prev: any) => ({
       ...prev,
       bankDetails: {
@@ -146,30 +168,28 @@ export const EmployeeForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Basic validation
-    if (!formData.firstName || !formData.lastName || !formData.phone || !formData.personalEmail) {
-      toast.error('Please fill in all required profile fields');
-      setActiveTab('profile');
-      return;
-    }
-    if (!formData.assignedOutletId || !formData.joiningDate || !formData.roleId) {
-      toast.error('Please fill in all required employment details');
-      setActiveTab('employment');
-      return;
-    }
-    if (formData.bankDetails?.accountNumber !== formData.bankDetails?.confirmAccountNumber) {
-      toast.error('Bank account numbers do not match');
-      setActiveTab('bank');
+    if (isSaving || isLoading || loadFailed) return;
+    const validationErrors = validateEmployee(formData, { isEditing: Boolean(id) });
+    setErrors(validationErrors);
+    const firstField = Object.keys(validationErrors)[0];
+    if (firstField) {
+      setActiveTab(fieldTab(firstField) as FormTab);
+      toast.error(validationErrors[firstField]);
       return;
     }
 
     setIsSaving(true);
     try {
-      await saveStaff(formData);
+      await saveStaff(normalizeEmployee(formData));
       toast.success(id ? 'Employee updated successfully' : 'Employee registered successfully');
       navigate('/staff');
-    } catch (err) {
-      toast.error('Failed to save employee record');
+    } catch (err: any) {
+      if (err.errors) {
+        setErrors(err.errors);
+        const firstField = Object.keys(err.errors)[0];
+        if (firstField) setActiveTab(fieldTab(firstField) as FormTab);
+      }
+      toast.error(err.message || 'Failed to save employee record');
     } finally {
       setIsSaving(false);
     }
@@ -183,7 +203,10 @@ export const EmployeeForm: React.FC = () => {
   ];
 
   return (
-    <form className="employee-form-container" onSubmit={handleSubmit}>
+    <form className="employee-form-container" onSubmit={handleSubmit} noValidate>
+      {isLoading && <p role="status">Loading employee...</p>}
+      {loadFailed && <p role="alert">Unable to load this employee. Reload before editing.</p>}
+      <fieldset disabled={isSaving || isLoading || loadFailed} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <div className="form-tabs">
         {tabs.map((tab) => (
           <button
@@ -203,6 +226,7 @@ export const EmployeeForm: React.FC = () => {
       <div className="glass-card">
         {activeTab === 'profile' && (
           <ProfileSection 
+            errors={errors}
             formData={formData} 
             onChange={handleInputChange} 
             onAddressChange={handleAddressChange} 
@@ -210,13 +234,16 @@ export const EmployeeForm: React.FC = () => {
         )}
         {activeTab === 'employment' && (
           <EmploymentSection 
+            roles={roles}
+            errors={errors}
             formData={formData} 
             onChange={handleInputChange} 
           />
         )}
-        {activeTab === 'auth' && <AuthSection />}
+        {activeTab === 'auth' && <AuthSection formData={formData} onChange={handleInputChange} roles={roles} errors={errors} isEditing={Boolean(id)} />}
         {activeTab === 'bank' && (
           <BankSection 
+            errors={errors}
             formData={formData} 
             onBankChange={handleBankChange} 
           />
@@ -260,17 +287,11 @@ export const EmployeeForm: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    // Quick validation before moving to next tab
-                    if (activeTab === 'profile') {
-                      if (!formData.firstName || !formData.lastName || !formData.phone || !formData.personalEmail) {
-                        toast.error('Please fill in all required profile fields');
-                        return;
-                      }
-                    } else if (activeTab === 'employment') {
-                      if (!formData.assignedOutletId || !formData.joiningDate || !formData.roleId) {
-                        toast.error('Please fill in all required employment details');
-                        return;
-                      }
+                    const tabErrors = Object.fromEntries(Object.entries(validateEmployee(formData, { isEditing: Boolean(id) })).filter(([field]) => fieldTab(field) === activeTab));
+                    setErrors(tabErrors);
+                    if (Object.keys(tabErrors).length) {
+                      toast.error(Object.values(tabErrors)[0] as string);
+                      return;
                     }
                     const tabIdx = tabs.findIndex(t => t.id === activeTab);
                     if (tabIdx < tabs.length - 1) setActiveTab(tabs[tabIdx + 1].id as FormTab);
@@ -303,6 +324,7 @@ export const EmployeeForm: React.FC = () => {
           </div>
         </div>
       </div>
+      </fieldset>
     </form>
   );
 };

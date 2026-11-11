@@ -7,27 +7,6 @@ export enum ContractStatus {
   TERMINATED = 'terminated'
 }
 
-export enum CalculationType {
-  FIXED = 'fixed',
-  PERCENTAGE = 'percentage',
-  VARIABLE = 'variable'
-}
-
-export enum ComponentType {
-  EARNING = 'earning',
-  DEDUCTION = 'deduction'
-}
-
-export interface SalaryComponent {
-  id: string;
-  name: string;
-  type: ComponentType;
-  calculationType: CalculationType;
-  amount: number;
-  effectiveDate?: string;
-  isCustom?: boolean; // If overridden at contract level
-}
-
 export interface LeaveAllocation {
   leaveTypeId: string;
   leaveTypeName: string;
@@ -64,10 +43,10 @@ export interface Contract {
   endDate?: string;
   durationMonths?: number;
   status: ContractStatus;
+  effectiveStatus?: string;
+  previousContractId?: number;
   notes?: string;
   
-  // Salary Configuration
-  salaryComponents: SalaryComponent[];
   
   // Overtime Configuration
   overtime: {
@@ -129,7 +108,6 @@ export interface MasterItem {
 
 export type ContractType = MasterItem;
 export type ContractTemplate = MasterItem & { previewUrl?: string };
-export type SalaryMaster = MasterItem & { type: ComponentType; calculationType: CalculationType; defaultAmount?: number };
 export type HolidayMaster = MasterItem & { date: string; isRecurring: boolean };
 export type LeaveMaster = MasterItem & { defaultCount: number; isPaid: boolean };
 export type ShiftMaster = MasterItem & { startTime: string; endTime: string; workingHours: number };

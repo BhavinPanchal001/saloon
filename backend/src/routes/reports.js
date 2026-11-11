@@ -12,7 +12,6 @@ router.get('/stock-summary', authenticate, reportController.getStockSummaryRepor
 router.get('/low-stock', authenticate, reportController.getLowStockReport);
 router.get('/purchase-orders', authenticate, reportController.getPurchaseOrderReport);
 router.get('/employee-attendance', authenticate, reportController.getEmployeeAttendanceReport);
-router.get('/employee-payroll', authenticate, reportController.getEmployeePayrollReport);
 router.get('/gstr2', authenticate, reportController.getGstr2Report);
 router.get('/export-csv', authenticate, reportController.exportReportCSV);
 router.get('/export-pdf', authenticate, reportController.exportReportPDF);

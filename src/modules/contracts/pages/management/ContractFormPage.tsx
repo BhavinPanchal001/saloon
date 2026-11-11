@@ -6,11 +6,12 @@ import {
 } from 'lucide-react';
 import { useToastStore } from '../../../../stores/toastStore';
 import { 
-  fetchStaff, saveContract, fetchSalaryMasters, 
+  fetchStaff, saveContract, fetchContractById, fetchContracts,
   fetchContractGroups, fetchContractTypes, fetchShifts, 
   fetchWorkWeeks, fetchHolidayTemplates, fetchLeaveTypes, fetchHolidays 
 } from '../../../../services/api';
 import { ContractStatus } from '../../types';
+import { findContractConflicts, revisionCandidates, previousContractEnd } from '../../../../../shared/contractOverlap.js';
 
 const normalizeDateStr = (str?: string): string => {
   if (!str) return '';
@@ -39,7 +40,7 @@ const formatDateForDisplay = (str?: string): string => {
 const WIZARD_STEPS = [
   { id: 1, key: 'basic', label: 'Basic Info' },
   { id: 2, key: 'timeline', label: 'Timeline & Policies' },
-  { id: 3, key: 'financials', label: 'Financials' },
+  { id: 3, key: 'overtime', label: 'Overtime' },
   { id: 4, key: 'leaves', label: 'Leave & Employee Config' },
   { id: 5, key: 'schedule', label: 'Work Schedule' },
   { id: 6, key: 'review', label: 'Review & Finish' },
@@ -99,21 +100,51 @@ const ContractFormPage: React.FC = () => {
   const toast = useToastStore();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
+  const contractId = new URLSearchParams(location.search).get('id');
+  const revisionId = new URLSearchParams(location.search).get('reviseFrom');
+  const sourceId = contractId || revisionId;
+  const [isLoadingContract, setIsLoadingContract] = useState(Boolean(sourceId));
+  const [contractLoadError, setContractLoadError] = useState('');
+  const [editRequiresRevision, setEditRequiresRevision] = useState(false);
+  useEffect(() => {
+    if (!sourceId) return;
+    let cancelled = false;
+    setCurrentStep(1);
+    setIsLoadingContract(true);
+    setContractLoadError('');
+    fetchContractById(sourceId).then(data => {
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      const revisionStart = today > data.startDate && (!data.endDate || today <= data.endDate) ? today : '';
+      if (!cancelled) setEditRequiresRevision(Boolean(contractId && data.status === ContractStatus.ACTIVE && data.startDate <= today));
+      if (!cancelled) setFormData((previous: any) => ({
+        ...previous, ...data,
+        ...(revisionId ? { id: undefined, code: '', previousContractId: data.id, previousContractCode: data.code, previousStartDate: data.startDate, currentVersion: Number(data.currentVersion || 1) + 1, startDate: revisionStart, endDate: data.endDate || '', groupId: data.groupId || '', status: ContractStatus.ACTIVE } : {}),
+        selectedLeaves: data.selectedLeaves || [], selectedHolidays: data.selectedHolidays || [], leaveCounts: data.leaveCounts || {},
+        allowOvertime: Boolean(data.overtime?.enabled),
+        probationPeriodMonths: data.probationPeriodMonths ?? 0, noticePeriodDays: data.noticePeriodDays ?? 30,
+      }));
+    }).catch(error => { if (!cancelled) setContractLoadError(error.message || 'Unable to load contract.'); })
+      .finally(() => { if (!cancelled) setIsLoadingContract(false); });
+    return () => { cancelled = true; };
+  }, [sourceId, revisionId]);
 
   // Master options
   const [staffList, setStaffList] = useState<any[]>([]);
   const [groupsList, setGroupsList] = useState<any[]>([]);
   const [contractTypesList, setContractTypesList] = useState<any[]>(DEFAULT_CONTRACT_TYPES);
-  const [salaryMasters, setSalaryMasters] = useState<any[]>([]);
   const [shiftsList, setShiftsList] = useState<any[]>([]);
   const [workWeeksList, setWorkWeeksList] = useState<any[]>([]);
-  const [leaveTypesList, setLeaveTypesList] = useState<any[]>(DEFAULT_LEAVE_TYPES);
-  const [holidaysList, setHolidaysList] = useState<any[]>(DEFAULT_HOLIDAYS);
+  const [leaveTypesList, setLeaveTypesList] = useState<any[]>([]);
+  const [holidaysList, setHolidaysList] = useState<any[]>([]);
 
-  // Salary modal state
-  const [showSalaryModal, setShowSalaryModal] = useState(false);
-  const [selectedSalaryMaster, setSelectedSalaryMaster] = useState<any>(null);
-  const [customAmount, setCustomAmount] = useState<string>('');
+  const [existingContracts, setExistingContracts] = useState<any[]>([]);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetchContracts().then(data => { if (!cancelled) { setExistingContracts(data); setContractsLoaded(true); } })
+      .catch(() => { if (!cancelled) toast.error('Unable to check existing contracts. Reload before saving.'); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState<any>({
@@ -133,21 +164,11 @@ const ContractFormPage: React.FC = () => {
 
     // Step 3: Financials
     allowOvertime: false,
-    salaryComponents: [],
 
     // Step 4: Leaves & Holidays
-    selectedLeaves: ['leave_annual', 'leave_casual', 'leave_sick', 'leave_paid', 'leave_comp', 'leave_lwp', 'leave_short'],
-    leaveCounts: {
-      'leave_annual': 12,
-      'leave_casual': 8,
-      'leave_sick': 14,
-      'leave_paid': 12,
-      'leave_comp': 5,
-      'leave_driving': 3,
-      'leave_lwp': 30,
-      'leave_short': 12
-    },
-    selectedHolidays: ['hol_1', 'hol_2', 'hol_3', 'hol_4', 'hol_5', 'hol_6', 'hol_7'],
+    selectedLeaves: [],
+    leaveCounts: {},
+    selectedHolidays: [],
 
     // Step 5: Schedule
     shiftId: '',
@@ -158,29 +179,16 @@ const ContractFormPage: React.FC = () => {
   useEffect(() => {
     const loadMasters = async () => {
       try {
-        const [staff, groups, cTypes, shifts, wWeeks, salaryComps, hTemplates, leaves, holidaysData] = await Promise.all([
+        const [staff, groups, cTypes, shifts, wWeeks, hTemplates, leaves, holidaysData] = await Promise.all([
           fetchStaff(),
           fetchContractGroups(),
           fetchContractTypes(),
           fetchShifts(),
           fetchWorkWeeks(),
-          fetchSalaryMasters(),
           fetchHolidayTemplates(),
           fetchLeaveTypes(),
           fetchHolidays()
         ]);
-
-        const DEFAULT_SALARY_MASTERS = [
-          { id: 'sal_basic', name: 'Basic Salary', code: 'BASIC', type: 'earning', calculationType: 'fixed', defaultAmount: 25000 },
-          { id: 'sal_hra', name: 'House Rent Allowance (HRA)', code: 'HRA', type: 'earning', calculationType: 'percentage', defaultAmount: 40 },
-          { id: 'sal_special', name: 'Special Allowance', code: 'SPECIAL', type: 'earning', calculationType: 'fixed', defaultAmount: 5000 },
-          { id: 'sal_conveyance', name: 'Conveyance Allowance', code: 'CONV', type: 'earning', calculationType: 'fixed', defaultAmount: 1600 },
-          { id: 'sal_bonus', name: 'Performance Bonus', code: 'BONUS', type: 'earning', calculationType: 'fixed', defaultAmount: 3000 },
-          { id: 'sal_pf', name: 'Provident Fund (PF)', code: 'PF', type: 'deduction', calculationType: 'percentage', defaultAmount: 12 },
-          { id: 'sal_prof_tax', name: 'Professional Tax (PT)', code: 'PT', type: 'deduction', calculationType: 'fixed', defaultAmount: 200 },
-          { id: 'sal_tds', name: 'Tax Deducted at Source (TDS)', code: 'TDS', type: 'deduction', calculationType: 'percentage', defaultAmount: 10 },
-          { id: 'sal_esi', name: 'Employee State Insurance (ESI)', code: 'ESI', type: 'deduction', calculationType: 'percentage', defaultAmount: 1.75 },
-        ];
 
         if (staff && staff.length > 0) setStaffList(staff);
         if (groups && groups.length > 0) setGroupsList(groups);
@@ -200,21 +208,19 @@ const ContractFormPage: React.FC = () => {
 
         if (shifts && shifts.length > 0) setShiftsList(shifts);
         if (wWeeks && wWeeks.length > 0) setWorkWeeksList(wWeeks);
-        if (salaryComps && salaryComps.length > 0) setSalaryMasters(salaryComps);
-        else setSalaryMasters(DEFAULT_SALARY_MASTERS);
 
         if (leaves && leaves.length > 0) setLeaveTypesList(leaves);
-        else setLeaveTypesList(DEFAULT_LEAVE_TYPES);
+        else setLeaveTypesList([]);
 
         if (holidaysData && holidaysData.length > 0) setHolidaysList(holidaysData);
-        else setHolidaysList(DEFAULT_HOLIDAYS);
+        else setHolidaysList([]);
 
       } catch (err) {
         console.error('Error loading contract masters:', err);
         setContractTypesList(DEFAULT_CONTRACT_TYPES);
-        setSalaryMasters(DEFAULT_SALARY_MASTERS);
-        setLeaveTypesList(DEFAULT_LEAVE_TYPES);
-        setHolidaysList(DEFAULT_HOLIDAYS);
+        setLeaveTypesList([]);
+        toast.error('Unable to load contract settings. Reload before selecting leaves and holidays.');
+        setHolidaysList([]);
       }
     };
     loadMasters();
@@ -250,6 +256,22 @@ const ContractFormPage: React.FC = () => {
   const selectedGroup = groupsList.find(g => String(g.id) === String(formData.groupId));
   
   const targetEmployeeId = formData.employeeId || selectedGroup?.employeeId;
+  const dateConflicts = findContractConflicts(existingContracts, { ...formData, employeeId: targetEmployeeId });
+  const eligibleRevisions = revisionCandidates(dateConflicts, formData.startDate);
+  const unresolvedConflicts = dateConflicts.filter((contract: any) => String(contract.id) !== String(formData.previousContractId));
+  const canContinueTimeline = () => {
+    if (!contractsLoaded) { toast.error('Existing contracts could not be checked. Reload before saving.'); return false; }
+    if (!contractId && unresolvedConflicts.length) {
+      toast.error('These dates are already covered by an existing contract. Choose a non-overlapping date range.');
+      return false;
+    }
+    return true;
+  };
+  useEffect(() => {
+    if (revisionId || !formData.previousContractId) return;
+    const predecessor = existingContracts.find(contract => String(contract.id) === String(formData.previousContractId));
+    if (predecessor && String(predecessor.employeeId) !== String(targetEmployeeId)) setFormData((previous: any) => ({ ...previous, previousContractId: undefined, previousContractCode: '', previousStartDate: '', currentVersion: 1 }));
+  }, [targetEmployeeId, formData.previousContractId, existingContracts, revisionId]);
   const matchedStaff = staffList.find(s => String(s.id) === String(targetEmployeeId));
 
   const selectedEmployee = {
@@ -272,6 +294,7 @@ const ContractFormPage: React.FC = () => {
       const gEnd = normalizeDateStr(selectedGroup.endDate);
       
       setFormData((prev: any) => {
+        if (revisionId && !prev.startDate) return { ...prev, endDate: gEnd || prev.endDate };
         let curStart = normalizeDateStr(prev.startDate);
         let curEnd = normalizeDateStr(prev.endDate);
 
@@ -300,6 +323,7 @@ const ContractFormPage: React.FC = () => {
   // Validation function for step navigation
   const validateCurrentStep = (): boolean => {
     if (currentStep === 1) {
+      if (formData.previousContractId && !selectedGroup) { toast.error('Select a group covering the revision period.'); return false; }
       if (!formData.typeId) {
         toast.error('Please select a Contract Type.');
         return false;
@@ -307,6 +331,8 @@ const ContractFormPage: React.FC = () => {
     }
 
     if (currentStep === 2) {
+      if (!canContinueTimeline()) return false;
+      if (formData.previousContractId && formData.previousStartDate && formData.startDate && formData.startDate <= formData.previousStartDate) { toast.error('The effective date must be after the previous contract start date.'); return false; }
       if (!formData.startDate) {
         toast.error('Please select a Start Date.');
         return false;
@@ -347,69 +373,42 @@ const ContractFormPage: React.FC = () => {
     }
   };
 
-  const handleAddSalaryComponent = () => {
-    if (!selectedSalaryMaster || !customAmount) {
-      toast.error('Please select a component and enter an amount');
-      return;
-    }
-    const exists = formData.salaryComponents.some((c: any) => c.masterId === selectedSalaryMaster.id || c.name === selectedSalaryMaster.name);
-    if (exists) {
-      toast.error('This salary component is already mapped');
-      return;
-    }
-
-    const component = {
-      id: `comp_${Date.now()}`,
-      masterId: selectedSalaryMaster.id,
-      name: selectedSalaryMaster.name,
-      code: selectedSalaryMaster.code || 'COMP',
-      type: String(selectedSalaryMaster.type).toLowerCase() === 'deduction' ? 'deduction' : 'earning',
-      amount: Number(customAmount)
-    };
-
-    setFormData((prev: any) => ({
-      ...prev,
-      salaryComponents: [...prev.salaryComponents, component]
-    }));
-    setShowSalaryModal(false);
-    setSelectedSalaryMaster(null);
-    setCustomAmount('');
-    toast.success('Salary component mapped');
-  };
-
-  const handleRemoveSalaryComponent = (id: string) => {
-    setFormData((prev: any) => ({
-      ...prev,
-      salaryComponents: prev.salaryComponents.filter((c: any) => c.id !== id)
-    }));
-    toast.success('Component unmapped');
-  };
-
-  const totalEarnings = formData.salaryComponents
-    .filter((c: any) => String(c.type).toLowerCase() === 'earning')
-    .reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0);
-
-  const totalDeductions = formData.salaryComponents
-    .filter((c: any) => String(c.type).toLowerCase() === 'deduction')
-    .reduce((sum: number, c: any) => sum + (Number(c.amount) || 0), 0);
-
-  const totalSalary = Math.max(0, totalEarnings - totalDeductions);
-
   const handleSave = async () => {
+    if (isSaving || isLoadingContract || contractLoadError) return;
+    if (editRequiresRevision) {
+      toast.error('This contract has already started. Select Create Revision and choose an effective date.');
+      return;
+    }
+    if (formData.previousContractId && !selectedGroup) {
+      toast.error('Select a group covering the revision period.');
+      setCurrentStep(1);
+      return;
+    }
+    if (!canContinueTimeline()) { setCurrentStep(2); return; }
     setIsSaving(true);
     try {
       await saveContract(formData);
-      toast.success('Contract created successfully!');
+      if (formData.previousContractId) toast.success('Revision scheduled. The previous contract is preserved until the effective date.');
+      if (!formData.previousContractId) toast.success(contractId ? 'Contract updated successfully!' : 'Contract created successfully!');
       navigate('/contracts/list');
-    } catch (err) {
-      toast.error('Failed to save contract');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save contract');
+      if (/overlap/i.test(err.message || '')) {
+        fetchContracts().then(data => { setExistingContracts(data); setContractsLoaded(true); }).catch(() => setContractsLoaded(false));
+        setCurrentStep(2);
+      }
     } finally {
       setIsSaving(false);
     }
   };
 
+  if (isLoadingContract) return <p role="status" className="p-8 text-slate-500">Loading contract for editing...</p>;
+  if (contractLoadError) return <div role="alert" className="p-8"><p>{contractLoadError}</p><button type="button" onClick={() => navigate('/contracts/list')}>Back to Contracts</button></div>;
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      {editRequiresRevision && <div role="alert" className="mx-auto w-full max-w-6xl p-4 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl"><p>This contract has already started. Create a revision with an effective date to save changes and preserve its history.</p><button type="button" className="mt-2 font-semibold underline" onClick={() => navigate(`/contracts/new?reviseFrom=${contractId}`)}>Create Revision</button></div>}
+      {formData.previousContractId && <div className="mx-auto w-full max-w-6xl p-4 text-sm text-blue-900 bg-blue-50 border border-blue-100 rounded-xl"><strong>Revision of {formData.previousContractCode}</strong><p className="mt-1">Choose the effective start date and a contract group covering the new period. The previous contract ends the day before; earlier settings stay unchanged.</p></div>}
       
       {/* ── Persistent Top Employee Profile Banner ── */}
       <div className="bg-white border-b border-slate-200 px-8 py-4 shadow-2xs">
@@ -498,7 +497,7 @@ const ContractFormPage: React.FC = () => {
                 disabled={isSaving}
                 className="px-5 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
               >
-                {isSaving ? 'Saving...' : 'Finalize & Create'}
+                {isSaving ? 'Saving...' : contractId ? 'Save Changes' : formData.previousContractId ? 'Schedule Revision' : 'Finalize & Create'}
               </button>
             )}
           </div>
@@ -538,10 +537,12 @@ const ContractFormPage: React.FC = () => {
                     Contract Group
                   </label>
                   <select
-                    value={formData.groupId}
+                    aria-label="Contract Group"
+                    value={formData.groupId || ''}
                     onChange={(e) => setFormData({ ...formData, groupId: e.target.value })}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none text-xs"
                   >
+                    <option value="">Select a contract group...</option>
                     {groupsList.map(g => (
                       <option key={g.id} value={g.id}>
                         {g.name}
@@ -636,27 +637,43 @@ const ContractFormPage: React.FC = () => {
                 </div>
               )}
 
+              {!contractId && dateConflicts.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3" role="region" aria-label="Apply changes to an existing contract">
+                  <h4 className="text-sm font-bold text-amber-900">An existing contract covers these dates</h4>
+                  <p className="text-xs text-amber-800">Apply a revision to keep earlier dates under the previous terms.</p>
+                  {eligibleRevisions.map((contract: any) => <label key={contract.id} className="flex items-start gap-3 rounded-lg border border-amber-200 bg-white p-3 cursor-pointer">
+                    <input type="checkbox" className="mt-0.5" checked={String(formData.previousContractId) === String(contract.id)} onChange={event => setFormData((previous: any) => ({ ...previous, previousContractId: event.target.checked ? contract.id : undefined, previousContractCode: event.target.checked ? contract.code : '', previousStartDate: event.target.checked ? contract.startDate : '', currentVersion: event.target.checked ? Number(contract.currentVersion || 1) + 1 : 1, status: ContractStatus.ACTIVE }))} />
+                    <span className="text-xs text-slate-700"><strong className="block text-sm">Apply as revision of {contract.code} from {formatDateForDisplay(formData.startDate)}</strong><span className="block mt-1">Previous terms apply through {formatDateForDisplay(previousContractEnd(formData.startDate))}. These new settings apply from {formatDateForDisplay(formData.startDate)}.</span></span>
+                  </label>)}
+                  {!eligibleRevisions.length && <p className="text-xs font-medium text-amber-900">Choose an effective date after the existing contract's start date to create a revision.</p>}
+                  {formData.previousContractId && unresolvedConflicts.length > 0 && <p className="text-xs font-medium text-rose-700">Another contract also overlaps: {unresolvedConflicts.map((contract: any) => contract.code).join(', ')}. Adjust the end date to avoid that period.</p>}
+                </div>
+              )}
+
+              {!contractId && unresolvedConflicts.length > 0 && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">An existing contract already covers these dates. Choose a date range that does not overlap.</p>}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
                 {/* Start Date */}
                 <div className="space-y-1.5">
                   <label className="font-semibold text-slate-700 block">
-                    Start Date <span className="text-rose-500">*</span>
+                    {formData.previousContractId ? 'Effective From' : 'Start Date'} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="date"
+                    aria-label={formData.previousContractId ? 'Effective From' : 'Start Date'}
                     value={formData.startDate}
                     min={normalizeDateStr(selectedGroup?.startDate)}
                     max={normalizeDateStr(selectedGroup?.endDate)}
                     onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                     className={`w-full px-3.5 py-2.5 bg-white border rounded-xl font-medium text-slate-800 focus:ring-2 outline-none text-xs ${
-                      (selectedGroup?.startDate && normalizeDateStr(formData.startDate) < normalizeDateStr(selectedGroup.startDate)) ||
+                      (formData.startDate && selectedGroup?.startDate && normalizeDateStr(formData.startDate) < normalizeDateStr(selectedGroup.startDate)) ||
                       (selectedGroup?.endDate && normalizeDateStr(formData.startDate) > normalizeDateStr(selectedGroup.endDate))
                         ? 'border-rose-300 focus:ring-rose-500 bg-rose-50/20'
                         : 'border-slate-200 focus:ring-blue-500'
                     }`}
                     required
                   />
-                  {selectedGroup?.startDate && normalizeDateStr(formData.startDate) < normalizeDateStr(selectedGroup.startDate) && (
+                  {formData.startDate && selectedGroup?.startDate && normalizeDateStr(formData.startDate) < normalizeDateStr(selectedGroup.startDate) && (
                     <p className="text-[11px] font-semibold text-rose-600 mt-1">
                       ⚠️ Start date cannot be before {formatDateForDisplay(selectedGroup.startDate)}
                     </p>
@@ -732,21 +749,12 @@ const ContractFormPage: React.FC = () => {
           {currentStep === 3 && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Financial Details</h3>
-                <p className="text-xs text-slate-500">Configure salary components and overtime settings.</p>
+                <h3 className="text-base font-bold text-slate-900">Overtime</h3>
+                <p className="text-xs text-slate-500">Configure overtime settings.</p>
               </div>
 
               {/* Actions Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <button
-                  type="button"
-                  onClick={() => setShowSalaryModal(true)}
-                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-2xs self-start cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Salary Components
-                </button>
-
                 <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
                   <input
                     type="checkbox"
@@ -758,66 +766,6 @@ const ContractFormPage: React.FC = () => {
                 </label>
               </div>
 
-              {/* Mapped Salary Components List */}
-              <div className="space-y-2 text-xs">
-                <h4 className="font-bold text-slate-800">Mapped Salary Components ({formData.salaryComponents.length})</h4>
-                {formData.salaryComponents.length === 0 ? (
-                  <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl text-center text-slate-400 italic">
-                    No salary components mapped yet. Click <strong>+ Add Salary Components</strong> above to map Earnings and Deductions.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {formData.salaryComponents.map((comp: any) => {
-                      const isEarning = String(comp.type).toLowerCase() === 'earning';
-                      return (
-                        <div key={comp.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
-                          <div className="flex items-center gap-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                              isEarning ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                            }`}>
-                              {isEarning ? 'EARNING' : 'DEDUCTION'}
-                            </span>
-                            <div>
-                              <span className="font-bold text-slate-800">{comp.name}</span>
-                              <span className="text-slate-400 text-[11px] ml-2">({comp.code || 'COMP'})</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-4">
-                            <span className={`font-bold text-xs ${isEarning ? 'text-emerald-700' : 'text-rose-700'}`}>
-                              {isEarning ? '+' : '-'} ₹{Number(comp.amount || 0).toLocaleString()}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveSalaryComponent(comp.id)}
-                              className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
-                              title="Remove component"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Salary Summary Table */}
-              <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl overflow-hidden divide-y divide-slate-200/80 text-xs font-medium">
-                <div className="p-4 flex items-center justify-between">
-                  <span className="text-slate-600 font-semibold">Total Earnings</span>
-                  <span className="font-bold text-emerald-700 text-sm">+ ₹{totalEarnings.toLocaleString()}</span>
-                </div>
-                <div className="p-4 flex items-center justify-between">
-                  <span className="text-slate-600 font-semibold">Total Deductions</span>
-                  <span className="font-bold text-rose-600 text-sm">- ₹{totalDeductions.toLocaleString()}</span>
-                </div>
-                <div className="p-4 flex items-center justify-between bg-blue-50/50 font-bold">
-                  <span className="text-slate-800">Total Salary (Net Payout)</span>
-                  <span className="text-base text-blue-900 font-extrabold">₹{totalSalary.toLocaleString()}</span>
-                </div>
-              </div>
             </div>
           )}
 
@@ -834,10 +782,11 @@ const ContractFormPage: React.FC = () => {
                 
                 {/* Left Column: Leave Types */}
                 <div className="space-y-3">
-                  <h4 className="font-bold text-slate-800">Leave Types ({leaveTypesList.length})</h4>
+                  <div className="flex items-center justify-between gap-3"><h4 className="font-bold text-slate-800">Available Leave Types ({leaveTypesList.length})</h4><span className="text-xs font-semibold text-blue-600">{formData.selectedLeaves.length} selected</span></div>
+                  {leaveTypesList.length === 0 && <p className="text-xs text-slate-500">No leave types available. Add them in Contract Masters, then reload.</p>}
                   <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                     {leaveTypesList.map((leave) => {
-                      const isChecked = formData.selectedLeaves.includes(leave.id);
+                      const isChecked = formData.selectedLeaves.some((id: any) => String(id) === String(leave.id));
                       const currentCount = formData.leaveCounts?.[leave.id] ?? leave.daysAllowed ?? 12;
 
                       return (
@@ -847,7 +796,7 @@ const ContractFormPage: React.FC = () => {
                             setFormData((prev: any) => ({
                               ...prev,
                               selectedLeaves: isChecked 
-                                ? prev.selectedLeaves.filter((id: string) => id !== leave.id)
+                                ? prev.selectedLeaves.filter((id: string) => String(id) !== String(leave.id))
                                 : [...prev.selectedLeaves, leave.id]
                             }));
                           }}
@@ -930,7 +879,7 @@ const ContractFormPage: React.FC = () => {
 
                   <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                     {holidaysList.map((hol, idx) => {
-                      const isChecked = formData.selectedHolidays.includes(hol.id);
+                      const isChecked = formData.selectedHolidays.some((id: any) => String(id) === String(hol.id));
                       const holidayTitle = hol.occasionName || hol.name;
                       return (
                         <div
@@ -939,7 +888,7 @@ const ContractFormPage: React.FC = () => {
                             setFormData((prev: any) => ({
                               ...prev,
                               selectedHolidays: isChecked
-                                ? prev.selectedHolidays.filter((id: string) => id !== hol.id)
+                                ? prev.selectedHolidays.filter((id: string) => String(id) !== String(hol.id))
                                 : [...prev.selectedHolidays, hol.id]
                             }));
                           }}
@@ -1029,7 +978,7 @@ const ContractFormPage: React.FC = () => {
                 </div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                   <span className="text-slate-500 font-semibold">Contract Group</span>
-                  <span className="font-bold text-slate-900">{selectedGroup.name}</span>
+                  <span className="font-bold text-slate-900">{selectedGroup?.name || 'Select a contract group'}</span>
                 </div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                   <span className="text-slate-500 font-semibold">Validity Period</span>
@@ -1090,60 +1039,6 @@ const ContractFormPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Salary Mapping Modal */}
-      {showSalaryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900">Map Salary Component</h3>
-              <button onClick={() => setShowSalaryModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-3 text-xs">
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-700 block">Salary Component</label>
-                <select
-                  value={selectedSalaryMaster?.id || ''}
-                  onChange={(e) => {
-                    const found = salaryMasters.find(s => String(s.id) === String(e.target.value));
-                    setSelectedSalaryMaster(found || null);
-                    if (found?.defaultAmount) {
-                      setCustomAmount(String(found.defaultAmount));
-                    }
-                  }}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                >
-                  <option value="">Choose Component...</option>
-                  {salaryMasters.map((master: any) => (
-                    <option key={master.id} value={master.id}>
-                      {master.name} ({master.code || 'COMP'}) — {String(master.type || 'earning').toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-700 block">Amount (₹)</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 25000"
-                  value={customAmount}
-                  onChange={(e) => setCustomAmount(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-xl text-xs font-medium"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setShowSalaryModal(false)} className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl">
-                Cancel
-              </button>
-              <button onClick={handleAddSalaryComponent} className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 rounded-xl">
-                Add Component
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -17,7 +17,6 @@ interface StaffMember {
   phone: string;
   role: string;
   assignedOutletName: string;
-  baseSalary: number;
   status?: string;
   hasActiveContract?: boolean;
   contractStatus?: string;

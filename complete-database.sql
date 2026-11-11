@@ -1,6 +1,6 @@
 -- MySQL dump 10.13  Distrib 9.6.0, for macos15.7 (arm64)
 --
--- Host: localhost    Database: glowy_saloon
+-- Host: localhost    Database: glowy_salon2
 -- ------------------------------------------------------
 -- Server version	9.6.0
 
@@ -2083,11 +2083,11 @@ LOCK TABLES `work_weeks` WRITE;
 UNLOCK TABLES;
 
 --
--- Dumping events for database 'glowy_saloon'
+-- Dumping events for database 'glowy_salon2'
 --
 
 --
--- Dumping routines for database 'glowy_saloon'
+-- Dumping routines for database 'glowy_salon2'
 --
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 

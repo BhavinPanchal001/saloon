@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('./db');
+const { readContractConfiguration } = require('../services/contractPolicies');
 
 const Contract = sequelize.define('Contract', {
   id: {
@@ -76,6 +77,20 @@ const Contract = sequelize.define('Contract', {
     type: DataTypes.INTEGER.UNSIGNED,
     defaultValue: 1,
   },
+  leave_configuration: {
+    type: DataTypes.JSON, allowNull: true,
+    get() { return readContractConfiguration(this.getDataValue('leave_configuration')); },
+  },
+  holiday_configuration: {
+    type: DataTypes.JSON, allowNull: true,
+    get() { return readContractConfiguration(this.getDataValue('holiday_configuration')); },
+  },
+  probation_period_months: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  notice_period_days: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  previous_contract_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  original_end_date: { type: DataTypes.DATEONLY, allowNull: true },
+  terms_snapshot: { type: DataTypes.JSON, allowNull: true },
+  document_metadata: { type: DataTypes.JSON, allowNull: true },
 }, {
   tableName: 'contracts',
   underscored: true,

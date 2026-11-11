@@ -1,332 +1,164 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Mail, Phone, MapPin, Calendar, Building, UserCheck, Loader2 } from 'lucide-react';
-import { fetchStaffProfile, updateStaffStatus, resetStaffPassword } from "../../../services/api";
+import { ArrowLeft, Mail, Phone, MapPin, Loader2, Eye } from 'lucide-react';
+import { fetchStaffProfile } from '../../../services/api';
 import { useToastStore } from '../../../stores/toastStore';
-import { ConfirmModal } from '../../../components/ui/Modal';
 import { ErrorState } from '../../../components/ui/EmptyState';
-import { DocumentViewerModal } from '../components/DocumentViewerModal';
+import { ContractDetailsContent } from '../../contracts/components/ContractDetailsContent';
+import { APP_ROLES } from '../../../../shared/appRoles.js';
 import '../styles/employees.css';
 
 interface StaffMember {
-  id: string;
+  id: string | number;
+  contractDetails?: any;
+  employeeCode?: string;
   name: string;
-  phone: string;
-  role: string;
-  assignedOutletName: string;
-  baseSalary: number;
-  commissionSlab: string;
-  contractFileName: string;
-  status?: string;
-  hasActiveContract?: boolean;
-  contractStatus?: string;
-  shiftName?: string;
-  workWeekName?: string;
-  activeContract?: {
-    id: number;
-    code: string;
-    title: string;
-    startDate: string;
-    endDate: string;
-    shiftName?: string;
-    workWeekName?: string;
-  } | null;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  phone?: string;
+  email?: string;
+  personalEmail?: string;
+  dob?: string;
+  gender?: string;
+  maritalStatus?: string;
+  marital_status?: string;
+  role?: string;
+  assignedOutletName?: string;
+  biometricCode?: string;
+  joiningDate?: string;
+  userId?: string | number | null;
+  accountEnabled?: boolean;
+  onboardingStatus?: string;
+  address?: { street?: string; city?: string; state?: string; country?: string; pincode?: string };
+  bankDetails?: { accountHolderName?: string; bankName?: string; accountNumber?: string; ifscCode?: string; branchName?: string; accountType?: string };
 }
+
+const display = (value?: string | number | null) => value === undefined || value === null || value === '' ? '?' : String(value);
+const date = (value?: string) => {
+  if (!value) return '?';
+  const parsed = new Date(value.slice(0, 10) + 'T00:00:00');
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+const countryName = (value?: string) => {
+  if (!value) return '?';
+  if (value.length !== 2) return value;
+  try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(value === 'UK' ? 'GB' : value) || value; }
+  catch { return value; }
+};
+
+const DetailSection: React.FC<{ title: string; fields: [string, string | number | null | undefined][] }> = ({ title, fields }) => (
+  <section className="glass-card">
+    <h2 className="text-base font-bold text-navy-900 mb-5">{title}</h2>
+    <dl className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+      {fields.map(([label, value]) => (
+        <div key={label} className="min-w-0">
+          <dt className="text-xs font-medium text-navy-400 mb-1.5">{label}</dt>
+          <dd className="text-sm font-semibold text-navy-900 break-words whitespace-pre-line">{display(value)}</dd>
+        </div>
+      ))}
+    </dl>
+  </section>
+);
 
 const EmployeeDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const toast = useToastStore();
-
+  const showError = useToastStore(state => state.error);
   const [employee, setEmployee] = useState<StaffMember | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
-  const [documentModalOpen, setDocumentModalOpen] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const loadEmployee = async () => {
-      if (!id) {
-        setError('No employee ID provided');
-        setLoading(false);
-        return;
-      }
-
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true);
-        setError(null);
+        if (!id) throw new Error('No employee ID provided.');
         const data = await fetchStaffProfile(id);
-        setEmployee(data);
+        if (!cancelled) setEmployee(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load employee');
-        toast.error('Failed to load employee details');
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load employee.');
+          showError('Failed to load employee details');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-
     loadEmployee();
-  }, [id, toast]);
+    return () => { cancelled = true; };
+  }, [id, showError]);
 
-  const [isDeactivating, setIsDeactivating] = useState(false);
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  if (loading) return (
+    <div className="employee-module flex min-h-[60vh] flex-col items-center justify-center gap-4" role="status">
+      <Loader2 className="h-10 w-10 animate-spin text-navy-500" />
+      <p className="text-sm font-medium text-navy-500">Loading employee profile...</p>
+    </div>
+  );
+  if (error || !employee) return (
+    <div className="employee-module">
+      <ErrorState title="Employee not found" description={error || 'The employee you are looking for does not exist.'} onRetry={() => window.location.reload()} />
+    </div>
+  );
 
-  const handleDeactivate = async () => {
-    if (!employee?.id) return;
-    
-    setIsDeactivating(true);
-    try {
-      await updateStaffStatus(employee.id, 'inactive');
-      setEmployee(prev => prev ? { ...prev, status: 'inactive', hasActiveContract: false } : null);
-      toast.success('Employee account deactivated successfully');
-      setDeactivateModalOpen(false);
-    } catch (err) {
-      toast.error('Failed to deactivate employee');
-    } finally {
-      setIsDeactivating(false);
-    }
-  };
-
-  const handleResetPassword = async () => {
-    if (!employee?.id) return;
-    
-    setIsResettingPassword(true);
-    try {
-      const result = await resetStaffPassword(employee.id);
-      toast.success(result.message);
-    } catch (err) {
-      toast.error('Failed to reset password');
-    } finally {
-      setIsResettingPassword(false);
-    }
-  };
-
-  const handleViewDocuments = () => {
-    setDocumentModalOpen(true);
-  };
-
-  // Generate initials from name
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  // Format salary
-  const formatSalary = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  if (loading) {
-    return (
-      <div className="employee-module">
-        <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-navy-500" />
-          <p className="text-sm font-medium text-navy-500">Loading employee profile...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !employee) {
-    return (
-      <div className="employee-module">
-        <ErrorState
-          title="Employee not found"
-          description={error || 'The employee you are looking for does not exist.'}
-          onRetry={() => window.location.reload()}
-        />
-      </div>
-    );
-  }
-
-  const isEmployeeActive = employee.hasActiveContract !== false && (employee.status === 'Active' || employee.hasActiveContract);
+  const name = [employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ') || employee.name;
+  const initials = name.split(/\s+/).filter(Boolean).map(part => part[0]).join('').slice(0, 2).toUpperCase();
+  const role = APP_ROLES.find(option => option.value === employee.role)?.label || employee.role;
+  const address = employee.address || {};
+  const bank = employee.bankDetails || {};
+  const accountStatus = !employee.userId ? 'Not linked' : employee.accountEnabled === undefined ? 'Unavailable' : employee.accountEnabled ? 'Enabled' : 'Disabled';
 
   return (
     <div className="employee-module">
-      <header className="module-header">
+      <header className="module-header flex-wrap gap-4">
         <div className="module-title">
-          <button
-            onClick={() => navigate('/staff')}
-            className="flex items-center gap-1.5 text-navy-600 hover:text-navy-900 font-bold transition-colors mb-2"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-          >
-            <ArrowLeft size={16} />
-            Back to List
+          <button type="button" onClick={() => navigate('/staff')} className="flex items-center gap-1.5 text-navy-600 hover:text-navy-900 font-bold mb-2" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <ArrowLeft size={16} /> Back to List
           </button>
-          <h1>Employee Profile</h1>
+          <h1>Employee Details</h1>
+          <p>View the employee's saved information.</p>
         </div>
-        <button
-          className="btn-premium-primary"
-          onClick={() => navigate(`/staff/edit/${id}`)}
-        >
-          <Edit size={18} />
-          Edit Profile
-        </button>
+        <span className="inline-flex items-center gap-2 rounded-full border border-navy-100 bg-navy-50 px-4 py-2 text-xs font-semibold text-navy-600"><Eye size={15} /> Read only</span>
       </header>
-
-      <div className="grid gap-6 lg:grid-cols-[350px_1fr]">
-        {/* Left Column: Summary Card */}
-        <div className="flex flex-col gap-6">
-          <div className="glass-card text-center">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-navy-100 to-navy-200 mx-auto mb-6 flex items-center justify-center text-3xl font-bold text-navy-600">
-              {getInitials(employee.name)}
-            </div>
-            <h2 className="text-xl font-semibold mb-1">{employee.name}</h2>
-            <p className="text-navy-500 font-medium mb-3">{employee.role}</p>
-            {isEmployeeActive ? (
-              <span className="status-badge status-active">Active (Contract Active)</span>
-            ) : (
-              <span className="status-badge !bg-slate-100 !text-slate-600 !border-slate-200">Inactive (No Active Contract)</span>
-            )}
-
-            <div className="mt-6 text-left border-t border-navy-100 pt-5 space-y-3">
-              <div className="flex items-center gap-3 text-navy-500 text-sm">
-                <Mail size={18} />
-                <span>{employee.phone}</span>
-              </div>
-              <div className="flex items-center gap-3 text-navy-500 text-sm">
-                <MapPin size={18} />
-                <span>{employee.assignedOutletName}</span>
-              </div>
-            </div>
+      <div className="grid items-start gap-6 lg:grid-cols-[280px_1fr]">
+        <aside className="glass-card text-center">
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-navy-100 to-navy-200 mx-auto mb-5 flex items-center justify-center text-2xl font-bold text-navy-600">{initials}</div>
+          <h2 className="text-xl font-semibold break-words">{name}</h2>
+          <p className="text-sm text-navy-500 font-medium mt-2">{display(role)}</p>
+          <p className="text-xs text-navy-400 mt-2">{display(employee.employeeCode)}</p>
+          <div className="mt-6 text-left border-t border-navy-100 pt-5 space-y-4">
+            <p className="flex items-start gap-3 text-navy-600 text-sm"><Phone size={17} className="shrink-0 mt-0.5" /><span className="break-all">{display(employee.phone)}</span></p>
+            <p className="flex items-start gap-3 text-navy-600 text-sm"><Mail size={17} className="shrink-0 mt-0.5" /><span className="break-all">{display(employee.personalEmail)}</span></p>
+            <p className="flex items-start gap-3 text-navy-600 text-sm"><MapPin size={17} className="shrink-0 mt-0.5" /><span className="break-words">{display(employee.assignedOutletName)}</span></p>
           </div>
-
-          <div className="glass-card">
-            <h3 className="text-base font-semibold mb-4">Quick Actions</h3>
-            <div className="flex flex-col gap-3">
-              <button
-                className="btn-premium-outline w-full !justify-start"
-                onClick={handleViewDocuments}
-              >
-                View Documents
-              </button>
-              <button
-                className="btn-premium-outline w-full !justify-start"
-                onClick={handleResetPassword}
-              >
-                Reset Password
-              </button>
-              <button
-                className="btn-premium w-full !justify-start !text-rose-600 !border-rose-200 !bg-rose-50 hover:!bg-rose-100"
-                onClick={() => setDeactivateModalOpen(true)}
-              >
-                Deactivate Account
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Detailed Info */}
-        <div className="flex flex-col gap-6">
-          {!isEmployeeActive && (
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
-                  <UserCheck size={20} />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-amber-900">No Active Contract</h4>
-                  <p className="text-xs text-amber-700 mt-0.5">This employee does not currently have an active contract. They are marked as Inactive and attendance is disabled until a contract is activated.</p>
-                </div>
-              </div>
-              <button
-                onClick={() => navigate('/contracts')}
-                className="btn-premium-primary !py-2 !px-4 text-xs font-bold shrink-0 whitespace-nowrap"
-              >
-                Manage Contracts
-              </button>
-            </div>
-          )}
-
-          <div className="glass-card">
-            <h3 className="form-section-title mt-0">Employment & Contract Details</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Employee ID</label>
-                <div className="font-semibold text-navy-900">{employee.id}</div>
-              </div>
-              <div>
-                <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Role</label>
-                <div className="font-semibold text-navy-900">{employee.role}</div>
-              </div>
-              <div>
-                <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Assigned Outlet</label>
-                <div className="font-semibold text-navy-900">{employee.assignedOutletName}</div>
-              </div>
-              <div>
-                <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Commission Slab</label>
-                <div className="font-semibold text-navy-900">{employee.commissionSlab}</div>
-              </div>
-              <div>
-                <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Contract Shift</label>
-                <div className="font-semibold text-navy-900">{employee.shiftName || (employee.activeContract?.shiftName || 'Not Assigned')}</div>
-              </div>
-              <div>
-                <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Contract Work Week</label>
-                <div className="font-semibold text-navy-900">{employee.workWeekName || (employee.activeContract?.workWeekName || 'Standard')}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card">
-            <h3 className="form-section-title mt-0">Salary Information</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Base Salary</label>
-                <div className="font-semibold text-navy-900">{formatSalary(employee.baseSalary)}</div>
-              </div>
-              <div>
-                <label className="text-xs text-navy-400 uppercase tracking-wider block mb-1">Commission Tier</label>
-                <div className="font-semibold text-navy-900">{employee.commissionSlab}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card">
-            <h3 className="form-section-title mt-0">Documents</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-navy-50/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center">
-                    <span className="text-xs font-bold text-rose-600">PDF</span>
-                  </div>
-                  <div>
-                    <div className="font-medium text-navy-900">Employment Contract</div>
-                    <div className="text-xs text-navy-400">{employee.contractFileName}</div>
-                  </div>
-                </div>
-                <button className="btn-premium-outline !py-2 !px-3 text-xs">
-                  View
-                </button>
-              </div>
-            </div>
-          </div>
+        </aside>
+        <div className="flex min-w-0 flex-col gap-6">
+          <DetailSection title="Personal Information" fields={[
+            ['First Name', employee.firstName], ['Middle Name', employee.middleName], ['Last Name', employee.lastName],
+            ['Personal Email', employee.personalEmail], ['Phone Number', employee.phone], ['Date of Birth', date(employee.dob)],
+            ['Gender', employee.gender], ['Marital Status', employee.maritalStatus || employee.marital_status],
+          ]} />
+          <DetailSection title="Employment Details" fields={[
+            ['Employee Code', employee.employeeCode], ['App User Role', role], ['Assigned Outlet', employee.assignedOutletName],
+            ['Joining Date', date(employee.joiningDate)], ['Biometric Code', employee.biometricCode],
+          ]} />
+          <DetailSection title="System Access" fields={[
+            ['Login Email', employee.userId ? employee.email : undefined], ['Account Status', accountStatus],
+          ]} />
+          <DetailSection title="Address" fields={[
+            ['Street', address.street], ['City', address.city], ['State / Province', address.state],
+            ['Country', countryName(address.country)], ['Pincode / ZIP', address.pincode],
+          ]} />
+          <section className="glass-card"><h2 className="text-base font-bold text-navy-900 mb-2">Linked Contract</h2><p className="text-sm text-slate-500">{employee.contractDetails ? 'Saved settings from the active contract, or the latest contract when none is active.' : 'No contract linked to this employee.'}</p></section>
+          {employee.contractDetails && <ContractDetailsContent contract={employee.contractDetails} />}
+          <DetailSection title="Bank Details" fields={[
+            ['Account Holder Name', bank.accountHolderName], ['Bank Name', bank.bankName], ['Account Number', bank.accountNumber],
+            ['IFSC / SWIFT Code', bank.ifscCode], ['Branch Name', bank.branchName], ['Account Type', bank.accountType],
+          ]} />
         </div>
       </div>
-
-      <ConfirmModal
-        isOpen={deactivateModalOpen}
-        onClose={() => setDeactivateModalOpen(false)}
-        onConfirm={handleDeactivate}
-        title="Deactivate Employee Account"
-        message={`Are you sure you want to deactivate ${employee.name}'s account? This will prevent them from accessing the system.`}
-        confirmText="Deactivate"
-        variant="danger"
-      />
-
-      <DocumentViewerModal
-        isOpen={documentModalOpen}
-        onClose={() => setDocumentModalOpen(false)}
-        employeeName={employee?.name || ''}
-      />
     </div>
   );
 };

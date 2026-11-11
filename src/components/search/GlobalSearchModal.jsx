@@ -55,7 +55,6 @@ const APP_PAGES = [
   { id: "page-staff", title: "Employee Management", subtitle: "Staff profiles, biometric & roles", category: "pages", url: "/staff", icon: UserCheck, roles: ["admin", "super_admin", "manager"] },
   { id: "page-staff-add", title: "Add Employee", subtitle: "Register new staff member", category: "pages", url: "/staff/add", icon: UserCheck, roles: ["admin", "super_admin", "manager"] },
   { id: "page-attendance", title: "Attendance Tracking", subtitle: "Daily clock-in & shifts", category: "pages", url: "/attendance", icon: CalendarCheck, roles: ["admin", "super_admin", "manager"] },
-  { id: "page-payroll", title: "Payroll Center", subtitle: "Salary calculation & payslips", category: "pages", url: "/payroll", icon: DollarSign, roles: ["admin", "super_admin", "manager"] },
   { id: "page-expenses", title: "Expense Control", subtitle: "Track salon expenditures & vouchers", category: "pages", url: "/expenses", icon: DollarSign, shortcut: "Alt+E", roles: ["admin", "super_admin", "manager"] },
   { id: "page-budgets", title: "Budget Management", subtitle: "Monthly budgets & expense caps", category: "pages", url: "/budgets", icon: Wallet, roles: ["admin", "super_admin", "manager"] },
   { id: "page-reports", title: "Reports & Analytics", subtitle: "Sales, revenue & performance", category: "pages", url: "/reports", icon: BarChart2, roles: ["admin", "super_admin", "manager"] },

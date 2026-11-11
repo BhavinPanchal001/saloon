@@ -12,6 +12,13 @@ const Staff = sequelize.define('Staff', {
     allowNull: true,
     unique: true,
   },
+  user_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+    unique: true,
+    references: { model: 'admins', key: 'id' },
+    onDelete: 'SET NULL',
+  },
   first_name: {
     type: DataTypes.STRING(150),
     allowNull: false,
@@ -58,7 +65,11 @@ const Staff = sequelize.define('Staff', {
   },
   role_id: {
     type: DataTypes.INTEGER.UNSIGNED,
-    allowNull: false,
+    allowNull: true,
+  },
+  access_role: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
   },
   assigned_outlet_id: {
     type: DataTypes.INTEGER.UNSIGNED,

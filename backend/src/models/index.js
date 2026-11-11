@@ -38,14 +38,10 @@ const ContractType = require('./ContractType');
 const ContractTypeTemplate = require('./ContractTypeTemplate');
 const HolidayTemplate = require('./HolidayTemplate');
 const HolidayOccasion = require('./HolidayOccasion');
-const SalaryComponentMaster = require('./SalaryComponentMaster');
 const ContractGroup = require('./ContractGroup');
 const Staff = require('./Staff');
 const Contract = require('./Contract');
-const ContractSalaryMapping = require('./ContractSalaryMapping');
 const Attendance = require('./Attendance');
-const ProcessedPayroll = require('./ProcessedPayroll');
-const ProcessedPayrollDetail = require('./ProcessedPayrollDetail');
 const Admin = require('./Admin');
 const PosTerminal = require('./PosTerminal');
 const PosShift = require('./PosShift');
@@ -178,24 +174,13 @@ Contract.belongsTo(ContractTypeTemplate, { foreignKey: 'template_id', as: 'docum
 Contract.belongsTo(Shift, { foreignKey: 'shift_id', as: 'shift' });
 Contract.belongsTo(WorkWeek, { foreignKey: 'work_week_id', as: 'workWeek' });
 
-// Contract Salary component mappings
-Contract.hasMany(ContractSalaryMapping, { foreignKey: 'contract_id', as: 'salaryComponents', onDelete: 'CASCADE' });
-ContractSalaryMapping.belongsTo(Contract, { foreignKey: 'contract_id' });
-ContractSalaryMapping.belongsTo(SalaryComponentMaster, { foreignKey: 'salary_component_id', as: 'masterComponent' });
 
 // Attendance associations
 Attendance.belongsTo(Staff, { foreignKey: 'staff_id', as: 'employee' });
 Staff.hasMany(Attendance, { foreignKey: 'staff_id', as: 'attendances', onDelete: 'CASCADE' });
 
-// Processed Payroll associations
-ProcessedPayroll.hasMany(ProcessedPayrollDetail, { as: 'details', foreignKey: 'processed_payroll_id', onDelete: 'CASCADE' });
-ProcessedPayrollDetail.belongsTo(ProcessedPayroll, { foreignKey: 'processed_payroll_id' });
 
-ProcessedPayroll.belongsTo(Outlet, { foreignKey: 'outlet_id' });
-Outlet.hasMany(ProcessedPayroll, { foreignKey: 'outlet_id' });
 
-ProcessedPayrollDetail.belongsTo(Staff, { foreignKey: 'staff_id', as: 'employee' });
-Staff.hasMany(ProcessedPayrollDetail, { foreignKey: 'staff_id', as: 'payrollDetails', onDelete: 'CASCADE' });
 
 Admin.belongsTo(Outlet, { foreignKey: 'outlet_id', as: 'outlet' });
 Outlet.hasMany(Admin, { foreignKey: 'outlet_id', as: 'admins' });
@@ -280,17 +265,13 @@ module.exports = {
   ContractTypeTemplate,
   HolidayTemplate,
   HolidayOccasion,
-  SalaryComponentMaster,
   ContractGroup,
   Staff,
   Contract,
-  ContractSalaryMapping,
   Coupon,
   Customer,
   CustomerLedger,
   Appointment,
-  ProcessedPayroll,
-  ProcessedPayrollDetail,
   PosTerminal,
   PosShift,
   PosShiftMovement,

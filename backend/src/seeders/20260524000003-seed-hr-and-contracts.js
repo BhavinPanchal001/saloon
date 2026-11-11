@@ -157,22 +157,7 @@ module.exports = {
       { holiday_template_id: htCompany, occasion_name: "Founder's Day", start_date: '2026-03-15', end_date: '2026-03-15', occasion_type: 'Company', description: 'Salon foundation day', is_active: true, created_at: now, updated_at: now }
     ]);
 
-    // 10. Salary Component Masters
-    await queryInterface.bulkInsert('salary_component_masters', [
-      { name: 'Basic Salary', code: 'BASIC', description: 'Base monthly salary component', type: 'earning', calculation_type: 'fixed', default_amount: 30000.00, is_active: true, created_at: now, updated_at: now },
-      { name: 'House Rent Allowance (HRA)', code: 'HRA', description: 'Housing allowance for rented accommodation', type: 'earning', calculation_type: 'percentage', default_amount: 40.00, is_active: true, created_at: now, updated_at: now },
-      { name: 'Dearness Allowance', code: 'DA', description: 'Cost of living adjustment allowance', type: 'earning', calculation_type: 'percentage', default_amount: 10.00, is_active: true, created_at: now, updated_at: now },
-      { name: 'Medical Allowance', code: 'MEDICAL', description: 'Medical and health-related expenses', type: 'earning', calculation_type: 'fixed', default_amount: 1500.00, is_active: true, created_at: now, updated_at: now },
-      { name: 'Travel Allowance', code: 'TRAVEL', description: 'Transportation and travel expenses', type: 'earning', calculation_type: 'fixed', default_amount: 2000.00, is_active: true, created_at: now, updated_at: now },
-      { name: 'Provident Fund - Employee', code: 'PF_EMP', description: 'Employee contribution to provident fund', type: 'deduction', calculation_type: 'percentage', default_amount: 12.00, is_active: true, created_at: now, updated_at: now },
-      { name: 'Provident Fund - Employer', code: 'PF_EMPLOYER', description: 'Employer contribution to provident fund', type: 'deduction', calculation_type: 'percentage', default_amount: 12.00, is_active: true, created_at: now, updated_at: now },
-      { name: 'Professional Tax', code: 'PROF_TAX', description: 'State professional tax deduction', type: 'deduction', calculation_type: 'fixed', default_amount: 200.00, is_active: true, created_at: now, updated_at: now },
-      { name: 'Tax Deducted at Source (TDS)', code: 'TDS', description: 'Income tax deduction', type: 'deduction', calculation_type: 'percentage', default_amount: 10.00, is_active: true, created_at: now, updated_at: now },
-      { name: 'Employee State Insurance', code: 'ESI', description: 'State insurance contribution', type: 'deduction', calculation_type: 'percentage', default_amount: 1.75, is_active: true, created_at: now, updated_at: now }
-    ]);
 
-    const [salaryComponents] = await queryInterface.sequelize.query(`SELECT id, code FROM salary_component_masters`);
-    const salBasicId = salaryComponents.find(c => c.code === 'BASIC').id;
 
     // 11. Staff Members
     await queryInterface.bulkInsert('staff_members', [
@@ -354,20 +339,12 @@ module.exports = {
     const rohanContractId = contractsList.find(c => c.code === 'CON-2026-002').id;
     const siaContractId = contractsList.find(c => c.code === 'CON-2026-003').id;
 
-    // 14. Contract Salary Mappings
-    await queryInterface.bulkInsert('contract_salary_mappings', [
-      { contract_id: nainaContractId, salary_component_id: salBasicId, custom_amount: 32000.00, created_at: now, updated_at: now },
-      { contract_id: rohanContractId, salary_component_id: salBasicId, custom_amount: 36000.00, created_at: now, updated_at: now },
-      { contract_id: siaContractId, salary_component_id: salBasicId, custom_amount: 24000.00, created_at: now, updated_at: now }
-    ]);
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.bulkDelete('contract_salary_mappings', null, {});
     await queryInterface.bulkDelete('contracts', null, {});
     await queryInterface.bulkDelete('contract_groups', null, {});
     await queryInterface.bulkDelete('staff_members', null, {});
-    await queryInterface.bulkDelete('salary_component_masters', null, {});
     await queryInterface.bulkDelete('holiday_occasions', null, {});
     await queryInterface.bulkDelete('holiday_templates', null, {});
     await queryInterface.bulkDelete('contract_type_templates', null, {});

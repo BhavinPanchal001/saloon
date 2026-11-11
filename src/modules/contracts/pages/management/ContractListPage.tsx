@@ -3,84 +3,20 @@ import {
   Plus, Search, Filter, MoreHorizontal, Eye, Edit, Trash2, 
   FileText, GitBranch, Calendar, User, ChevronDown, ChevronRight
 } from 'lucide-react';
+import { useToastStore } from '../../../../stores/toastStore';
 import { useNavigate } from 'react-router-dom';
 import ContractModuleLayout from '../../components/ContractModuleLayout';
 import GroupFormModal from '../../components/groups/GroupFormModal';
+import ContractDocuments from '../../components/ContractDocuments';
+import { Modal } from '../../../../components/ui/Modal';
 import { Contract, ContractStatus, ContractGroup } from '../../types';
 import { fetchContracts, fetchContractGroups, saveContractGroup, deleteContractGroup, fetchStaff } from '../../../../services/api';
 
-// Fallback seed data if backend returns empty dataset
-const INITIAL_DEMO_GROUPS: ContractGroup[] = [
-  {
-    id: 'cg_bindiya_1',
-    name: 'Employment Contract 18/12/2024 to 18/12/2026',
-    startDate: '2024-12-18',
-    endDate: '2026-12-18',
-    duration: '24 Months',
-    employeeId: 'emp_bindiya',
-    employeeName: 'Adv. Bindiya Patel',
-    employeeCode: 'EMP001',
-    status: 'Active',
-    description: 'Employment contract group for Adv. Bindiya Patel'
-  }
-];
-
-const INITIAL_DEMO_CONTRACTS: Contract[] = [
-  {
-    id: 'con_bindiya_active',
-    code: 'JOB',
-    title: 'Senior Hair Stylist Agreement',
-    employeeId: 'emp_bindiya',
-    employeeName: 'Adv. Bindiya Patel',
-    groupId: 'cg_bindiya_1',
-    groupName: 'Employment Contract 18/12/2024 to 18/12/2026',
-    typeId: 'type_job',
-    typeName: 'Job Contract',
-    templateId: 'tpl_standard',
-    startDate: '01/04/2026',
-    endDate: '17/12/2026',
-    status: ContractStatus.ACTIVE,
-    currentVersion: 1,
-    salaryComponents: [],
-    overtime: { enabled: false, type: '1.5x', rateCalculation: 'fixed_hourly', rateValue: 150 },
-    holidayRate: '1.5x',
-    weekendRate: '1.5x',
-    overtimeRate: '1.5x',
-    holidayGroupIds: [],
-    leaveAllocations: [],
-    shiftId: '',
-    shiftEffectiveDate: '',
-    weeklyOffPattern: [],
-    revisions: []
-  },
-  {
-    id: 'con_bindiya_term',
-    code: 'JOB',
-    title: 'Initial Probation Agreement',
-    employeeId: 'emp_bindiya',
-    employeeName: 'Adv. Bindiya Patel',
-    groupId: 'cg_bindiya_1',
-    groupName: 'Employment Contract 18/12/2024 to 18/12/2026',
-    typeId: 'type_job',
-    typeName: 'Job Contract',
-    templateId: 'tpl_probation',
-    startDate: '18/12/2024',
-    endDate: '31/03/2026',
-    status: ContractStatus.TERMINATED,
-    currentVersion: 1,
-    salaryComponents: [],
-    overtime: { enabled: false, type: '1.5x', rateCalculation: 'fixed_hourly', rateValue: 150 },
-    holidayRate: '1.5x',
-    weekendRate: '1.5x',
-    overtimeRate: '1.5x',
-    holidayGroupIds: [],
-    leaveAllocations: [],
-    shiftId: '',
-    shiftEffectiveDate: '',
-    weeklyOffPattern: [],
-    revisions: []
-  }
-];
+const formatContractDate = (value?: string) => {
+  if (!value) return '';
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T|\s)/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+};
 
 const ContractListPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -90,8 +26,10 @@ const ContractListPage: React.FC = () => {
   const [groupBy, setGroupBy] = useState<'employee' | 'group'>('employee');
   const [isLoading, setIsLoading] = useState(true);
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [documentContract, setDocumentContract] = useState<Contract | null>(null);
   const [editingGroup, setEditingGroup] = useState<ContractGroup | undefined>(undefined);
   const navigate = useNavigate();
+  const toast = useToastStore();
 
   useEffect(() => {
     const loadData = async () => {
@@ -102,20 +40,16 @@ const ContractListPage: React.FC = () => {
           fetchStaff()
         ]);
         
-        let loadedGroups = Array.isArray(groupsData) && groupsData.length > 0 ? groupsData : INITIAL_DEMO_GROUPS;
-        let loadedContracts = Array.isArray(contractsData) && contractsData.length > 0 ? contractsData : INITIAL_DEMO_CONTRACTS;
-        let loadedStaff = Array.isArray(staffData) && staffData.length > 0 ? staffData : [
-          { id: 'emp_bindiya', name: 'Adv. Bindiya Patel', employeeCode: 'EMP001', role: 'Stylist' }
-        ];
+        const loadedGroups = Array.isArray(groupsData) ? groupsData : [];
+        const loadedContracts = Array.isArray(contractsData) ? contractsData : [];
+        const loadedStaff = Array.isArray(staffData) ? staffData : [];
 
         setGroups(loadedGroups);
         setContracts(loadedContracts);
         setStaff(loadedStaff);
       } catch (error) {
-        console.error('Failed to load contract data, falling back to demo data:', error);
-        setGroups(INITIAL_DEMO_GROUPS);
-        setContracts(INITIAL_DEMO_CONTRACTS);
-        setStaff([{ id: 'emp_bindiya', name: 'Adv. Bindiya Patel', employeeCode: 'EMP001', role: 'Stylist' }]);
+        toast.error('Unable to load contract data. Please reload.');
+        setGroups([]); setContracts([]); setStaff([]);
       } finally {
         setIsLoading(false);
       }
@@ -136,7 +70,7 @@ const ContractListPage: React.FC = () => {
       setShowGroupModal(false);
       setEditingGroup(undefined);
     } catch (err) {
-      console.error('Failed to save contract group:', err);
+      toast.error(err instanceof Error ? err.message : 'Unable to save group.');
     }
   };
 
@@ -147,7 +81,7 @@ const ContractListPage: React.FC = () => {
       setGroups(prev => prev.filter(g => g.id !== groupId));
       setContracts(prev => prev.filter(c => c.groupId !== groupId));
     } catch (err) {
-      console.error('Failed to delete group:', err);
+      toast.error(err instanceof Error ? err.message : 'Unable to delete group.');
     }
   };
 
@@ -255,8 +189,8 @@ const ContractListPage: React.FC = () => {
               const empCode = group.employeeCode || matchedEmp?.employeeCode || matchedEmp?.biometricCode || 'EMP001';
               const groupContracts = getContractsForGroup(group.id);
               const displayDateRange = group.startDate && group.endDate 
-                ? `${group.startDate.includes('-') ? group.startDate.split('-').reverse().join('/') : group.startDate} - ${group.endDate.includes('-') ? group.endDate.split('-').reverse().join('/') : group.endDate}`
-                : group.startDate || '18/12/2024 - 18/12/2026';
+                ? `${formatContractDate(group.startDate)} - ${formatContractDate(group.endDate)}`
+                : group.startDate ? `${formatContractDate(group.startDate)} - Ongoing` : 'Dates not set';
 
               return (
                 <div key={group.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden transition-all hover:border-slate-300">
@@ -335,23 +269,23 @@ const ContractListPage: React.FC = () => {
                                 {contract.code || 'JOB'}
                               </span>
                               <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                                contract.status === ContractStatus.ACTIVE 
+                                (contract.effectiveStatus || contract.status) === ContractStatus.ACTIVE
                                   ? 'bg-emerald-100 text-emerald-700' 
                                   : contract.status === ContractStatus.TERMINATED 
                                   ? 'bg-rose-100 text-rose-700'
                                   : 'bg-amber-100 text-amber-700'
                               }`}>
-                                {contract.status === ContractStatus.ACTIVE ? 'Active' : contract.status === ContractStatus.TERMINATED ? 'Terminated' : contract.status}
+                                {contract.effectiveStatus || contract.status}
                               </span>
                               <span className="text-xs text-slate-500 font-medium">
-                                {contract.startDate} - {contract.endDate || 'Ongoing'} • Version {contract.currentVersion || 1}
+                                {formatContractDate(contract.startDate)} - {formatContractDate(contract.endDate) || 'Ongoing'} • Version {contract.currentVersion || 1}
                               </span>
                             </div>
 
                             {/* Action Icon Buttons */}
                             <div className="flex items-center gap-1.5 self-end sm:self-center">
                               <button 
-                                onClick={() => navigate(`/contracts/new?id=${contract.id}`)}
+                                onClick={() => navigate(`/contracts/view/${contract.id}`)}
                                 className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" 
                                 title="View Contract"
                               >
@@ -367,20 +301,21 @@ const ContractListPage: React.FC = () => {
                               <button 
                                 className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors" 
                                 title="View Documents"
+                                onClick={() => setDocumentContract(contract)}
                               >
                                 <FileText className="w-4 h-4" />
                               </button>
                               <button 
                                 className="p-1.5 text-purple-500 hover:bg-purple-50 rounded-lg transition-colors" 
-                                title="Version History"
+                                onClick={() => navigate(`/contracts/new?reviseFrom=${contract.id}`)}
+                                disabled={contract.status !== ContractStatus.ACTIVE}
+                                title="Create Revision"
                               >
                                 <GitBranch className="w-4 h-4" />
                               </button>
                               <button 
                                 onClick={() => {
-                                  if (window.confirm('Delete contract?')) {
-                                    setContracts(prev => prev.filter(c => c.id !== contract.id));
-                                  }
+                                  toast.error('Contract history is preserved and cannot be deleted.');
                                 }}
                                 className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" 
                                 title="Delete Contract"
@@ -401,6 +336,7 @@ const ContractListPage: React.FC = () => {
       </div>
 
       {/* Create / Edit Group Modal */}
+      {documentContract && <Modal isOpen={true} onClose={() => setDocumentContract(null)} title={`Documents - ${documentContract.code}`} size="xl"><ContractDocuments key={documentContract.id} contract={documentContract} /></Modal>}
       <GroupFormModal
         isOpen={showGroupModal}
         onClose={() => { setShowGroupModal(false); setEditingGroup(undefined); }}

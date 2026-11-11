@@ -5,6 +5,7 @@ const { Op } = require('sequelize');
 
 // Self-healing migration for banks table
 (async () => {
+  if (sequelize.getDialect() === 'mssql') return;
   try {
     const [columns] = await sequelize.query("SHOW COLUMNS FROM banks");
     const colNames = columns.map(c => c.Field);

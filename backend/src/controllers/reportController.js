@@ -12,8 +12,6 @@ const {
   PurchaseOrderItem,
   Staff,
   Attendance,
-  ProcessedPayroll,
-  ProcessedPayrollDetail,
   UnitMaster,
   Role,
 } = require('../models');
@@ -389,13 +387,6 @@ const exportReportCSV = async (req, res) => {
       (data.staffSummary || []).forEach((s) => {
         csvRows.push([`"${s.name}"`, `"${s.employeeCode}"`, `"${s.role}"`, s.totalRecordedDays, s.present, s.absent, s.halfDay, s.leave].join(','));
       });
-    } else if (type === 'payroll' || type === 'employee-payroll') {
-      const data = await getEmployeePayrollReportData({ outletId });
-      csvRows.push(['Employee Name', 'Emp Code', 'Role', 'Base Salary', 'Commissions', 'Gross Salary', 'Deductions', 'Net Salary Payout (INR)'].join(','));
-      (data.payrollSummary || []).forEach((s) => {
-        csvRows.push([`"${s.name}"`, `"${s.employeeCode}"`, `"${s.role}"`, s.baseSalary.toFixed(2), s.commissionAmount.toFixed(2), s.grossSalary.toFixed(2), s.deductions.toFixed(2), s.netSalary.toFixed(2)].join(','));
-      });
-
     } else if (type === 'gstr2') {
       const data = await getGstr2ReportData({ outletId, startDate, endDate });
       csvRows.push(['PO Number', 'Date', 'Vendor Name', 'Vendor GSTIN', 'Taxable Value', 'CGST', 'SGST', 'Total GST (ITC)', 'Total PO Amount (INR)'].join(','));
@@ -503,9 +494,6 @@ const exportReportPDF = async (req, res) => {
       reportData = await getPurchaseOrderReportData({ outletId, startDate, endDate });
     } else if (type === 'attendance' || type === 'employee-attendance') {
       reportData = await getEmployeeAttendanceReportData({ outletId, startDate, endDate });
-    } else if (type === 'payroll' || type === 'employee-payroll') {
-      reportData = await getEmployeePayrollReportData({ outletId });
-
     } else if (type === 'gstr2') {
       reportData = await getGstr2ReportData({ outletId, startDate, endDate });
     } else if (type === 'shift') {
@@ -874,46 +862,6 @@ const getEmployeeAttendanceReportData = async ({ outletId, startDate, endDate })
   };
 };
 
-// Data generator for Employee Payroll Report
-const getEmployeePayrollReportData = async ({ outletId, monthKey }) => {
-  const whereStaff = {};
-  if (outletId) {
-    whereStaff.assigned_outlet_id = outletId;
-  }
-  const staffMembers = await Staff.findAll({
-    where: whereStaff,
-    attributes: ['id', 'first_name', 'last_name', 'employee_code', 'role_id', 'assigned_outlet_id'],
-    include: [{ model: Role, as: 'role', attributes: ['id', 'name'] }],
-  });
-  const payrollDetails = await ProcessedPayrollDetail.findAll();
-
-  const payrollSummary = staffMembers.map((s) => {
-    const pd = payrollDetails.find((item) => String(item.staff_id) === String(s.id));
-    const baseSalary = pd ? Number(pd.base_salary || 0) : 0;
-    const commission = pd ? Number(pd.commission_amount || 0) : 0;
-    const gross = pd ? (Number(pd.payable || 0) + Number(pd.deduction || 0)) : (baseSalary + commission);
-    const deductions = pd ? Number(pd.deduction || 0) : 0;
-    const netSalary = pd ? Number(pd.payable || 0) : (gross - deductions);
-
-    return {
-      id: s.id,
-      name: `${s.first_name} ${s.last_name}`.trim(),
-      employeeCode: s.employee_code || `EMP-${s.id}`,
-      role: s.role?.name || 'Staff',
-      baseSalary,
-      commissionAmount: commission,
-      grossSalary: gross,
-      deductions,
-      netSalary,
-    };
-  });
-
-  return {
-    totalEmployees: staffMembers.length,
-    totalPayrollSpend: payrollSummary.reduce((acc, i) => acc + i.netSalary, 0),
-    payrollSummary,
-  };
-};
 
 // Data generator for GSTR-2 Purchase ITC Report
 const getGstr2ReportData = async ({ outletId, startDate, endDate }) => {
@@ -1018,15 +966,6 @@ const getEmployeeAttendanceReport = async (req, res) => {
   }
 };
 
-const getEmployeePayrollReport = async (req, res) => {
-  try {
-    const data = await getEmployeePayrollReportData(req.query);
-    return res.json(data);
-  } catch (err) {
-    console.error('Error in getEmployeePayrollReport:', err);
-    return res.status(500).json({ message: 'Server error generating payroll report.' });
-  }
-};
 
 const getGstr2Report = async (req, res) => {
   try {
@@ -1048,7 +987,6 @@ module.exports = {
   getLowStockReport,
   getPurchaseOrderReport,
   getEmployeeAttendanceReport,
-  getEmployeePayrollReport,
   getGstr2Report,
   exportReportCSV,
   exportReportPDF,

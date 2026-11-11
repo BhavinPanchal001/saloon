@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -89,7 +90,7 @@ export default function Consultation() {
           </FadeIn>
           <FadeIn delay={0.2}>
             <p className="mt-4 text-sm sm:text-base text-muted-foreground leading-relaxed">
-              Seeking tailored beauty guidance, bridal care, or a customized hair & skin regimen? 
+              Seeking tailored beauty guidance, bridal care, or a customized hair & skin regimen?
               Share your details and our senior ritualists will compose a personalized itinerary.
             </p>
           </FadeIn>
@@ -297,11 +298,10 @@ export default function Consultation() {
                           key={interest}
                           type="button"
                           onClick={() => setSelectedInterest(interest)}
-                          className={`text-xs px-3.5 py-1.5 rounded-full border transition-all cursor-pointer ${
-                            selectedInterest === interest
+                          className={`text-xs px-3.5 py-1.5 rounded-full border transition-all cursor-pointer ${selectedInterest === interest
                               ? "bg-gold/15 border-gold text-primary font-medium shadow-sm"
                               : "border-border/60 bg-cream/30 text-muted-foreground hover:border-gold/40 hover:text-foreground"
-                          }`}
+                            }`}
                         >
                           {interest}
                         </button>

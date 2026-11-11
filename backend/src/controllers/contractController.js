@@ -9,15 +9,15 @@ const {
   ContractTypeTemplate,
   Shift,
   WorkWeek,
-  ContractSalaryMapping,
-  SalaryComponentMaster,
+  LeaveType,
+  HolidayOccasion,
 } = require('../models');
 
 // Helper to keep Staff status strictly synced with active contract presence
 const syncStaffContractStatus = async (staffId, transaction = null) => {
   if (!staffId) return;
   try {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localToday();
     const activeContract = await Contract.findOne({
       where: {
         employee_id: staffId,
@@ -44,54 +44,10 @@ const syncStaffContractStatus = async (staffId, transaction = null) => {
   }
 };
 
-// Helper to convert DB Contract to rich nested frontend structure
-const toContractResponse = (contract) => {
-  const salaryComponents = (contract.salaryComponents || []).map((sc) => {
-    const master = sc.masterComponent || {};
-    return {
-      id: master.id || sc.salary_component_id,
-      name: master.name || '',
-      code: master.code || '',
-      type: master.type || 'earning',
-      calculationType: master.calculation_type || 'fixed',
-      amount: Number(sc.custom_amount),
-    };
-  });
-
-  return {
-    id: contract.id,
-    code: contract.code,
-    title: contract.title,
-    employeeId: contract.employee_id,
-    employeeName: contract.employee
-      ? `${contract.employee.first_name} ${contract.employee.last_name}`.trim()
-      : 'Unknown',
-    employeeRole: contract.employee && contract.employee.role ? contract.employee.role.name : '',
-    groupId: contract.group_id || '',
-    groupName: contract.group ? contract.group.name : '',
-    typeId: contract.type_id,
-    typeName: contract.contractType ? contract.contractType.name : '',
-    templateId: contract.template_id || '',
-    templateName: contract.documentTemplate ? contract.documentTemplate.template_name : '',
-    startDate: contract.start_date,
-    endDate: contract.end_date || '',
-    status: contract.status,
-    notes: contract.notes || '',
-    shiftId: contract.shift_id || '',
-    shiftName: contract.shift ? contract.shift.name : '',
-    workWeekId: contract.work_week_id || '',
-    workWeekName: contract.workWeek ? contract.workWeek.name : '',
-    overtime: {
-      enabled: contract.overtime_enabled,
-      type: contract.overtime_type || '1.5x',
-      rateCalculation: contract.overtime_calculation || 'fixed_hourly',
-      rateValue: Number(contract.overtime_rate),
-    },
-    salaryComponents,
-    weeklyOffPattern: ['Sunday'], // static standard fallback
-    currentVersion: contract.current_version || 1,
-  };
-};
+const { toContractResponse } = require('../services/contractResponse');
+const { planContractChange, overlaps, localToday, error: contractError } = require('../services/contractTimeline');
+const { snapshotTerms } = require('../services/contractTerms');
+const { buildContractPolicies } = require('../services/contractPolicies');
 
 const getAll = async (req, res) => {
   try {
@@ -107,11 +63,6 @@ const getAll = async (req, res) => {
         { model: ContractTypeTemplate, as: 'documentTemplate' },
         { model: Shift, as: 'shift' },
         { model: WorkWeek, as: 'workWeek' },
-        {
-          model: ContractSalaryMapping,
-          as: 'salaryComponents',
-          include: [{ model: SalaryComponentMaster, as: 'masterComponent' }],
-        },
       ],
       order: [['id', 'DESC']],
     });
@@ -137,11 +88,6 @@ const getOne = async (req, res) => {
         { model: ContractTypeTemplate, as: 'documentTemplate' },
         { model: Shift, as: 'shift' },
         { model: WorkWeek, as: 'workWeek' },
-        {
-          model: ContractSalaryMapping,
-          as: 'salaryComponents',
-          include: [{ model: SalaryComponentMaster, as: 'masterComponent' }],
-        },
       ],
     });
 
@@ -163,17 +109,16 @@ const createOrUpdate = async (req, res) => {
     const isEditing = !!payload.id;
 
     // Validation
-    if (!payload.title) return res.status(400).json({ message: 'Title is required.' });
-    if (!payload.employeeId) return res.status(400).json({ message: 'Employee is required.' });
-    if (!payload.typeId) return res.status(400).json({ message: 'Contract type is required.' });
-    if (!payload.startDate) return res.status(400).json({ message: 'Start date is required.' });
+    if (!payload.title) { await t.rollback(); return res.status(400).json({ message: 'Title is required.' }); }
+    if (!payload.employeeId) { await t.rollback(); return res.status(400).json({ message: 'Employee is required.' }); }
+    if (!payload.typeId) { await t.rollback(); return res.status(400).json({ message: 'Contract type is required.' }); }
+    if (!payload.startDate) { await t.rollback(); return res.status(400).json({ message: 'Start date is required.' }); }
 
     // Generate contract code sequentially if new
     let contractCode = payload.code;
     if (!isEditing && !contractCode) {
       const year = new Date(payload.startDate).getFullYear();
-      const count = await Contract.count({ transaction: t });
-      contractCode = `CON-${year}-${String(count + 1).padStart(3, '0')}`;
+      contractCode = 'CON-' + year + '-' + require('crypto').randomBytes(8).toString('hex').toUpperCase();
     }
 
     // Safely parse or resolve numeric IDs to avoid NaN SQL errors
@@ -190,7 +135,7 @@ const createOrUpdate = async (req, res) => {
       if (payload.typeId) {
         foundType = await ContractType.findOne({
           where: {
-            [sequelize.Op.or]: [
+            [Op.or]: [
               { code: String(payload.typeId) },
               { name: String(payload.typeId) },
             ],
@@ -218,7 +163,16 @@ const createOrUpdate = async (req, res) => {
       if (foundTpl) resolvedTemplateId = foundTpl.id;
     }
 
+    const policyPayload = isEditing ? payload : {
+      ...payload,
+      selectedLeaves: payload.selectedLeaves ?? [],
+      selectedHolidays: payload.selectedHolidays ?? [],
+    };
+    const policies = buildContractPolicies(policyPayload,
+      payload.selectedLeaves !== undefined ? await LeaveType.findAll({ transaction: t }) : [],
+      payload.selectedHolidays !== undefined ? await HolidayOccasion.findAll({ transaction: t }) : []);
     const flatFields = {
+      ...policies,
       title: payload.title,
       employee_id: parseNumericId(payload.employeeId) || Number(payload.employeeId),
       group_id: parseNumericId(payload.groupId),
@@ -230,65 +184,41 @@ const createOrUpdate = async (req, res) => {
       notes: payload.notes || '',
       shift_id: parseNumericId(payload.shiftId),
       work_week_id: parseNumericId(payload.workWeekId),
-      overtime_enabled: !!payload.overtime?.enabled,
+      overtime_enabled: payload.allowOvertime !== undefined ? !!payload.allowOvertime : !!payload.overtime?.enabled,
       overtime_type: payload.overtime?.type || '1.5x',
       overtime_calculation: payload.overtime?.rateCalculation || 'fixed_hourly',
       overtime_rate: payload.overtime?.rateValue ? Number(payload.overtime.rateValue) : 0.00,
       current_version: payload.currentVersion ? Number(payload.currentVersion) : 1,
     };
 
-    let previousEmployeeId = null;
-    let contract;
-    if (isEditing) {
-      contract = await Contract.findByPk(payload.id, { transaction: t });
-      if (!contract) {
-        await t.rollback();
-        return res.status(404).json({ message: 'Contract not found.' });
-      }
-      previousEmployeeId = contract.employee_id;
-      await contract.update(flatFields, { transaction: t });
-    } else {
+    // Serialize all changes for this employee, for contract updates.
+    const employee = await Staff.findByPk(flatFields.employee_id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!employee) contractError('Employee not found.', 400);
+    const allContracts = await Contract.findAll({ where: { employee_id: flatFields.employee_id }, transaction: t, lock: t.LOCK.UPDATE });
+    let contract = isEditing ? allContracts.find(c => Number(c.id) === Number(payload.id)) : null;
+    if (isEditing && !contract) contractError('Contract not found for this employee.', 404);
+    const predecessor = !isEditing && payload.previousContractId ? allContracts.find(c => Number(c.id) === Number(payload.previousContractId)) : null;
+    if (payload.previousContractId && !predecessor && !isEditing) contractError('Previous contract not found for this employee.', 400);
+    if (predecessor && !flatFields.group_id) contractError('Select a contract group covering the revision period.', 400);
+    const group = flatFields.group_id ? await ContractGroup.findByPk(flatFields.group_id, { transaction: t, lock: t.LOCK.UPDATE }) : null;
+    if (flatFields.group_id && !group) contractError('Contract group not found.', 400);
+    const candidate = { ...flatFields, id: contract?.id };
+    const plan = planContractChange({ candidate, previous: contract || predecessor, others: allContracts, group, isEditing });
+    if (predecessor) {
+      flatFields.previous_contract_id = predecessor.id;
+      flatFields.current_version = Number(predecessor.current_version || 1) + 1;
+      if (plan.predecessorEnd) await predecessor.update({ original_end_date: predecessor.original_end_date || predecessor.end_date, end_date: plan.predecessorEnd }, { transaction: t });
+    }
+    if (contract) await contract.update(flatFields, { transaction: t });
+    else {
       flatFields.code = contractCode;
       contract = await Contract.create(flatFields, { transaction: t });
     }
 
-    // Handle contract salary mappings
-    if (payload.salaryComponents && Array.isArray(payload.salaryComponents)) {
-      // Remove existing mapping for this contract
-      await ContractSalaryMapping.destroy({
-        where: { contract_id: contract.id },
-        transaction: t,
-      });
-
-      // Insert new ones safely
-      const mappingsToInsert = payload.salaryComponents
-        .map((sc) => {
-          const compId = parseNumericId(sc.masterId) || parseNumericId(sc.salary_component_id) || parseNumericId(sc.id);
-          if (!compId) return null;
-          return {
-            contract_id: contract.id,
-            salary_component_id: compId,
-            custom_amount: Number(sc.amount || sc.custom_amount || 0),
-          };
-        })
-        .filter(Boolean);
-
-      if (mappingsToInsert.length > 0) {
-        await ContractSalaryMapping.bulkCreate(mappingsToInsert, { transaction: t });
-      }
-    }
-
-    // Commit Transaction
-    await t.commit();
-
-    // Synchronize employee active status according to active contract
-    await syncStaffContractStatus(flatFields.employee_id);
-    if (previousEmployeeId && previousEmployeeId !== flatFields.employee_id) {
-      await syncStaffContractStatus(previousEmployeeId);
-    }
 
     // Reload contract with full associations
     const reloadedContract = await Contract.findByPk(contract.id, {
+      transaction: t,
       include: [
         {
           model: Staff,
@@ -300,17 +230,16 @@ const createOrUpdate = async (req, res) => {
         { model: ContractTypeTemplate, as: 'documentTemplate' },
         { model: Shift, as: 'shift' },
         { model: WorkWeek, as: 'workWeek' },
-        {
-          model: ContractSalaryMapping,
-          as: 'salaryComponents',
-          include: [{ model: SalaryComponentMaster, as: 'masterComponent' }],
-        },
       ],
     });
 
+    await reloadedContract.update({ terms_snapshot: snapshotTerms(reloadedContract) }, { transaction: t });
+    await t.commit();
+    await syncStaffContractStatus(flatFields.employee_id);
     return res.json(toContractResponse(reloadedContract));
   } catch (err) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
+    if (err.status) return res.status(err.status).json({ message: err.message });
     console.error(err);
     return res.status(500).json({ message: 'Server error saving contract.' });
   }
@@ -318,19 +247,18 @@ const createOrUpdate = async (req, res) => {
 
 const remove = async (req, res) => {
   try {
-    const contract = await Contract.findByPk(req.params.id);
-    if (!contract) {
-      return res.status(404).json({ message: 'Contract not found.' });
-    }
-
-    const employeeId = contract.employee_id;
-    await contract.destroy();
-    await syncStaffContractStatus(employeeId);
-    return res.json({ success: true, message: 'Contract deleted successfully.' });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error deleting contract.' });
-  }
+    await sequelize.transaction(async transaction => {
+      const existing = await Contract.findByPk(req.params.id, { transaction });
+      if (!existing) contractError('Contract not found.', 404);
+      await Staff.findByPk(existing.employee_id, { transaction, lock: transaction.LOCK.UPDATE });
+      const contract = await Contract.findByPk(existing.id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (contract.document_metadata) contractError('A contract with an uploaded document must be preserved and cannot be deleted.');
+      if (contract.status === 'active' && contract.start_date <= localToday()) contractError('Started contracts are history and cannot be deleted. Create a revision instead.');
+      if (await Contract.findOne({ where: { previous_contract_id: contract.id }, transaction })) contractError('A contract with revisions cannot be deleted.');
+      await contract.destroy({ transaction });
+    });
+    return res.json({ success: true });
+  } catch (err) { return res.status(err.status || 500).json({ message: err.status ? err.message : 'Unable to delete contract.' }); }
 };
 
 module.exports = {

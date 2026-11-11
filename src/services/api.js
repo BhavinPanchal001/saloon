@@ -16,7 +16,11 @@ const authHeaders = () => ({
 
 const handleResponse = async (res) => {
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Request failed.");
+  if (!res.ok) {
+    const error = new Error(data.message || "Request failed.");
+    error.errors = data.errors;
+    throw error;
+  }
   return data;
 };
 
@@ -1098,6 +1102,20 @@ export const fetchContractById = async (id) => {
   return handleResponse(res);
 };
 
+export const fetchContractDocument = async (id) => handleResponse(await fetch(`${API_BASE}/contracts/${id}/document`, { headers: authHeaders() }));
+
+export const uploadContractDocument = async (id, file) => {
+  const body = new FormData();
+  body.append('document', file);
+  return handleResponse(await fetch(`${API_BASE}/contracts/${id}/document`, { method: 'POST', headers: authHeadersNoContentType(), body }));
+};
+
+export const fetchContractDocumentBlob = async (id) => {
+  const response = await fetch(`${API_BASE}/contracts/${id}/document/download`, { headers: authHeadersNoContentType() });
+  if (!response.ok) await handleResponse(response);
+  return response.blob();
+};
+
 export const saveContract = async (payload) => {
   const res = await fetch(`${API_BASE}/contracts`, {
     method: "POST",
@@ -1349,45 +1367,10 @@ export const deleteContractGroup = async (id) => {
   return handleResponse(res);
 };
 
-// 9. Salary Component Masters
-export const fetchSalaryMasters = async () => {
-  const res = await fetch(`${API_BASE}/salary-masters`, {
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-};
 
-export const fetchSalaryMasterById = async (id) => {
-  const res = await fetch(`${API_BASE}/salary-masters/${id}`, {
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-};
 
-export const saveSalaryMaster = async (payload) => {
-  const res = await fetch(`${API_BASE}/salary-masters`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(payload),
-  });
-  return handleResponse(res);
-};
 
-export const deleteSalaryMaster = async (id) => {
-  const res = await fetch(`${API_BASE}/salary-masters/${id}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-};
 
-export const toggleSalaryMasterStatus = async (id) => {
-  const res = await fetch(`${API_BASE}/salary-masters/${id}/toggle`, {
-    method: "PUT",
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-};
 
 // Aliases for compatibility
 export const fetchOutlets = fetchOutletsFromAPI;
@@ -1748,48 +1731,11 @@ export const deleteCustomerAPI = async (id) => {
   return handleResponse(res);
 };
 
-// ─── Processed Payroll ────────────────────────────────────────────────────────
 
-export const fetchPayrollSummaries = async (params = {}) => {
-  const query = new URLSearchParams(params).toString();
-  const res = await fetch(`${API_BASE}/payroll${query ? `?${query}` : ""}`, {
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-};
 
-export const fetchPayrollById = async (id) => {
-  const res = await fetch(`${API_BASE}/payroll/${id}`, {
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-};
 
-export const savePayrollRun = async (payload) => {
-  const res = await fetch(`${API_BASE}/payroll`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(payload),
-  });
-  return handleResponse(res);
-};
 
-export const payPayrollRun = async (id, payload) => {
-  const res = await fetch(`${API_BASE}/payroll/${id}/pay`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(payload),
-  });
-  return handleResponse(res);
-};
 
-export const deletePayrollRun = async (id) => {
-  const res = await fetch(`${API_BASE}/payroll/${id}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-};
 
 export const fetchCustomerLedgerAPI = async (id) => {
   const res = await fetch(`${API_BASE}/customers/${id}/ledger`, {
@@ -1933,12 +1879,6 @@ export const fetchEmployeeAttendanceReportAPI = async (outletId, startDate, endD
   return handleResponse(res);
 };
 
-export const fetchEmployeePayrollReportAPI = async (monthKey) => {
-  const res = await fetch(`${API_BASE}/reports/employee-payroll?monthKey=${monthKey || ''}`, {
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-};
 
 export const fetchGstr2ReportAPI = async (outletId, startDate, endDate) => {
   const res = await fetch(`${API_BASE}/reports/gstr2?outletId=${outletId || ''}&startDate=${startDate || ''}&endDate=${endDate || ''}`, {
@@ -2109,7 +2049,7 @@ export const uploadBusinessLogoAPI = async (file) => {
 
 
 
-// ─── Payroll & Commission API Wrappers ────────────────────────────────────────
+// ─── Commission API Wrappers ────────────────────────────────────────
 
 export const fetchCommissionBadgeConfig = async () => {
   return [
@@ -2120,36 +2060,7 @@ export const fetchCommissionBadgeConfig = async () => {
   ];
 };
 
-export const fetchPayrollWithCommission = async (monthKey) => {
-  const staff = await fetchStaff();
-  return (staff || []).map((s) => {
-    const baseSalary = s.baseSalary || 25000;
-    const totalSales = 15000; // default baseline sales
-    const commissionAmount = Math.round(totalSales * 0.02);
-    const grossSalary = baseSalary + commissionAmount;
-    const pfDeduction = Math.round(baseSalary * 0.12);
-    const netSalary = grossSalary - pfDeduction;
 
-    return {
-      employeeId: s.id,
-      name: s.name,
-      role: s.role || 'Staff',
-      outletName: s.assignedOutletName || 'Main Branch',
-      baseSalary,
-      totalSales,
-      commissionPercent: 2,
-      commissionAmount,
-      grossSalary,
-      pfDeduction,
-      netSalary,
-      monthKey: monthKey || new Date().toISOString().slice(0, 7),
-    };
-  });
-};
-
-export const calculateAllSalaries = async (monthKey) => {
-  return fetchPayrollWithCommission(monthKey);
-};
 
 // ─── Customer Reward & Loyalty API ──────────────────────────────────────────────
 
@@ -2301,6 +2212,7 @@ export const globalSearchAPI = async (params = {}) => {
   });
   return handleResponse(res);
 };
+
 
 
 

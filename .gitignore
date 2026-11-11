@@ -11,8 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
 baileys_auth_info/
 whatsappConfig.json
+backend/storage/contract-documents/
 
 # Editor directories and files
 .vscode/*
@@ -24,3 +28,6 @@ whatsappConfig.json
 *.njsproj
 *.sln
 *.sw?
+
+# Local database recovery files
+.local-db-recovery/

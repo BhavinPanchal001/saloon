@@ -8,7 +8,6 @@ const {
   HolidayTemplate,
   HolidayOccasion,
   ContractGroup,
-  SalaryComponentMaster,
   Staff
 } = require('../models');
 
@@ -19,7 +18,7 @@ const toRoleResponse = (role) => ({
   description: role.description || '',
   isActive: role.is_active,
   isEmployee: role.is_employee,
-  permissions: ['pos:view', 'inventory:view', 'services:view', 'expenses:view'],
+  permissions: Array.isArray(role.permissions) ? role.permissions : [],
 });
 
 const toShiftResponse = (shift) => ({
@@ -100,20 +99,7 @@ const toContractGroupResponse = (cg) => ({
   description: cg.description || '',
 });
 
-const toSalaryComponentResponse = (sc) => ({
-  id: sc.id,
-  name: sc.name,
-  code: sc.code,
-  description: sc.description || '',
-  type: sc.type,
-  calculationType: sc.calculation_type,
-  defaultAmount: Number(sc.default_amount),
-  isActive: sc.is_active,
-  createdAt: sc.created_at,
-  updatedAt: sc.updated_at,
-});
 
-// ─── 1. ROLES CONTROLLER ──────────────────────────────────────────────────────
 const getRoles = async (req, res) => {
   try {
     const roles = await Role.findAll({ order: [['name', 'ASC']] });
@@ -134,6 +120,7 @@ const saveRole = async (req, res) => {
       description: description || '',
       is_active: isActive !== undefined ? !!isActive : true,
       is_employee: isEmployee !== undefined ? !!isEmployee : true,
+      ...(permissions !== undefined ? { permissions: Array.isArray(permissions) ? permissions.filter(p => typeof p === 'string') : [] } : {}),
     };
 
     let role;
@@ -578,126 +565,44 @@ const getContractGroups = async (req, res) => {
 
 const saveContractGroup = async (req, res) => {
   try {
+    const { Contract, sequelize } = require('../models');
+    const { error, validDate } = require('../services/contractTimeline');
     const { id, name, duration, startDate, endDate, employeeId, status, description } = req.body;
-    if (!name) return res.status(400).json({ message: 'Name is required.' });
-
-    const fields = {
-      name,
-      duration: duration || '12 Months',
-      start_date: startDate,
-      end_date: endDate || null,
-      employee_id: employeeId ? Number(employeeId) : null,
-      status: status || 'Active',
-      description: description || null,
-    };
-
-    let cg;
-    if (id) {
-      cg = await ContractGroup.findByPk(id);
-      if (!cg) return res.status(404).json({ message: 'Contract group not found.' });
-      await cg.update(fields);
-    } else {
-      cg = await ContractGroup.create(fields);
-    }
-
-    const reloaded = await ContractGroup.findByPk(cg.id, {
-      include: [{ model: Staff, as: 'employee' }],
+    if (!name?.trim() || !validDate(startDate) || (endDate && (!validDate(endDate) || endDate < startDate))) error('Enter a group name and valid start/end dates.', 400);
+    const result = await sequelize.transaction(async transaction => {
+      const fields = { name: name.trim(), duration: duration || '12 Months', start_date: startDate, end_date: endDate || null, employee_id: employeeId ? Number(employeeId) : null, status: status || 'Active', description: description || null };
+      let group;
+      if (id) {
+        group = await ContractGroup.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!group) error('Contract group not found.', 404);
+        const contracts = await Contract.findAll({ where: { group_id: group.id }, transaction });
+        if (contracts.some(contract => contract.start_date < startDate || (endDate && (!contract.end_date || contract.end_date > endDate)) || (employeeId && Number(contract.employee_id) !== Number(employeeId)))) error('Group changes would exclude existing contract history. Create a new group covering the new period.');
+        await group.update(fields, { transaction });
+      } else group = await ContractGroup.create(fields, { transaction });
+      return ContractGroup.findByPk(group.id, { transaction, include: [{ model: Staff, as: 'employee' }] });
     });
-
-    return res.json(toContractGroupResponse(reloaded));
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Error saving contract group.' });
-  }
+    return res.json(toContractGroupResponse(result));
+  } catch (err) { return res.status(err.status || 500).json({ message: err.status ? err.message : 'Unable to save contract group.' }); }
 };
 
 const deleteContractGroup = async (req, res) => {
   try {
-    const cg = await ContractGroup.findByPk(req.params.id);
-    if (!cg) return res.status(404).json({ message: 'Contract group not found.' });
-    await cg.destroy();
+    const { Contract, sequelize } = require('../models');
+    const { error } = require('../services/contractTimeline');
+    await sequelize.transaction(async transaction => {
+      const group = await ContractGroup.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!group) error('Contract group not found.', 404);
+      if (await Contract.count({ where: { group_id: group.id }, transaction })) error('A group containing contract history cannot be deleted.');
+      await group.destroy({ transaction });
+    });
     return res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Error deleting contract group.' });
-  }
+  } catch (err) { return res.status(err.status || 500).json({ message: err.status ? err.message : 'Unable to delete contract group.' }); }
 };
 
-// ─── 9. SALARY COMPONENT MASTERS CONTROLLER ───────────────────────────────────
-const getSalaryMasters = async (req, res) => {
-  try {
-    const salaryMasters = await SalaryComponentMaster.findAll({ order: [['name', 'ASC']] });
-    return res.json(salaryMasters.map(toSalaryComponentResponse));
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Error retrieving salary component masters.' });
-  }
-};
 
-const getSalaryMasterById = async (req, res) => {
-  try {
-    const sc = await SalaryComponentMaster.findByPk(req.params.id);
-    if (!sc) return res.status(404).json({ message: 'Salary component master not found.' });
-    return res.json(toSalaryComponentResponse(sc));
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Error retrieving salary component master.' });
-  }
-};
 
-const saveSalaryMaster = async (req, res) => {
-  try {
-    const { id, name, code, description, type, calculationType, defaultAmount, isActive } = req.body;
-    if (!name) return res.status(400).json({ message: 'Name is required.' });
 
-    const fields = {
-      name,
-      code: code || name.substring(0, 3).toUpperCase(),
-      description: description || '',
-      type: type || 'earning',
-      calculation_type: calculationType || 'fixed',
-      default_amount: defaultAmount !== undefined ? Number(defaultAmount) : 0.00,
-      is_active: isActive !== undefined ? !!isActive : true,
-    };
 
-    let sc;
-    if (id) {
-      sc = await SalaryComponentMaster.findByPk(id);
-      if (!sc) return res.status(404).json({ message: 'Salary component master not found.' });
-      await sc.update(fields);
-    } else {
-      sc = await SalaryComponentMaster.create(fields);
-    }
-    return res.json(toSalaryComponentResponse(sc));
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Error saving salary component master.' });
-  }
-};
-
-const deleteSalaryMaster = async (req, res) => {
-  try {
-    const sc = await SalaryComponentMaster.findByPk(req.params.id);
-    if (!sc) return res.status(404).json({ message: 'Salary component master not found.' });
-    await sc.destroy();
-    return res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Error deleting salary component master.' });
-  }
-};
-
-const toggleSalaryMaster = async (req, res) => {
-  try {
-    const sc = await SalaryComponentMaster.findByPk(req.params.id);
-    if (!sc) return res.status(404).json({ message: 'Salary component master not found.' });
-    await sc.update({ is_active: !sc.is_active });
-    return res.json(toSalaryComponentResponse(sc));
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Error toggling salary component master.' });
-  }
-};
 
 module.exports = {
   // Roles
@@ -744,10 +649,4 @@ module.exports = {
   saveContractGroup,
   deleteContractGroup,
 
-  // Salary Component Masters
-  getSalaryMasters,
-  getSalaryMasterById,
-  saveSalaryMaster,
-  deleteSalaryMaster,
-  toggleSalaryMaster,
 };

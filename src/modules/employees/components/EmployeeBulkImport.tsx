@@ -8,8 +8,8 @@ interface EmployeeBulkImportProps {
   onImport: (employees: any[]) => void;
 }
 
-const CSV_TEMPLATE_HEADERS = 'name,phone,role,baseSalary,assignedOutletName,status\n';
-const CSV_TEMPLATE_EXAMPLE = 'John Doe,+60123456789,Stylist,3000,HSR Layout,Active\n';
+const CSV_TEMPLATE_HEADERS = 'name,phone,role,assignedOutletName,status\n';
+const CSV_TEMPLATE_EXAMPLE = 'John Doe,+60123456789,Stylist,HSR Layout,Active\n';
 
 export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
   isOpen,
@@ -113,7 +113,6 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
       name: row.name,
       phone: row.phone,
       role: row.role,
-      baseSalary: parseFloat(row.basesalary) || 0,
       assignedOutletName: row.assignedoutletname || 'Not Assigned',
       status: row.status || 'Active',
     }));
@@ -140,9 +139,6 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
       errors.push('Role is required');
     }
     
-    if (row.basesalary && isNaN(parseFloat(row.basesalary))) {
-      errors.push('Base salary must be a number');
-    }
     
     return { valid: errors.length === 0, errors };
   };
@@ -257,7 +253,6 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
                     { name: 'name', desc: 'Employee full name' },
                     { name: 'phone', desc: 'Contact number' },
                     { name: 'role', desc: 'Job role/position' },
-                    { name: 'baseSalary', desc: 'Base salary (optional)' },
                     { name: 'assignedOutletName', desc: 'Outlet assignment (optional)' },
                     { name: 'status', desc: 'Active/Inactive (optional)' },
                   ].map((field) => (
@@ -301,7 +296,6 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Name</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Phone</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Role</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Salary</th>
                       <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">Status</th>
                     </tr>
                   </thead>
@@ -323,9 +317,6 @@ export const EmployeeBulkImport: React.FC<EmployeeBulkImportProps> = ({
                           </td>
                           <td className="px-4 py-3 text-sm text-slate-600">{row.phone}</td>
                           <td className="px-4 py-3 text-sm text-slate-600">{row.role}</td>
-                          <td className="px-4 py-3 text-right text-sm text-slate-600">
-                            {row.basesalary ? `$${parseFloat(row.basesalary).toLocaleString()}` : '-'}
-                          </td>
                           <td className="px-4 py-3 text-center">
                             {validation.valid ? (
                               <CheckCircle className="mx-auto h-5 w-5 text-emerald-500" />

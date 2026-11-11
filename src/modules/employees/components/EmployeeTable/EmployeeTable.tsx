@@ -7,7 +7,6 @@ interface StaffMember {
   phone: string;
   role: string;
   assignedOutletName: string;
-  baseSalary?: number;
   status?: string;
   hasActiveContract?: boolean;
   contractStatus?: string;
@@ -36,15 +35,6 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
       .slice(0, 2);
   };
 
-  // Format salary
-  const formatSalary = (amount?: number) => {
-    if (!amount) return '-';
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
 
   return (
     <div className="glass-card" style={{ padding: 0 }}>
@@ -56,7 +46,6 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
               <th>Employee</th>
               <th>Role / Outlet</th>
               <th>Status / Contract</th>
-              <th>Base Salary</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -92,9 +81,6 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
                         No Active Contract (Inactive)
                       </span>
                     )}
-                  </td>
-                  <td>
-                    <div className="text-sm font-medium text-navy-900">{formatSalary(emp.baseSalary)}</div>
                   </td>
                   <td>
                     <div className="flex gap-2">
@@ -162,10 +148,6 @@ export const EmployeeTable: React.FC<EmployeeTableProps> = ({
                 <span className="text-navy-400 block mb-0.5 text-[10px] uppercase font-semibold">Role / Outlet</span>
                 <span className="font-semibold text-navy-800 text-sm">{emp.role}</span>
                 <span className="text-navy-500 block text-[10px]">{emp.assignedOutletName}</span>
-              </div>
-              <div>
-                <span className="text-navy-400 block mb-0.5 text-[10px] uppercase font-semibold">Base Salary</span>
-                <span className="font-bold text-navy-800 text-sm">{formatSalary(emp.baseSalary)}</span>
               </div>
             </div>
 

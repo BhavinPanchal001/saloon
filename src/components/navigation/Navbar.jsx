@@ -24,8 +24,6 @@ const pageTitles = {
   "/expenses": "Expense Control",
   "/expenses/local": "Local Expense Control",
   "/budgets": "Budget Management",
-  "/payroll": "Payroll Center",
-  "/payroll/calculate": "Salary Calculation",
   "/contracts": "Contracts",
   "/contracts/list": "Contract List",
   "/contracts/new": "New Contract",

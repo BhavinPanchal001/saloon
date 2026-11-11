@@ -1286,47 +1286,6 @@ function generateReportPDFBuffer(type, data, metadata = {}) {
       commands.push(`40 ${rowY - 6} m 555 ${rowY - 6} l S`);
       rowY -= 22;
     });
-  } else if (type === 'payroll' || type === 'employee-payroll') {
-
-    const spend = Number(data.totalPayrollSpend || 0).toLocaleString('en-IN');
-    commands.push('0.3 0.35 0.45 rg');
-    commands.push(`BT /F2 8.5 Tf 50 ${currentY - 18} Td (TOTAL EMPLOYEES: ${data.totalEmployees || 0}   |   NET PAYROLL OUTFLOW: Rs.${spend}) Tj ET`);
-
-    currentY -= 65;
-
-    commands.push('0.85 0.65 0.13 RG 1.5 w');
-    commands.push(`40 ${currentY} m 555 ${currentY} l S`);
-
-    commands.push('0.3 0.35 0.45 rg');
-    commands.push(`BT /F2 8 Tf 45 ${currentY - 14} Td (EMPLOYEE NAME) Tj ET`);
-    commands.push(`BT /F2 8 Tf 180 ${currentY - 14} Td (BASE SALARY) Tj ET`);
-    commands.push(`BT /F2 8 Tf 280 ${currentY - 14} Td (COMMISSION) Tj ET`);
-    commands.push(`BT /F2 8 Tf 380 ${currentY - 14} Td (DEDUCTIONS) Tj ET`);
-    commands.push(`BT /F2 8 Tf 470 ${currentY - 14} Td (NET PAYOUT) Tj ET`);
-
-    commands.push('0.88 0.9 0.94 RG 1 w');
-    commands.push(`40 ${currentY - 20} m 555 ${currentY - 20} l S`);
-
-    let rowY = currentY - 35;
-    const summary = data.payrollSummary || [];
-    summary.slice(0, 18).forEach((s) => {
-      const name = sanitizeText(s.name, 20);
-      const base = Number(s.baseSalary || 0).toLocaleString('en-IN');
-      const comm = Number(s.commissionAmount || 0).toLocaleString('en-IN');
-      const ded = Number(s.deductions || 0).toLocaleString('en-IN');
-      const net = Number(s.netSalary || 0).toLocaleString('en-IN');
-
-      commands.push('0.2 0.25 0.35 rg');
-      commands.push(`BT /F2 8 Tf 45 ${rowY} Td (${name}) Tj ET`);
-      commands.push(`BT /F1 8 Tf 180 ${rowY} Td (Rs.${base}) Tj ET`);
-      commands.push(`BT /F1 8 Tf 280 ${rowY} Td (Rs.${comm}) Tj ET`);
-      commands.push(`BT /F1 8 Tf 380 ${rowY} Td (Rs.${ded}) Tj ET`);
-      commands.push(`BT /F2 8 Tf 470 ${rowY} Td (Rs.${net}) Tj ET`);
-
-      commands.push('0.93 0.94 0.96 RG 0.5 w');
-      commands.push(`40 ${rowY - 6} m 555 ${rowY - 6} l S`);
-      rowY -= 22;
-    });
   } else if (type === 'gstr2') {
     const claimable = Number(data.totalItcClaimable || 0).toLocaleString('en-IN');
     commands.push('0.3 0.35 0.45 rg');

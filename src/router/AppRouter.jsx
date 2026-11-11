@@ -16,10 +16,6 @@ import { RegisterPage } from "../pages/auth/RegisterPage";
 import { OTPVerificationPage } from "../pages/auth/OTPVerificationPage";
 import { OutletsPage } from "../pages/outlets/OutletsPage";
 import { OutletTransactionsPage } from "../pages/outlets/OutletTransactionsPage";
-import { PayrollPage } from "../pages/payroll/PayrollPage";
-import { SalaryAddPage } from "../pages/payroll/SalaryAddPage";
-import { SalaryViewPage } from "../pages/payroll/SalaryViewPage";
-import { SalaryPayPage } from "../pages/payroll/SalaryPayPage";
 import { POSPage } from "../pages/pos/POSPage";
 import BillingListPage from "../pages/pos/BillingListPage";
 import BillDetailPage from "../pages/pos/BillDetailPage";
@@ -36,9 +32,9 @@ import EmployeeDetailPage from "../modules/employees/pages/EmployeeDetailPage";
 import AttendancePage from "../modules/employees/pages/AttendancePage";
 import AttendanceSummaryPage from "../modules/employees/pages/AttendanceSummaryPage";
 import ContractListPage from "../modules/contracts/pages/management/ContractListPage";
+import ContractDetailPage from "../modules/contracts/pages/management/ContractDetailPage";
 import ContractFormPage from "../modules/contracts/pages/management/ContractFormPage";
 import ContractMastersPage from "../modules/contracts/pages/management/ContractMastersPage";
-import SalaryCalculationPage from '../modules/employees/pages/SalaryCalculationPage';
 import CommissionMastersPage from '../modules/employees/pages/CommissionMastersPage';
 import BankListPage from "../modules/bank/pages/BankListPage";
 import BankFormPage from "../modules/bank/pages/BankFormPage";
@@ -237,6 +233,10 @@ export const router = createBrowserRouter([
                 element: <ContractListPage />,
               },
               {
+                path: "/contracts/view/:id",
+                element: <ContractDetailPage />,
+              },
+              {
                 path: "/contracts/new",
                 element: <ContractFormPage />,
               },
@@ -255,26 +255,6 @@ export const router = createBrowserRouter([
               {
                 path: "/contracts/masters/:type",
                 element: <ContractMastersPage />,
-              },
-              {
-                path: "/payroll",
-                element: <PayrollPage />,
-              },
-              {
-                path: "/salary/add",
-                element: <SalaryAddPage />,
-              },
-              {
-                path: "/salary/view/:id",
-                element: <SalaryViewPage />,
-              },
-              {
-                path: "/salary/pay",
-                element: <SalaryPayPage />,
-              },
-              {
-                path: "/payroll/calculate",
-                element: <SalaryCalculationPage />,
               },
               {
                 path: "/payroll/commission-masters",

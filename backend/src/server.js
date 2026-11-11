@@ -1,4 +1,9 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+
+if (!process.env.JWT_SECRET || !process.env.JWT_SECRET.trim()) {
+  console.error('Missing JWT_SECRET. Set a non-empty JWT_SECRET in backend/.env or the process environment, then restart the server.');
+  process.exit(1);
+}
 const { execSync } = require('child_process');
 const os = require('os');
 const http = require('http');
@@ -52,6 +57,14 @@ const startServer = async () => {
     console.log('Database connection established successfully.');
 
     const queryInterface = sequelize.getQueryInterface();
+    if (sequelize.getDialect() === 'mssql') {
+      await require('./services/sqlServerSchema').initializeSqlServer();
+    } else {
+    await require('./migrations/20261029000000-link-staff-users').up(queryInterface, require('sequelize').DataTypes);
+    await require('./migrations/20261029000001-static-employee-access-role').up(queryInterface, require('sequelize').DataTypes);
+    await require('./migrations/20261029000002-contract-view-settings').up(queryInterface, require('sequelize').DataTypes);
+    await require('./migrations/20261029000003-effective-contracts-payroll').up(queryInterface, require('sequelize').DataTypes);
+    await require('./migrations/20261029000004-contract-documents').up(queryInterface, require('sequelize').DataTypes);
 
     // Ensure new tables exist before alter sync
     const tablesBeforeSync = await queryInterface.showAllTables();
@@ -236,6 +249,8 @@ const startServer = async () => {
       console.warn('Sequelize sync notice (tables ready):', syncErr.message);
     }
 
+    await require('./services/freezeContractTerms').freezeContractTerms();
+
     // Seed Default Walk-in Guest customer
     try {
       const { Customer } = require('./models');
@@ -307,6 +322,8 @@ const startServer = async () => {
         defaultValue: null,
       });
       console.log('[Migration] Column outlet_id added successfully to admins.');
+    }
+
     }
 
     const server = http.createServer(app);

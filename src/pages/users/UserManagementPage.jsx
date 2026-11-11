@@ -23,17 +23,7 @@ import {
   Key,
 } from "lucide-react";
 
-const creatableRoles = [
-  { value: "manager", label: "Outlet Manager" },
-  { value: "cashier", label: "Cashier / POS Operator" },
-];
-
-const availableRoles = [
-  { value: "manager", label: "Outlet Manager" },
-  { value: "cashier", label: "Cashier / POS Operator" },
-  { value: "admin", label: "Admin" },
-  { value: "super_admin", label: "Super Admin" },
-];
+import { APP_ROLES } from "../../../shared/appRoles.js";
 
 export default function UserManagementPage() {
   const toast = useToastStore();
@@ -54,7 +44,7 @@ export default function UserManagementPage() {
     name: "",
     email: "",
     password: "",
-    role: "manager",
+    role: "",
     outlet_id: "",
   });
 
@@ -81,13 +71,16 @@ export default function UserManagementPage() {
     loadData();
   }, []);
 
+  const availableRoles = APP_ROLES;
+  const editableRoles = APP_ROLES;
+
   const handleOpenAddModal = () => {
     setEditingUser(null);
     setFormData({
       name: "",
       email: "",
       password: "",
-      role: "manager",
+      role: "",
       outlet_id: "",
     });
     setIsModalOpen(true);
@@ -99,7 +92,7 @@ export default function UserManagementPage() {
       name: user.name,
       email: user.email,
       password: "",
-      role: user.role || "manager",
+      role: user.role || "",
       outlet_id: user.outlet_id ? String(user.outlet_id) : "",
     });
     setIsModalOpen(true);
@@ -113,6 +106,12 @@ export default function UserManagementPage() {
     }
     if (!editingUser && !formData.password) {
       toast.error("Password is required for new accounts.");
+      return;
+    }
+
+    const isActiveRole = APP_ROLES.some(r => r.value === formData.role);
+    if (!formData.role || (!isActiveRole && formData.role !== editingUser?.role)) {
+      toast.error('Select a valid app user role.');
       return;
     }
 
@@ -187,9 +186,9 @@ export default function UserManagementPage() {
       <PageHeader
         eyebrow="User Access & Security"
         title="App Users Management"
-        description="Manage standalone system users, login credentials, role assignments, and single-outlet permissions."
+        description="Manage employee and app user accounts, login credentials, role assignments, and outlet access."
         action={
-          <button onClick={handleOpenAddModal} className="btn-premium-primary">
+          <button onClick={handleOpenAddModal} disabled={loading} className="btn-premium-primary">
             <Plus size={18} /> Add App User
           </button>
         }
@@ -456,10 +455,12 @@ export default function UserManagementPage() {
                   <label className="premium-label block mb-1">Role</label>
                   <select
                     className="premium-input"
+                    required
                     value={formData.role}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   >
-                    {creatableRoles.map((r) => (
+                    <option value="">Select User Role</option>
+                    {editableRoles.map((r) => (
                       <option key={r.value} value={r.value}>
                         {r.label}
                       </option>

@@ -11,17 +11,9 @@ const formatTime = (isoString) => {
 };
 
 // Helper to find the active contract for a staff member on a specific date
-const getActiveContractForDate = (staff, dateStr) => {
-  if (!staff || !staff.contracts || staff.contracts.length === 0) return null;
-  return staff.contracts.find((c) => {
-    if (c.status !== 'active') return false;
-    if (dateStr) {
-      if (c.start_date && c.start_date > dateStr) return false;
-      if (c.end_date && c.end_date < dateStr) return false;
-    }
-    return true;
-  }) || null;
-};
+const { contractForDate, localToday } = require('../services/contractTimeline');
+const { termsFor } = require('../services/contractTerms');
+const getActiveContractForDate = (staff, dateStr) => contractForDate(staff?.contracts || [], dateStr || localToday());
 
 // Helper to extract full contract details, shift, work week and working day status
 const getStaffContractDetails = (staff, dateStr) => {
@@ -38,8 +30,8 @@ const getStaffContractDetails = (staff, dateStr) => {
     };
   }
 
-  const shift = activeContract.shift || null;
-  const workWeek = activeContract.workWeek || null;
+  const shift = termsFor(activeContract).shift;
+  const workWeek = termsFor(activeContract).workWeek;
 
   // Determine if dateStr is scheduled working day or weekly off
   let isWorkingDay = true;

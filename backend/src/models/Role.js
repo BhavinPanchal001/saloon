@@ -15,6 +15,11 @@ const Role = sequelize.define('Role', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  permissions: {
+    type: DataTypes.JSON,
+    allowNull: false,
+    defaultValue: ['pos:view', 'inventory:view', 'services:view', 'expenses:view'],
+  },
   is_employee: {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
