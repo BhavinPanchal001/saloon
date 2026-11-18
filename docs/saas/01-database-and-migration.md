@@ -1,6 +1,6 @@
 # 01 · Database and migration
 
-Read [the execution contract](README.md) first. Prerequisites: —.
+Read [the execution contract](README.md) first. Start with the isolated restore and target verification in the [database execution runbook](database-execution.md).
 
 ## Current implementation
 

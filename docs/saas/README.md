@@ -8,7 +8,7 @@ Exclude employee management, contracts, payroll, attendance, commission masters,
 
 ## Execution order and ownership
 
-Start 01 on a restored staging copy, then merge 02, then 03. Build 04, 06, 09, 10, 13 and 14 independently against the published interface. Start 05 after 04 when service consumption is enabled, 07 after 04, 08 after 06, and 12 after 05 and 06. Integrate settlement across 06/09 and purchasing across 07/09 before enabling either linked operation. Integrate 11 after its domain dependencies. Complete 15 against reconciled fixtures and 16 for pilot provisioning. External delivery, printing and uploads stay gated until 13/14 pass. Gate every unmigrated route by default on the SaaS deployment. Enable deferred features only after a separate conversion.
+Follow the [database execution runbook](database-execution.md) for branch setup, database selection, migration rehearsals and release. Start 01 on a dedicated development restore, then merge 02, then 03. Build 04, 06, 09, 10, 13 and 14 independently against the published interface. Start 05 after 04 when service consumption is enabled, 07 after 04, 08 after 06, and 12 after 05 and 06. Integrate settlement across 06/09 and purchasing across 07/09 before enabling either linked operation. Integrate 11 after its domain dependencies. Complete 15 against reconciled fixtures and 16 for pilot provisioning. External delivery, printing and uploads stay gated until 13/14 pass. Gate every unmigrated route by default on the SaaS deployment. Enable deferred features only after a separate conversion.
 
 | ID | Session brief | Inputs |
 |---|---|---|
@@ -39,7 +39,7 @@ Start 01 on a restored staging copy, then merge 02, then 03. Build 04, 06, 09, 1
 
 ## Session handoff
 
-Copy into a new session: “Read docs/saas/README.md and brief NN. Verify its prerequisites in the checkout. Implement the brief through its normal UI/API paths, including migration and acceptance checks. Leave HR management deferred. Report changed files, migration IDs, commands and results, cross-module dependencies and remaining release gates.” Use a separate branch/worktree per brief and merge prerequisites before downstream integration. Add actual completion evidence to the brief when done. Route inventories identify review surfaces; related routes may be owned by the adjacent brief.
+Copy into a new session: “Read docs/saas/README.md, docs/saas/database-execution.md and brief NN. Verify its prerequisites in the checkout. Implement the brief through its normal UI/API paths, including migration and acceptance checks. Leave HR management deferred. Report changed files, migration IDs, commands and results, cross-module dependencies and remaining release gates.” Use a separate branch/worktree per brief and merge prerequisites before downstream integration. Add actual completion evidence to the brief when done. Route inventories identify review surfaces; related routes may be owned by the adjacent brief.
 
 ## Cutover and rollback
 
