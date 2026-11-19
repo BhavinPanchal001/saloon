@@ -38,3 +38,27 @@ NODE_ENV=test node scripts/saas/rehearse-outlet-ownership.js Mac.lan:3306 glowys
 - Fifteen migrations in the SaaS checkout have no row in the restored SequelizeMeta ledger. Some corresponding tables or columns already exist. Compare actual DDL and data outcomes with each migration before choosing a clean-install baseline. The original worktree also has a pending appointment-notifications migration outside the SaaS base.
 - This rehearsal requires an existing outlet table and an offline single-business copy. Complete clean install, legacy schema convergence, startup-write removal and development server isolation before running the SaaS application. Existing bootstrap and controller paths can issue DDL.
 - Introduce organization-aware writers and authenticated scope before enforcing non-null outlet ownership or allowing a second salon. Rehearse with the deployed engine, release and backup before production use. The deployed engine and deployed application version have yet to be verified.
+
+## Ledger drift triage
+
+A read-only check on the development restore compared the main effects of the 15 unrecorded migration files with current columns and indexes. The observations below guide repair. Table presence alone does not establish matching defaults, foreign keys, historical data updates or full schema equivalence.
+
+| Migration ID | Observed effect or discrepancy |
+|---|---|
+| 20260716000000 | services.assigned_outlet_ids exists as JSON. |
+| 20260717000000 | Attendance exists. The unique staff/date pair is absent. Defer HR repair. |
+| 20260720000000 | admins.outlet_id exists as an indexed unsigned integer. |
+| 20260720100000 | Both payroll tables exist. The unique month/outlet pair is absent. Defer HR repair. |
+| 20260723000000 | Coupons and both coupon columns on bills exist. |
+| 20260724000000 | The intermediate payment-method enum has been superseded by the later varchar definition. Replaying this migration would narrow the accepted values. |
+| 20260726000000 | Customers exist. The phone index is absent. |
+| 20260726000001 | Appointments exist. The composite outlet/date index is absent. |
+| 20260728000000 | Both bill payment method and status use varchar(50). |
+| 20261029000000 | Admin role is varchar(50), role permissions are JSON and staff user_id is indexed. Historical permission backfill requires separate verification. |
+| 20261029000001 | Staff access_role exists. |
+| 20261029000002 | Both contract configuration JSON columns and both period columns exist. |
+| 20261029000003 | Previous contract, original end date and terms snapshot columns exist. |
+| 20261029000004 | Contract document metadata exists as JSON. |
+| 20261029000005 | Payroll present_days and absent_days are unsigned integers. The migration specifies decimal(5,1). Defer HR repair. |
+
+The next foundation change should provide an explicit MySQL bootstrap and matching upgrade path, exercised on a third, initially empty database and a legacy restore. Include the customer phone and appointment outlet/date lookup indexes in the reviewed target schema, accounting for tenant scoping as those domains migrate. Compare columns, defaults, constraints and indexes for in-scope tables, and reconcile business totals after upgrade. Keep the HR differences recorded for a later HR session. Preserve the legacy ledger as observed.
