@@ -28,4 +28,12 @@ async function verifiedConnection(expectedServer, expectedDatabase) {
   }
 }
 
-module.exports = { verifiedConnection };
+// Closing the dedicated migration connection releases this advisory lock.
+async function acquireMigrationLock(connection) {
+  const [[{ locked }]] = await connection.query(
+    "SELECT GET_LOCK(CONCAT('saas:', LEFT(SHA2(DATABASE(),256),56)), 5) AS locked"
+  );
+  if (locked !== 1) throw new Error('A different migration holds the database lock.');
+}
+
+module.exports = { verifiedConnection, acquireMigrationLock };

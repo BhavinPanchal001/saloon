@@ -6,6 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
+    "start:saas": "node src/saas/server.js",
+    "db:saas:setup": "node scripts/saas/setup.js",
     "dev": "nodemon --watch src --signal SIGKILL src/server.js",
     "db:migrate": "node scripts/migrate.js",
     "db:migrate:undo": "node scripts/migrate.js --undo",

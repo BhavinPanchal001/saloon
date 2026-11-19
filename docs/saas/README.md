@@ -8,6 +8,8 @@ Exclude employee management, contracts, payroll, attendance, commission masters,
 
 ## Execution order and ownership
 
+For concurrent work on two computers, use the [parallel execution plan](parallel-execution.md).
+
 Follow the [database execution runbook](database-execution.md) for branch setup, database selection, migration rehearsals and release. Start 01 on a dedicated development restore, then merge 02, then 03. Build 04, 06, 09, 10, 13 and 14 independently against the published interface. Start 05 after 04 when service consumption is enabled, 07 after 04, 08 after 06, and 12 after 05 and 06. Integrate settlement across 06/09 and purchasing across 07/09 before enabling either linked operation. Integrate 11 after its domain dependencies. Complete 15 against reconciled fixtures and 16 for pilot provisioning. External delivery, printing and uploads stay gated until 13/14 pass. Gate every unmigrated route by default on the SaaS deployment. Enable deferred features only after a separate conversion.
 
 | ID | Session brief | Inputs |

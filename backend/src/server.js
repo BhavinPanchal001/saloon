@@ -51,9 +51,14 @@ const killPortIfBusy = (port) => {
 
 const startServer = async () => {
   try {
-    killPortIfBusy(PORT);
-
     await sequelize.authenticate();
+    if (sequelize.getDialect() === 'mysql') {
+      const [saasTables] = await sequelize.query(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'saas_migrations'"
+      );
+      if (saasTables.length) throw new Error('Use npm run start:saas with a SaaS database.');
+    }
+    killPortIfBusy(PORT);
     console.log('Database connection established successfully.');
 
     const queryInterface = sequelize.getQueryInterface();

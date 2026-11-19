@@ -1,6 +1,6 @@
 // MySQL rehearsal on an offline, single-business restore. Pass the exact legacy
 // outlet IDs so unexpected data never silently acquires an organization.
-const { verifiedConnection } = require('./connection');
+const { verifiedConnection, acquireMigrationLock } = require('./connection');
 const migration = '202611190001-organization-outlets';
 
 async function prepareSchema(c) {
@@ -25,9 +25,6 @@ async function prepareSchema(c) {
 }
 
 async function apply(c, legacyIds) {
-  const [[{ locked }]] = await c.query("SELECT GET_LOCK(CONCAT('saas:', LEFT(SHA2(DATABASE(),256),56)), 5) AS locked");
-  if (locked !== 1) throw new Error('A different migration holds the database lock.');
-  // Closing this dedicated connection releases the session lock.
   await prepareSchema(c);
   await c.beginTransaction();
   try {
@@ -62,9 +59,14 @@ async function main() {
   }
   const connection = await verifiedConnection(server, database);
   try {
+    await acquireMigrationLock(connection);
     console.log(migration, await apply(connection, ids === 'none' ? [] : ids.split(',')));
   } finally {
     await connection.end();
   }
 }
-main().catch(error => { console.error(error.message); process.exitCode = 1; });
+if (require.main === module) {
+  main().catch(error => { console.error(error.message); process.exitCode = 1; });
+}
+
+module.exports = { applyOutletOwnership: apply, outletMigration: migration };

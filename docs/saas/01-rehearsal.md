@@ -62,3 +62,11 @@ A read-only check on the development restore compared the main effects of the 15
 | 20261029000005 | Payroll present_days and absent_days are unsigned integers. The migration specifies decimal(5,1). Defer HR repair. |
 
 The next foundation change should provide an explicit MySQL bootstrap and matching upgrade path, exercised on a third, initially empty database and a legacy restore. Include the customer phone and appointment outlet/date lookup indexes in the reviewed target schema, accounting for tenant scoping as those domains migrate. Compare columns, defaults, constraints and indexes for in-scope tables, and reconcile business totals after upgrade. Keep the HR differences recorded for a later HR session. Preserve the legacy ledger as observed.
+
+## Clean install, upgrade and startup results
+
+The local MySQL rehearsal now uses `npm run db:saas:setup` with explicit `install` and `upgrade` paths. Installation uses a schema-only checkpoint of the verified legacy DDL. Upgrade retains the legacy migration ledger, applies outlet ownership and adds the missing customer and appointment indexes. Both paths then add the membership table. The two paths produced matching definitions across 60 tables after normalizing auto-increment counters. The upgrade preserved the saved legacy row counts and business aggregates. Both setup paths were rerun.
+
+The SaaS API uses `npm run start:saas` and expects an explicitly prepared schema. Two real startup and shutdown cycles preserved every table's definition and data checksum. The old startup refuses a MySQL database carrying the SaaS migration ledger. This rehearsal used MySQL 9.6. The target production engine and release still require verification.
+
+Workspace HTTP tests used two synthetic organizations, an owner with both memberships, a single-outlet member and an authenticator challenge. They passed for incorrect token audience, foreign outlet lookup, workspace switching, membership revocation and closure of an unported business route. The SaaS frontend build passed. Interactive browser testing, membership management and write workflows remain outstanding.
