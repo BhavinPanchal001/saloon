@@ -24,3 +24,5 @@ SQL Server dispatches to additive setup, while other dialects run sequelize-cli.
 ## Acceptance scenario
 
 Run on empty and restored databases, interrupt and resume a batch, run twice and restore from backup. Publish per-table counts, orphan counts, bill totals, outstanding balances and lot quantities before and after.
+
+Local execution evidence and the proposed table ownership map are in the [first rehearsal record](01-rehearsal.md).
