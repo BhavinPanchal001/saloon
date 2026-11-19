@@ -10,6 +10,9 @@ router.get('/catalog', authenticateToken, requirePermission('pos:view'), posCont
 // POST /api/pos/checkout
 router.post('/checkout', authenticateToken, requirePermission('pos:create'), posController.checkout);
 
+// GET /api/pos/customers/:customerId/last-order?outletId=
+router.get('/customers/:customerId/last-order', authenticateToken, requirePermission('pos:view'), posController.getCustomerLastOrder);
+
 // GET /api/pos/bills?outletId=&search=&paymentMethod=
 router.get('/bills', authenticateToken, requirePermission('pos:view'), posController.getBills);
 

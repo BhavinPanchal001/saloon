@@ -24,6 +24,19 @@ const handleResponse = async (res) => {
   return data;
 };
 
+export const fetchPayroll = async (month) => handleResponse(await fetch(`${API_BASE}/payroll?${new URLSearchParams({ month })}`, { headers: authHeaders() }));
+export const fetchSalarySettings = async () => handleResponse(await fetch(`${API_BASE}/payroll/settings`, { headers: authHeaders() }));
+export const saveSalarySettings = async (payload) => handleResponse(await fetch(`${API_BASE}/payroll/settings`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(payload) }));
+export const fetchSalaryCalculation = async (staffId, month) => handleResponse(await fetch(`${API_BASE}/payroll/${staffId}?${new URLSearchParams({ month })}`, { headers: authHeaders() }));
+export const previewSalary = async (staffId, payload) => handleResponse(await fetch(`${API_BASE}/payroll/${staffId}/preview`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) }));
+export const saveSalaryCalculation = async (staffId, payload) => handleResponse(await fetch(`${API_BASE}/payroll/${staffId}/save`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) }));
+
+export const fetchLeaveContext = async (params = {}) => handleResponse(await fetch(`${API_BASE}/leave-requests/context?${new URLSearchParams(params)}`, { headers: authHeaders() }));
+export const fetchLeaveRequests = async (all = false) => handleResponse(await fetch(`${API_BASE}/leave-requests${all ? '?all=true' : ''}`, { headers: authHeaders() }));
+export const createLeaveRequest = async (payload) => handleResponse(await fetch(`${API_BASE}/leave-requests`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) }));
+export const reviewLeaveRequest = async (id, decision, note = '') => handleResponse(await fetch(`${API_BASE}/leave-requests/${id}/review`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ decision, note }) }));
+export const cancelLeaveRequest = async (id, reason = '') => handleResponse(await fetch(`${API_BASE}/leave-requests/${id}/cancel`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ reason }) }));
+
 // ─── Outlets ──────────────────────────────────────────────────────────────────
 
 export const fetchOutletsFromAPI = async (params = {}) => {
@@ -620,6 +633,15 @@ export const fetchBillsFromAPI = async ({ outletId, search, paymentMethod } = {}
   const query = new URLSearchParams(params).toString();
   const res = await fetch(`${API_BASE}/pos/bills${query ? `?${query}` : ""}`, {
     headers: authHeaders(),
+  });
+  return handleResponse(res);
+};
+
+export const fetchCustomerLastOrderAPI = async (customerId, { outletId, signal } = {}) => {
+  const query = outletId ? `?${new URLSearchParams({ outletId })}` : "";
+  const res = await fetch(`${API_BASE}/pos/customers/${customerId}/last-order${query}`, {
+    headers: authHeaders(),
+    signal,
   });
   return handleResponse(res);
 };
@@ -1692,10 +1714,11 @@ export const updateVoucherRewardRulesAPI = async (payload) => {
 
 // ─── Customers API ────────────────────────────────────────────────────────────
 
-export const fetchCustomersAPI = async (params = {}) => {
+export const fetchCustomersAPI = async (params = {}, { signal } = {}) => {
   const query = new URLSearchParams(params).toString();
   const res = await fetch(`${API_BASE}/customers?${query}`, {
     headers: authHeaders(),
+    signal,
   });
   return handleResponse(res);
 };

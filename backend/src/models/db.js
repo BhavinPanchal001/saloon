@@ -15,6 +15,9 @@ const sequelize = new Sequelize(
 if (sequelize.getDialect() === 'mssql') {
   sequelize.addHook('beforeDefine', (attributes) => {
     for (const [name, attribute] of Object.entries(attributes)) {
+      if (attribute.type?.key === 'INTEGER' && attribute.type._unsigned) {
+        attribute.type = Sequelize.DataTypes.INTEGER;
+      }
       if (attribute.type?.key !== 'JSON' && attribute.type !== Sequelize.DataTypes.JSON) continue;
       attribute.type = Sequelize.DataTypes.TEXT;
       attribute.get = function () {

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Glowy — Salary Settings Guide</title>
+<style>
+@page { size: A4; margin: 13mm 16mm; }
+* { box-sizing: border-box; }
+body { margin: 0; color: #223246; font: 10pt/1.4 Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page + .page { break-before: page; }
+.brand { color: #235079; text-transform: uppercase; font-size: 9pt; font-weight: 700; letter-spacing: 2px; border-bottom: 3px solid #d7b560; padding-bottom: 10px; }
+h1 { font: bold 24pt/1.15 Georgia, serif; color: #17344f; margin: 14px 0 8px; }
+.intro { color: #5d6e7e; margin: 0 0 14px; }
+h2 { font-size: 13pt; line-height: 1.3; color: #17344f; margin: 17px 0 8px; }
+p { margin: 6px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin: 12px 0; }
+th { text-align: left; color: #235079; background: #edf3f8; }
+th, td { padding: 7px 9px; border-bottom: 1px solid #dce5ec; vertical-align: top; }
+td:last-child { font-variant-numeric: tabular-nums; }
+.example { border-left: 3px solid #d7b560; background: #faf7ee; padding: 10px 13px; margin: 10px 0; }
+.note { background: #edf3f8; border-radius: 6px; padding: 11px 13px; margin: 12px 0; }
+.formula { font-family: Consolas, monospace; font-size: 9.5pt; line-height: 1.65; white-space: pre-line; }
+.footer { border-top: 1px solid #dce5ec; margin-top: 14px; padding-top: 8px; color: #6b7b8c; font-size: 8.5pt; display: flex; justify-content: space-between; }
+ul { padding-left: 20px; margin: 8px 0; }
+tr, .example, .note { break-inside: avoid; }
+</style>
+</head>
+<body>
+<section class="page">
+  <div class="brand">Glowy · Employee Payroll</div>
+  <h1>Salary Settings<br>Explained with examples</h1>
+  <p class="intro">A practical guide to the four shared calculation rules in <strong>Settings → Salary Settings</strong>.</p>
+  <div class="note">These settings apply to <strong>all employees and outlets</strong>. Each employee’s salary amounts, shift, leave entitlements and holidays still come from their own contract. The figures below are illustrative.</div>
+
+  <h2>1. How should monthly salary be divided?</h2>
+  <p>This determines the daily salary rate used for proration and unpaid-time deductions.</p>
+  <div class="example"><strong>Example:</strong> Monthly salary of RM 3,000, with 30 calendar days and 22 scheduled working days in the month.</div>
+  <table><thead><tr><th>Choice</th><th>Calculation</th><th>Daily rate</th></tr></thead><tbody>
+  <tr><td>Calendar days</td><td>RM 3,000 ÷ 30</td><td>RM 100.00</td></tr>
+  <tr><td>Scheduled working days</td><td>RM 3,000 ÷ 22</td><td>About RM 136.36</td></tr>
+  </tbody></table>
+  <p>One unpaid working day therefore deducts RM 100.00 or approximately RM 136.36, depending on the selected rule.</p>
+  <p>With the working-day method, weekly offs and holidays are excluded from the divisor. A fully attended month still earns the full monthly salary; those days do not add extra pay.</p>
+
+  <h2>2. How should attendance deductions be calculated?</h2>
+  <p>Choose whether payment follows the attendance status or actual recorded working hours.</p>
+  <div class="example"><strong>Example:</strong> A daily salary amount of RM 100 and a contract requiring 8 working hours after breaks.</div>
+  <table><thead><tr><th>Attendance</th><th>Attendance status</th><th>Worked hours</th></tr></thead><tbody>
+  <tr><td>Present; worked 8 hours</td><td>RM 100 payable</td><td>RM 100 payable</td></tr>
+  <tr><td>Present; worked 6 hours</td><td>RM 100 payable</td><td>RM 75 payable</td></tr>
+  <tr><td>Half-day; worked 4 hours</td><td>RM 50 payable</td><td>RM 50 payable</td></tr>
+  </tbody></table>
+  <p class="formula">Paid fraction = 6 ÷ 8 = 75%
+Payable amount = RM 100 × 75% = RM 75
+Deduction = RM 25</p>
+  <p>Recorded breaks are subtracted before calculating worked time. Missing or invalid punches require review. Use <strong>Worked hours</strong> if shorter working time should reduce salary proportionally.</p>
+  <div class="footer"><span>Salary Settings Guide · Illustrative examples</span><span>1 / 2</span></div>
+</section>
+<section class="page">
+  <div class="brand">Glowy · Employee Payroll</div>
+  <h1>Understanding deductions</h1>
+  <p class="intro">How the shared policy determines percentage bases and fixed-deduction proration.</p>
+
+  <h2>3. What should percentage deductions be based on?</h2>
+  <p>This determines the amount used when a contract deduction is a percentage.</p>
+  <div class="example"><strong>Example after attendance adjustments:</strong><br>Basic salary: RM 2,700<br>Contract allowances: RM 540<br>Total contract earnings: RM 3,240<br>Percentage deduction: 10%</div>
+  <table><thead><tr><th>Choice</th><th>Calculation</th><th>Deduction</th></tr></thead><tbody>
+  <tr><td>Attendance-adjusted basic salary</td><td>RM 2,700 × 10%</td><td>RM 270.00</td></tr>
+  <tr><td>Attendance-adjusted contract earnings</td><td>RM 3,240 × 10%</td><td>RM 324.00</td></tr>
+  </tbody></table>
+  <p>Contract earnings include calculated basic salary and contract allowances. In the current implementation, manual earning adjustments are excluded from this percentage basis.</p>
+  <p>This setting uses the deduction rates stored in the contract; it does not determine statutory tax rates.</p>
+
+  <h2>4. Use the selected salary divisor for fixed deductions?</h2>
+  <p>This controls how fixed monthly deductions are prorated.</p>
+  <ul><li><strong>Checked:</strong> use the divisor selected in Question 1.</li><li><strong>Unchecked:</strong> use calendar-day proration.</li></ul>
+  <div class="example"><strong>Example:</strong> A fixed monthly deduction of RM 300. The contract covers 10 calendar days containing 6 scheduled working days. The full month contains 30 calendar days and 22 working days. Question 1 is set to <strong>Scheduled working days</strong>.</div>
+  <table><thead><tr><th>Choice</th><th>Calculation</th><th>Deduction</th></tr></thead><tbody>
+  <tr><td>Checked</td><td>RM 300 × 6 ÷ 22</td><td>RM 81.82</td></tr>
+  <tr><td>Unchecked</td><td>RM 300 × 10 ÷ 30</td><td>RM 100.00</td></tr>
+  </tbody></table>
+  <p>For a contract covering the full month, both normally produce the full RM 300 deduction. This checkbox controls proration; fixed deductions are not automatically reduced because of an absence.</p>
+  <div class="note"><strong>For deductions based on shorter working time:</strong> select <strong>Worked hours</strong> in Question 2. Choose the remaining rules according to your business’s agreed salary and deduction policy.</div>
+  <p>Save the policy once in Salary Settings. New calculations and recalculated drafts use the saved rules. Finalized payroll retains its recorded rules and amounts.</p>
+  <div class="footer"><span>Salary Settings Guide · Illustrative examples</span><span>2 / 2</span></div>
+</section>
+</body>
+</html>

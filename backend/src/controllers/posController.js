@@ -784,6 +784,76 @@ const checkout = async (req, res) => {
   }
 };
 
+// GET /api/pos/customers/:customerId/last-order
+const getCustomerLastOrder = async (req, res) => {
+  const isValidId = (value) => typeof value === 'string' && /^[1-9]\d*$/.test(value) &&
+    Number.isSafeInteger(Number(value));
+  if (!isValidId(req.params.customerId) || (req.query.outletId !== undefined && !isValidId(req.query.outletId))) {
+    return res.status(400).json({ message: 'Valid customer and outlet IDs are required.' });
+  }
+  const customerId = Number(req.params.customerId);
+  const outletId = req.query.outletId === undefined ? null : Number(req.query.outletId);
+
+  const user = req.user || req.admin;
+  const assignedOutletId = ['admin', 'super_admin'].includes(user.role) ? null : user.outlet_id;
+  if (assignedOutletId && outletId && Number(assignedOutletId) !== outletId) {
+    return res.status(403).json({ message: 'You cannot access another outlet invoice.' });
+  }
+
+  try {
+    const customer = await Customer.findByPk(customerId, { attributes: ['phone'] });
+    if (!customer) return res.status(404).json({ message: 'Customer not found.' });
+    const phone = customer.phone?.trim();
+    if (phone === '0000000000') return res.json({ order: null });
+
+    const where = { status: { [Op.in]: ['paid', 'completed'] } };
+    if (phone && phone.toUpperCase() !== 'N/A') {
+      // Older bills may only have a phone. Keep explicitly linked bills with their CRM customer.
+      where[Op.or] = [{ customer_id: customerId }, { customer_id: null, customer_phone: phone }];
+    } else {
+      where.customer_id = customerId;
+    }
+    if (assignedOutletId || outletId) where.outlet_id = assignedOutletId || outletId;
+    if (['cashier', 'pos'].includes(user.role)) where.created_by = user.id;
+
+    const bill = await Bill.findOne({
+      where,
+      attributes: ['id', 'bill_number', 'createdAt', 'total'],
+      include: [
+        { model: Outlet, attributes: ['name'] },
+        {
+          model: BillLineItem,
+          as: 'lineItems',
+          attributes: ['id', 'item_type', 'item_name', 'qty', 'included_services'],
+        },
+      ],
+      order: [['createdAt', 'DESC'], ['id', 'DESC'], [{ model: BillLineItem, as: 'lineItems' }, 'id', 'ASC']],
+    });
+
+    return res.json({
+      order: bill ? {
+        billNumber: bill.bill_number,
+        createdAt: bill.createdAt,
+        outletName: bill.Outlet?.name,
+        total: Number(bill.total),
+        lineItems: bill.lineItems.map((item) => ({
+          id: item.id,
+          itemType: item.item_type,
+          itemName: item.item_name,
+          qty: Number(item.qty),
+          includedServices: item.item_type === 'package' && Array.isArray(item.included_services)
+            ? item.included_services.filter((service) => service?.serviceName)
+                .map(({ serviceName, sessions }) => ({ serviceName, sessions }))
+            : [],
+        })),
+      } : null,
+    });
+  } catch (err) {
+    console.error('Error fetching customer last order:', err);
+    return res.status(500).json({ message: 'Server error fetching customer last order.' });
+  }
+};
+
 // GET /api/pos/bills
 const getBills = async (req, res) => {
   try {
@@ -1561,6 +1631,7 @@ const sendWhatsAppBill = async (req, res) => {
 module.exports = {
   getCatalog,
   checkout,
+  getCustomerLastOrder,
   getBills,
   getBillById,
   addBillPayment,
