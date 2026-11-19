@@ -7,6 +7,7 @@ import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 import { getAvailableUnits, getUnitAbbr, convertToBase } from "../../utils/unitConversion";
 import { InvoiceModal } from "./InvoiceModal";
+import { CustomerLastOrder } from "./components/CustomerLastOrder";
 import { TerminalSelectModal } from "./components/TerminalSelectModal";
 import { OpenShiftModal } from "./components/OpenShiftModal";
 import { CashMovementModal } from "./components/CashMovementModal";
@@ -34,6 +35,7 @@ export function POSPage() {
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [selectedCrmCustomer, setSelectedCrmCustomer] = useState(null);
+  const customerLookup = useRef(null);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [loyaltySettings, setLoyaltySettings] = useState(null);
   useEffect(() => { fetchRewardSettingsAPI().then((result) => setLoyaltySettings(result.settings || null)).catch(() => {}); }, []);
@@ -52,29 +54,56 @@ export function POSPage() {
       .catch(() => {});
   }, []);
 
-  const resetCustomerFields = () => {
+  const clearCustomerLookup = () => {
+    customerLookup.current?.abort();
+    setCustomerSuggestions([]);
+    setShowCustomerDropdown(false);
+  };
+
+  const clearCrmSelection = () => {
     setSelectedCrmCustomer(null);
-    setCustomer({ name: "", phone: "" });
     setPointsToRedeem(0);
     setCustomerVouchers([]);
     setAppliedVoucher(null);
     setVoucherCodeInput("");
   };
 
+  const selectCrmCustomer = (client) => {
+    clearCustomerLookup();
+    clearCrmSelection();
+    setCustomer({ id: client.id, name: client.name, phone: client.phone });
+    setSelectedCrmCustomer(client);
+  };
+
+  const resetCustomerFields = () => {
+    clearCustomerLookup();
+    clearCrmSelection();
+    setCustomer({ name: "", phone: "" });
+  };
+
   const handleCustomerSearch = async (query) => {
-    if (!query || query.trim().length < 2) {
-      setCustomerSuggestions([]);
-      setShowCustomerDropdown(false);
-      return;
-    }
+    clearCustomerLookup();
+    if (query.trim().length < 2) return;
+
+    const request = new AbortController();
+    customerLookup.current = request;
     try {
-      const res = await fetchCustomersAPI({ search: query });
+      const res = await fetchCustomersAPI({ search: query }, { signal: request.signal });
+      if (request.signal.aborted) return;
       setCustomerSuggestions(res.customers || []);
       setShowCustomerDropdown(true);
     } catch (err) {
-      console.error("Failed to fetch customer suggestions:", err);
+      if (!request.signal.aborted) console.error("Failed to fetch customer suggestions:", err);
     }
   };
+
+  const handleCustomerFieldChange = (field, value) => {
+    if (selectedCrmCustomer) clearCrmSelection();
+    setCustomer(({ name, phone }) => ({ name, phone, [field]: value }));
+    handleCustomerSearch(value);
+  };
+
+  useEffect(() => () => customerLookup.current?.abort(), []);
   const [cart, setCart] = useState([]);
   const checkoutRequest = useRef({ signature: "", key: "" });
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -175,23 +204,24 @@ export function POSPage() {
 
   // Pre-fill customer from Appointment if navigated via location.state
   useEffect(() => {
-    if (location.state?.customerPhone || location.state?.customerName) {
-      setCustomer({
-        name: location.state.customerName || "",
-        phone: location.state.customerPhone || "",
-      });
-      if (location.state.customerPhone) {
-        fetchCustomersAPI({ search: location.state.customerPhone })
-          .then((res) => {
-            const match = (res.customers || []).find((c) => c.phone === location.state.customerPhone);
-            if (match) {
-              setSelectedCrmCustomer(match);
-              setCustomer({ name: match.name, phone: match.phone });
-            }
-          })
-          .catch(() => {});
-      }
-    }
+    const { customerName, customerPhone } = location.state || {};
+    if (!customerName && !customerPhone) return;
+
+    clearCustomerLookup();
+    clearCrmSelection();
+    setCustomer({ name: customerName || "", phone: customerPhone || "" });
+    if (!customerPhone) return;
+
+    const request = new AbortController();
+    customerLookup.current = request;
+    fetchCustomersAPI({ search: customerPhone }, { signal: request.signal })
+      .then((res) => {
+        if (request.signal.aborted) return;
+        const match = (res.customers || []).find((c) => c.phone === customerPhone);
+        if (match) selectCrmCustomer(match);
+      })
+      .catch(() => {});
+    return () => request.abort();
   }, [location.state]);
 
   const handleSelectTerminal = async (term) => {
@@ -293,6 +323,8 @@ export function POSPage() {
         }
 
         // Predefine customer
+        clearCustomerLookup();
+        clearCrmSelection();
         setCustomer({
           name: billData.customer?.name || "",
           phone: billData.customer?.phone || "",
@@ -827,19 +859,18 @@ export function POSPage() {
 
   // Load active vouchers when customer is selected
   useEffect(() => {
-    if (selectedCrmCustomer?.id) {
-      fetchCustomerVouchersAPI(selectedCrmCustomer.id, { active_only: "true" })
-        .then((res) => {
-          if (res.success) {
-            setCustomerVouchers(res.data?.filter((v) => v.status === "active") || []);
-          }
-        })
-        .catch(() => setCustomerVouchers([]));
-    } else {
-      setCustomerVouchers([]);
-      setAppliedVoucher(null);
-      setVoucherCodeInput("");
-    }
+    if (!selectedCrmCustomer?.id) return;
+    let cancelled = false;
+    fetchCustomerVouchersAPI(selectedCrmCustomer.id, { active_only: "true" })
+      .then((res) => {
+        if (!cancelled && res.success) {
+          setCustomerVouchers(res.data?.filter((v) => v.status === "active") || []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCustomerVouchers([]);
+      });
+    return () => { cancelled = true; };
   }, [selectedCrmCustomer?.id]);
 
   const handleApplyVoucher = async (codeToUse) => {
@@ -1555,12 +1586,7 @@ export function POSPage() {
                 className="premium-input !py-2.5 !text-sm"
                 placeholder="Guest Name (Search CRM...)"
                 value={customer.name}
-                onChange={(event) => {
-                  const val = event.target.value;
-                  setCustomer((current) => ({ ...current, name: val }));
-                  if (!val) setSelectedCrmCustomer(null);
-                  handleCustomerSearch(val);
-                }}
+                onChange={(event) => handleCustomerFieldChange("name", event.target.value)}
                 onFocus={() => {
                   if (customer.name && customerSuggestions.length > 0) setShowCustomerDropdown(true);
                 }}
@@ -1569,11 +1595,7 @@ export function POSPage() {
                 className="premium-input !py-2.5 !text-sm"
                 placeholder="Contact Number"
                 value={customer.phone}
-                onChange={(event) => {
-                  const val = event.target.value;
-                  setCustomer((current) => ({ ...current, phone: val }));
-                  handleCustomerSearch(val);
-                }}
+                onChange={(event) => handleCustomerFieldChange("phone", event.target.value)}
               />
             </div>
 
@@ -1654,11 +1676,7 @@ export function POSPage() {
                 {customerSuggestions.map((c) => (
                   <div
                     key={c.id}
-                    onClick={() => {
-                      setCustomer({ id: c.id, name: c.name, phone: c.phone });
-                      setSelectedCrmCustomer(c);
-                      setShowCustomerDropdown(false);
-                    }}
+                    onClick={() => selectCrmCustomer(c)}
                     className="p-2.5 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-100 last:border-0 flex items-center justify-between"
                   >
                     <div>
@@ -1684,6 +1702,14 @@ export function POSPage() {
               </div>
             )}
           </div>
+
+          {selectedCrmCustomer && (
+            <CustomerLastOrder
+              key={`${selectedCrmCustomer.id}:${selectedOutlet}`}
+              customerId={selectedCrmCustomer.id}
+              outletId={selectedOutlet}
+            />
+          )}
 
           {/* Cart items */}
           <div>
