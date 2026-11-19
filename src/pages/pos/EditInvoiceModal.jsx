@@ -7,7 +7,7 @@ import { useToastStore } from "../../stores/toastStore";
 import { formatCurrency } from "../../utils/format";
 
 import { TalentPicker } from "../../components/pos/TalentPicker";
-import { getTalentIds, getTalentNames } from "../../utils/talentAssignments";
+import { getTalentEffort, isTalentEffortValid, serializeTalentEffort } from "../../utils/talentAssignments";
 
 export function EditInvoiceModal({ bill, onClose, onSuccess }) {
   const toast = useToastStore();
@@ -137,6 +137,11 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
       toast.error("Please add at least one line item.");
       return;
     }
+    if (lineItems.some((item) => [item, ...(item.includedServices || [])]
+      .some((entry) => !isTalentEffortValid(getTalentEffort(entry, staffList))))) {
+      toast.error("Correct the talent effort percentages before saving the invoice.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -152,10 +157,9 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
           itemName: item.itemName,
           qty: Number(item.qty) || 1,
           price: Number(item.price) || 0,
-          staffIds: getTalentIds(item, staffList),
-          staffAssigned: getTalentNames(getTalentIds(item, staffList), staffList).join(", ") || null,
+          ...serializeTalentEffort(item, staffList),
           productConsumption: item.productConsumption || null,
-          includedServices: item.includedServices || null,
+          includedServices: item.includedServices?.map((service) => ({ ...service, ...serializeTalentEffort(service, staffList) })) || null,
         })),
         discountType,
         discountValue: Number(discountValue) || 0,
@@ -262,7 +266,7 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
                 <thead>
                   <tr className="bg-navy-50/60 border-b border-navy-100 text-navy-700">
                     <th className="px-4 py-3 font-bold">Item Description</th>
-                    <th className="px-4 py-3 font-bold w-40">Staff Assigned</th>
+                    <th className="min-w-[13rem] px-4 py-3 font-bold">Staff Assigned</th>
                     <th className="px-4 py-3 font-bold text-center w-24">Qty</th>
                     <th className="px-4 py-3 font-bold text-right w-32">Price (RM)</th>
                     <th className="px-4 py-3 font-bold text-right w-32">Amount</th>
@@ -291,13 +295,26 @@ export function EditInvoiceModal({ bill, onClose, onSuccess }) {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="space-y-3 px-4 py-3">
                         <TalentPicker
                           staff={staffList}
-                          value={getTalentIds(item, staffList)}
-                          onChange={(ids) => handleItemChange(idx, "staffIds", ids)}
+                          value={getTalentEffort(item, staffList)}
+                          onChange={(effort) => handleItemChange(idx, "staffEffort", effort)}
                           label={`Assign talents for ${item.itemName}`}
                         />
+                        {item.includedServices?.map((service, serviceIndex) => (
+                          <div key={serviceIndex} className="space-y-1">
+                            <p className="font-semibold text-navy-700">{service.serviceName}</p>
+                            <TalentPicker
+                              staff={staffList}
+                              value={getTalentEffort(service, staffList)}
+                              onChange={(effort) => handleItemChange(idx, "includedServices", item.includedServices.map((entry, index) => (
+                                index === serviceIndex ? { ...entry, staffEffort: effort } : entry
+                              )))}
+                              label={`Assign talents for ${service.serviceName}`}
+                            />
+                          </div>
+                        ))}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <input

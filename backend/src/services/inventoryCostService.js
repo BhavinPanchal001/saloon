@@ -119,6 +119,40 @@ function numeric(value, label, { allowZero = true, places = 6 } = {}) {
   if (!number.isFinite() || number.lt(0) || (!allowZero && number.eq(0))) invalid(`${label} must be ${allowZero ? 'non-negative' : 'positive'}.`);
   return number.toDecimalPlaces(places);
 }
+function staffIds(item) {
+  return Array.isArray(item.staffIds) ? [...new Set(item.staffIds.map(String))] : null;
+}
+
+function validateStaffEffort(item) {
+  if (item.staffEffort == null) return;
+  if (!Array.isArray(item.staffEffort)) invalid('Talent effort must be a list.');
+  const ids = new Set();
+  let total = 0;
+  for (const entry of item.staffEffort) {
+    const { staffId, percentage } = entry || {};
+    if (typeof staffId !== 'string' || !staffId.trim() || ids.has(staffId)) {
+      invalid('Each selected talent must have exactly one effort percentage.');
+    }
+    if (typeof percentage !== 'number' || !/^\d+(?:\.\d{1,2})?$/.test(String(percentage)) || percentage > 100) {
+      invalid('Each talent effort percentage must be between 0 and 100 with up to two decimal places.');
+    }
+    ids.add(staffId);
+    total += Math.round(percentage * 100);
+  }
+  const selected = staffIds(item);
+  if (!selected || selected.length !== ids.size || selected.some((id) => !ids.has(id))) {
+    invalid('Talent effort must match the selected talents.');
+  }
+  if (ids.size && total !== 10000) invalid('Talent effort percentages must total 100% per item or package service.');
+}
+
+function retainStaffEffort(item, previousIds, previousEffort) {
+  if (item.staffEffort != null || !previousEffort) return item.staffEffort ?? null;
+  const selected = staffIds(item);
+  if (selected && previousIds && selected.length === previousIds.length && selected.every((id) => previousIds.includes(id))) return previousEffort;
+  return null;
+}
+
 function validateLines(items) {
   if (!Array.isArray(items) || !items.length) invalid('At least one bill item is required.');
   const refs = new Set();
@@ -136,6 +170,8 @@ function validateLines(items) {
       numeric(c.qty, 'Product consumption', { places: 4 });
       if (!['primary', 'secondary', 'pack'].includes(c.unit || 'primary')) invalid('Invalid product unit.');
     }
+    validateStaffEffort(item);
+    if (item.itemType === 'package') (item.includedServices || []).forEach(validateStaffEffort);
   }
 }
 function savedRequirements(line, products) {
@@ -242,12 +278,17 @@ async function applyBillLines(bill, items, oldLines, transaction, options = {}) 
     const product = item.itemType === 'product' ? products.get(Number(item.itemId || item.id)) : null;
     records.push({ bill_id: bill.id, item_id: item.itemId || item.id, item_type: item.itemType,
       item_name: item.itemName, qty: qty(item.qty).toFixed(4), price: numeric(item.price, 'Selling price').toFixed(6),
-      staff_assigned: item.staffAssigned || null, staff_ids: Array.isArray(item.staffIds) ? [...new Set(item.staffIds.map(String))] : null,
+      staff_assigned: item.staffAssigned || null, staff_ids: staffIds(item),
+      staff_effort: retainStaffEffort(item, plan.compatible && plan.original.staff_ids, plan.compatible && plan.original.staff_effort),
       barcode: product ? plan.compatible ? plan.original.barcode : product.barcode : null,
       base_qty: product ? plan.reqs.reduce((sum, r) => sum.plus(r.baseQty), D(0)).toFixed(4) : null,
       cost_total: totalCost, cost_allocations: allocations, stock_requirements: plan.reqs, stock_signature: signature(item),
       product_consumption: product ? { unit: item.unit || item.productConsumption?.unit || 'primary', abbr: item.unitAbbr || item.productConsumption?.abbr } : item.productConsumption || null,
-      included_services: item.includedServices || null,
+      included_services: item.itemType === 'package' && item.includedServices ? item.includedServices.map((service) => {
+        const previous = plan.compatible && plan.original.included_services?.find((entry) => String(entry.serviceId) === String(service.serviceId));
+        const effort = retainStaffEffort(service, previous?.staffIds, previous?.staffEffort);
+        return effort == null ? service : { ...service, staffEffort: effort };
+      }) : item.includedServices || null,
     });
   }
   await BillLineItem.destroy({ where: { bill_id: bill.id }, transaction });

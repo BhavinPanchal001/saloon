@@ -18,7 +18,7 @@ import { Search, Minus, Plus, Trash2, ShoppingCart, ArrowLeftRight, Tag, Ticket,
 import BankSelector from "../../modules/bank/components/BankSelector";
 
 import { TalentPicker } from "../../components/pos/TalentPicker";
-import { getTalentIds, getTalentNames } from "../../utils/talentAssignments";
+import { getTalentEffort, getTalentNames, isTalentEffortValid, serializeTalentEffort } from "../../utils/talentAssignments";
 
 const paymentMethods = ["Cash", "Card", "UPI", "Store Credit", "Split"];
 
@@ -352,7 +352,9 @@ export function POSPage() {
             price: Number(li.price) || 0,
             type: li.itemType || "service",
             quantity: Number(li.qty) || 1,
-            staffIds: getTalentIds(li),
+            staffIds: li.staffIds,
+            staffAssigned: li.staffAssigned,
+            staffEffort: li.staffEffort,
             unit: li.productConsumption?.unit || "primary",
             productLinkages: (li.productConsumption && Array.isArray(li.productConsumption))
               ? li.productConsumption.map((c) => ({
@@ -367,7 +369,9 @@ export function POSPage() {
                   serviceName: svc.serviceName,
                   sessions: svc.sessions,
                   enabled: true,
-                  staffIds: getTalentIds(svc),
+                  staffIds: svc.staffIds,
+                  staffAssigned: svc.staffAssigned,
+                  staffEffort: svc.staffEffort,
                   productLinkages: (svc.productConsumption || []).map((link) => ({
                     inventoryId: link.productId,
                     currentQty: Number(link.qty) / (Number(li.qty) || 1),
@@ -916,8 +920,12 @@ export function POSPage() {
 
   const hasUnassignedService = cart.some(
     (line) =>
-      (line.type === "service" && !getTalentIds(line, staffMembers).length) ||
-      (line.type === "package" && line.serviceItems?.some((svc) => svc.enabled && !getTalentIds(svc, staffMembers).length))
+      (line.type === "service" && !getTalentEffort(line, staffMembers).length) ||
+      (line.type === "package" && line.serviceItems?.some((svc) => svc.enabled && !getTalentEffort(svc, staffMembers).length))
+  );
+  const hasInvalidEffort = cart.some((line) =>
+    [line, ...(line.serviceItems || []).filter((svc) => svc.enabled)]
+      .some((item) => !isTalentEffortValid(getTalentEffort(item, staffMembers)))
   );
 
   // Validate stock for all cart items (only when a specific outlet is selected)
@@ -1019,9 +1027,13 @@ export function POSPage() {
     ? (paymentDetails.length === 0 || Math.abs(total - totalEnteredInBreakdown) < 0.01)
     : true;
 
-  const canCheckout = cart.length > 0 && isSplitCovered && !nonCashNeedsBank && (!hasStockErrors || allowOutOfStockCheckout);
+  const canCheckout = cart.length > 0 && isSplitCovered && !nonCashNeedsBank && !hasInvalidEffort && (!hasStockErrors || allowOutOfStockCheckout);
 
   const handleCheckout = async () => {
+    if (hasInvalidEffort) {
+      toast.error("Correct the talent effort percentages before saving the bill.");
+      return;
+    }
     if (hasStockErrors && !allowOutOfStockCheckout) {
       toast.error("Checkout blocked: Product(s) out of stock. Enable out-of-stock checkout in Settings to proceed.");
       return;
@@ -1088,9 +1100,8 @@ export function POSPage() {
       transactionReference: transactionReference.trim() || undefined,
       paymentNotes: paymentNotes.trim() || undefined,
       servedBy: [...new Set(cart.flatMap((line) => {
-        const services = line.type === "service" ? [line]
-          : line.type === "package" ? (line.serviceItems || []).filter((svc) => svc.enabled) : [];
-        return services.flatMap((svc) => getTalentNames(getTalentIds(svc, staffMembers), staffMembers));
+        const items = [line, ...(line.serviceItems || []).filter((svc) => svc.enabled)];
+        return items.flatMap((item) => getTalentNames(getTalentEffort(item, staffMembers).map(({ staffId }) => staffId), staffMembers));
       }))].join(", ") || undefined,
       lineItems: cart.map((line) => ({
         itemId: line.id,
@@ -1100,10 +1111,7 @@ export function POSPage() {
         itemName: line.name,
         qty: line.quantity,
         price: getLinePrice(line),
-        staffIds: line.type === "service" ? getTalentIds(line, staffMembers) : [],
-        staffAssigned: line.type === "service"
-          ? getTalentNames(getTalentIds(line, staffMembers), staffMembers).join(", ") || null
-          : null,
+        ...serializeTalentEffort(line, staffMembers),
         unit: line.type === "product" ? (line.unit || "primary") : undefined,
         unitAbbr: line.type === "product" && line.unitMaster
           ? (line.unit === "pack" ? "item" : line.unit === "secondary" ? line.unitMaster.secondaryAbbr : line.unitMaster.primaryAbbr)
@@ -1126,8 +1134,7 @@ export function POSPage() {
                   serviceId: svc.serviceId,
                   serviceName: svc.serviceName,
                   sessions: svc.sessions,
-                  staffIds: getTalentIds(svc, staffMembers),
-                  staffAssigned: getTalentNames(getTalentIds(svc, staffMembers), staffMembers).join(", ") || null,
+                  ...serializeTalentEffort(svc, staffMembers),
                   productConsumption: (svc.productLinkages || [])
                     .filter((link) => link.enabled && link.inventoryId && (Number(link.currentQty) || 0) > 0)
                     .map((link) => ({
@@ -1279,7 +1286,7 @@ export function POSPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [canCheckout, cart.length, paymentMethod, searchQuery, showInvoice, showShortcutGuide, toast]);
+  }, [canCheckout, cart.length, paymentMethod, searchQuery, showInvoice, showShortcutGuide, toast, handleCheckout]);
 
   return (
     <div>
@@ -1775,17 +1782,19 @@ export function POSPage() {
                       </div>
                     </div>
 
+                    {(line.type === "service" || line.staffIds?.length > 0 || line.staffAssigned || line.staffEffort?.length > 0) && (
+                      <div className="mt-2">
+                        <TalentPicker
+                          staff={staffMembers}
+                          value={getTalentEffort(line, staffMembers)}
+                          onChange={(effort) => updateLine(line.lineId, "staffEffort", effort)}
+                          label={`Assign talents for ${line.name}`}
+                        />
+                      </div>
+                    )}
+
                     {line.type === "service" && (
                       <>
-                        <div className="mt-2">
-                          <TalentPicker
-                            staff={staffMembers}
-                            value={getTalentIds(line, staffMembers)}
-                            onChange={(ids) => updateLine(line.lineId, "staffIds", ids)}
-                            label={`Assign talents for ${line.name}`}
-                          />
-                        </div>
-
                         {/* Products used in service — editable measurements */}
                         {line.productLinkages && line.productLinkages.length > 0 && (
                           <div className="mt-3 space-y-2 rounded-lg bg-navy-50 p-3 border border-navy-100">
@@ -1883,8 +1892,8 @@ export function POSPage() {
                               <div className="mt-2">
                                 <TalentPicker
                                   staff={staffMembers}
-                                  value={getTalentIds(svc, staffMembers)}
-                                  onChange={(ids) => updatePackageServiceField(line.lineId, svc.serviceId, "staffIds", ids)}
+                                  value={getTalentEffort(svc, staffMembers)}
+                                  onChange={(effort) => updatePackageServiceField(line.lineId, svc.serviceId, "staffEffort", effort)}
                                   label={`Assign talents for ${svc.serviceName}`}
                                 />
                               </div>

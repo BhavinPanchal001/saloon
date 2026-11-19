@@ -21,6 +21,49 @@ test('unknown acquisition costs are not reported as zero profit or zero cost', (
   const report = buildProfitData([{ subtotal: 100, lineItems: [{ item_type: 'product', item_id: 1, qty: 1, price: 100, cost_total: null }] }], []);
   assert.equal(report.netProfit, null); assert.equal(report.productProfits[0].grossProfit, null); assert.equal(report.unknownCostLines, 1);
 });
+
+test('bill effort persists per line and package service across invoice edits', async () => {
+  const transaction = await sequelize.transaction();
+  try {
+    const outlet = await Outlet.findOne({ transaction });
+    const bill = await Bill.create({ bill_number: `EFFORT-TEST-${Date.now()}`, outlet_id: outlet.id, subtotal: 50, total: 50 }, { transaction });
+    const staffIds = ['1', '2'];
+    const staffEffort = [{ staffId: '1', percentage: 62.25 }, { staffId: '2', percentage: 37.75 }];
+    const packageEffort = [{ staffId: '1', percentage: 30 }, { staffId: '2', percentage: 70 }];
+    const input = [
+      { itemId: 1, itemType: 'service', itemName: 'Haircut', qty: 1, price: 20, staffIds, staffEffort },
+      { itemId: 1, itemType: 'package', itemName: 'Package', qty: 1, price: 30, includedServices: [
+        { serviceId: 1, staffIds, staffEffort: packageEffort },
+        { serviceId: 2, staffIds: ['2'] },
+      ] },
+    ];
+
+    await costs.applyBillLines(bill, input, [], transaction);
+    const readLines = () => BillLineItem.findAll({ where: { bill_id: bill.id }, order: [['id', 'ASC']], transaction });
+    const [service, pack] = await readLines();
+    assert.deepEqual(service.staff_effort, staffEffort);
+    assert.deepEqual(pack.included_services[0].staffEffort, packageEffort);
+    assert.equal(pack.included_services[1].staffEffort, undefined);
+
+    const edit = [
+      { ...input[0], billLineId: service.id, staffEffort: undefined },
+      { ...input[1], billLineId: pack.id, includedServices: [{ serviceId: 1, staffIds }, { serviceId: 2, staffIds: ['2'] }] },
+    ];
+    await costs.applyBillLines(bill, edit, [service, pack], transaction);
+    const [editedService, editedPack] = await readLines();
+    assert.deepEqual(editedService.staff_effort, staffEffort);
+    assert.deepEqual(editedPack.included_services[0].staffEffort, packageEffort);
+
+    const invalid = [{ ...input[1], includedServices: [{ serviceId: 1, staffIds, staffEffort: [
+      { staffId: '1', percentage: 29 }, { staffId: '2', percentage: 70 },
+    ] }] }];
+    await assert.rejects(() => costs.applyBillLines(bill, invalid, [editedService, editedPack], transaction), /must total 100%/);
+    assert.deepEqual((await readLines())[1].included_services[0].staffEffort, packageEffort);
+  } finally {
+    await transaction.rollback();
+  }
+});
+
 test('FIFO costs survive transfers, sales, edits and later prices; all writes rolled back', async () => {
   const transaction = await sequelize.transaction();
   try {

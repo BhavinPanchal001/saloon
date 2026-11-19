@@ -68,6 +68,9 @@ const startServer = async () => {
 
     // Ensure new tables exist before alter sync
     const tablesBeforeSync = await queryInterface.showAllTables();
+    if (tablesBeforeSync.includes('bill_line_items')) {
+      await require('./migrations/20261119000000-add-bill-line-staff-effort').up(queryInterface, require('sequelize').DataTypes);
+    }
     if (!tablesBeforeSync.includes('loyalty_tiers')) {
       console.log('[Migration] Creating loyalty_tiers table...');
       const LoyaltyTier = require('./models/LoyaltyTier');

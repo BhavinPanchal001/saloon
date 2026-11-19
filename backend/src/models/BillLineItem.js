@@ -46,6 +46,10 @@ const BillLineItem = sequelize.define('BillLineItem', {
     type: DataTypes.JSON,
     allowNull: true,
   },
+  staff_effort: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
   product_consumption: {
     type: DataTypes.JSON,
     allowNull: true,
