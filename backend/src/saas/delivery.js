@@ -74,4 +74,4 @@ function createDelivery({ privateStorageRoot, messagingForOrganization, receiptP
   };
 }
 
-module.exports = { createDelivery };
+module.exports = { createDelivery, maxAttachmentBytes };

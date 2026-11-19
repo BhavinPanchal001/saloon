@@ -14,6 +14,7 @@ import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as MyAppointmentsRouteImport } from './routes/my-appointments'
 import { Route as BoutiqueRouteImport } from './routes/boutique'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BookingSalonSlugRouteImport } from './routes/booking.$salonSlug'
 
 const TermsConditionsRoute = TermsConditionsRouteImport.update({
   id: '/terms-conditions',
@@ -40,6 +41,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookingSalonSlugRoute = BookingSalonSlugRouteImport.update({
+  id: '/booking/$salonSlug',
+  path: '/booking/$salonSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/my-appointments': typeof MyAppointmentsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/terms-conditions': typeof TermsConditionsRoute
+  '/booking/$salonSlug': typeof BookingSalonSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/my-appointments': typeof MyAppointmentsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/terms-conditions': typeof TermsConditionsRoute
+  '/booking/$salonSlug': typeof BookingSalonSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,33 @@ export interface FileRoutesById {
   '/my-appointments': typeof MyAppointmentsRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/terms-conditions': typeof TermsConditionsRoute
+  '/booking/$salonSlug': typeof BookingSalonSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/boutique' | '/my-appointments' | '/privacy-policy' | '/terms-conditions'
+  fullPaths:
+    | '/'
+    | '/boutique'
+    | '/my-appointments'
+    | '/privacy-policy'
+    | '/terms-conditions'
+    | '/booking/$salonSlug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/boutique' | '/my-appointments' | '/privacy-policy' | '/terms-conditions'
-  id: '__root__' | '/' | '/boutique' | '/my-appointments' | '/privacy-policy' | '/terms-conditions'
+  to:
+    | '/'
+    | '/boutique'
+    | '/my-appointments'
+    | '/privacy-policy'
+    | '/terms-conditions'
+    | '/booking/$salonSlug'
+  id:
+    | '__root__'
+    | '/'
+    | '/boutique'
+    | '/my-appointments'
+    | '/privacy-policy'
+    | '/terms-conditions'
+    | '/booking/$salonSlug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,6 +105,7 @@ export interface RootRouteChildren {
   MyAppointmentsRoute: typeof MyAppointmentsRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   TermsConditionsRoute: typeof TermsConditionsRoute
+  BookingSalonSlugRoute: typeof BookingSalonSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -116,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/booking/$salonSlug': {
+      id: '/booking/$salonSlug'
+      path: '/booking/$salonSlug'
+      fullPath: '/booking/$salonSlug'
+      preLoaderRoute: typeof BookingSalonSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -125,8 +161,8 @@ const rootRouteChildren: RootRouteChildren = {
   MyAppointmentsRoute: MyAppointmentsRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   TermsConditionsRoute: TermsConditionsRoute,
+  BookingSalonSlugRoute: BookingSalonSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-

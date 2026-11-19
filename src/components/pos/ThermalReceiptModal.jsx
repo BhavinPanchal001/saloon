@@ -11,24 +11,37 @@ import {
 import { useToastStore } from "../../stores/toastStore";
 import { ThermalReceiptTemplate } from "./ThermalReceiptTemplate";
 
-export function ThermalReceiptModal({ bill, onClose }) {
-  if (!bill) return null;
+export function ThermalReceiptModal(props) {
+  return props.bill ? <ReceiptDialog {...props} /> : null;
+}
+
+function ReceiptDialog({ bill, onClose, terminal }) {
   const toast = useToastStore();
+  const paperWidthKey = terminal
+    ? `glowy_printer_paper_width:${terminal.organizationId}:${terminal.outletId}:${terminal.id}`
+    : "glowy_printer_paper_width";
 
   const [btStatus, setBtStatus] = useState(getBluetoothPrinterStatus());
   const [printingBt, setPrintingBt] = useState(false);
   const [connectingBt, setConnectingBt] = useState(false);
-  const [paperWidth, setPaperWidth] = useState(() => {
-    return localStorage.getItem("glowy_printer_paper_width") ? parseInt(localStorage.getItem("glowy_printer_paper_width"), 10) : 48;
-  });
+  const [terminalWidths, setTerminalWidths] = useState({});
+  const paperWidth = terminalWidths[paperWidthKey] ??
+    (Number(localStorage.getItem(paperWidthKey)) === 32 ? 32 : 48);
+
+  function setTerminalPaperWidth(event) {
+    const width = Number(event.target.value);
+    localStorage.setItem(paperWidthKey, String(width));
+    setTerminalWidths(current => ({ ...current, [paperWidthKey]: width }));
+  }
 
   useEffect(() => {
+    if (terminal) return;
     const unsub = onPrinterStateChange((status) => {
       setBtStatus(status);
     });
     autoReconnectBluetoothPrinter().catch(() => {});
     return () => unsub();
-  }, []);
+  }, [terminal]);
 
   const handlePrintBrowser = () => {
     document.body.classList.add("thermal-print-mode");
@@ -40,8 +53,13 @@ export function ThermalReceiptModal({ bill, onClose }) {
     };
     window.addEventListener("afterprint", cleanup);
 
-    window.print();
-    setTimeout(cleanup, 1500);
+    try {
+      window.print();
+      setTimeout(cleanup, 1500);
+    } catch {
+      cleanup();
+      toast.error("Unable to open the browser print dialog.");
+    }
   };
 
   const handlePrintBluetooth = async () => {
@@ -99,39 +117,49 @@ export function ThermalReceiptModal({ bill, onClose }) {
           </button>
         </div>
 
-        {/* Bluetooth status bar & roll toggle */}
-        <div className="no-print flex items-center justify-between px-3 py-2 bg-indigo-50/70 rounded-xl border border-indigo-100 text-xs">
-          <div className="flex items-center gap-2">
-            <Bluetooth className={`w-4 h-4 ${btStatus.connected ? 'text-emerald-600' : 'text-indigo-500'}`} />
-            <span className="font-medium text-slate-700 truncate max-w-[130px]">
-              {btStatus.connected ? (
-                <span className="text-emerald-700 font-bold">{btStatus.deviceName || 'BT Printer'}</span>
-              ) : (
-                'Bluetooth'
-              )}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {btStatus.connected ? (
-              <span className="flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
-                <Check className="w-3 h-3" /> Ready
+        {/* Bluetooth printer status */}
+        {terminal ? (
+          <label className="no-print flex items-center justify-between gap-2 text-xs font-semibold">
+            Paper roll
+            <select value={paperWidth} onChange={setTerminalPaperWidth}>
+              <option value={32}>58 mm</option>
+              <option value={48}>80 mm</option>
+            </select>
+          </label>
+        ) : (
+          <div className="no-print flex items-center justify-between px-3 py-2 bg-indigo-50/70 rounded-xl border border-indigo-100 text-xs">
+            <div className="flex items-center gap-2">
+              <Bluetooth className={`w-4 h-4 ${btStatus.connected ? 'text-emerald-600' : 'text-indigo-500'}`} />
+              <span className="font-medium text-slate-700 truncate max-w-[130px]">
+                {btStatus.connected ? (
+                  <span className="text-emerald-700 font-bold">{btStatus.deviceName || 'BT Printer'}</span>
+                ) : (
+                  'Bluetooth'
+                )}
               </span>
-            ) : (
-              <button
-                onClick={handleConnectBt}
-                disabled={connectingBt || !btStatus.supported}
-                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline disabled:opacity-50"
-              >
-                {connectingBt ? "Connecting..." : "Connect"}
-              </button>
-            )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {btStatus.connected ? (
+                <span className="flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
+                  <Check className="w-3 h-3" /> Ready
+                </span>
+              ) : (
+                <button
+                  onClick={handleConnectBt}
+                  disabled={connectingBt || !btStatus.supported}
+                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline disabled:opacity-50"
+                >
+                  {connectingBt ? "Connecting..." : "Connect"}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Printable Area Wrapper */}
         <div className="p-2 border border-slate-200 rounded-2xl bg-slate-50 flex justify-center shadow-inner thermal-preview-container">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 overflow-hidden thermal-receipt-card">
-            <ThermalReceiptTemplate bill={bill} paperWidth={paperWidth} />
+            <ThermalReceiptTemplate bill={bill} paperWidth={paperWidth} branding={terminal ? terminal.branding ?? { name: bill.outlet?.name || bill.outletName } : undefined} />
           </div>
         </div>
 
@@ -151,7 +179,7 @@ export function ThermalReceiptModal({ bill, onClose }) {
             <Printer className="w-3.5 h-3.5" /> Browser Print
           </button>
 
-          <button
+          {!terminal && <button
             onClick={handlePrintBluetooth}
             disabled={printingBt || connectingBt}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md disabled:opacity-50"
@@ -167,7 +195,7 @@ export function ThermalReceiptModal({ bill, onClose }) {
                 {btStatus.connected ? "Print via Bluetooth" : "Connect & Print"}
               </>
             )}
-          </button>
+          </button>}
         </div>
       </div>
     </div>,

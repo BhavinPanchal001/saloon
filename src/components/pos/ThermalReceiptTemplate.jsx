@@ -28,13 +28,13 @@ const formatAmt = (val) => {
  * Clean, high-contrast POS Thermal Receipt Template with RM (Malaysian Ringgit)
  * Perfectly scaled for 80mm (48 chars / ~300px) and 58mm (32 chars / ~220px) thermal printers.
  */
-export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters = [], logoUrl = null }) {
+export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters = [], logoUrl = null, branding = COMPANY_INFO }) {
   if (!bill) return null;
 
   const is58mm = Number(paperWidth) === 32 || String(paperWidth).includes("58");
   const lineItems = bill.lineItems || bill.line_items || [];
-  const effectiveLogoUrl = logoUrl || COMPANY_INFO.logoUrl;
-  const showLogo = COMPANY_INFO.showLogoOnReceipt !== false;
+  const effectiveLogoUrl = logoUrl || branding.logoUrl;
+  const showLogo = branding.showLogoOnReceipt !== false;
 
   const servedBy = useMemo(() => {
     if (bill.servedBy || bill.served_by || bill.staffName) {
@@ -65,7 +65,7 @@ export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters =
           <div className="flex justify-center pb-1">
             <img
               src={getFullImageUrl(effectiveLogoUrl)}
-              alt={COMPANY_INFO.name || "Salon Logo"}
+              alt={branding.name || "Salon Logo"}
               className={`object-contain filter grayscale contrast-125 mx-auto ${
                 is58mm ? "max-h-12 max-w-[120px]" : "max-h-14 max-w-[150px]"
               }`}
@@ -73,24 +73,24 @@ export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters =
           </div>
         )}
         <h1 className={`${is58mm ? "text-sm" : "text-base"} font-black tracking-widest uppercase`}>
-          {COMPANY_INFO.name || "GLOWY"}
+          {branding.name}
         </h1>
-        {COMPANY_INFO.tagline && (
-          <p className="text-[9px] text-black/80 font-normal italic">{COMPANY_INFO.tagline}</p>
+        {branding.tagline && (
+          <p className="text-[9px] text-black/80 font-normal italic">{branding.tagline}</p>
         )}
-        {(bill.outlet?.address || bill.outletAddress || COMPANY_INFO.address) && (
+        {(bill.outlet?.address || bill.outletAddress || branding.address) && (
           <p className="text-[9px] text-black/90 mt-0.5">
-            {bill.outlet?.address || bill.outletAddress || COMPANY_INFO.address}
+            {bill.outlet?.address || bill.outletAddress || branding.address}
           </p>
         )}
-        {(bill.outlet?.phone || bill.outletPhone || COMPANY_INFO.phone) && (
+        {(bill.outlet?.phone || bill.outletPhone || branding.phone) && (
           <p className="text-[9px] text-black/90">
-            Ph: {bill.outlet?.phone || bill.outletPhone || COMPANY_INFO.phone}
+            Ph: {bill.outlet?.phone || bill.outletPhone || branding.phone}
           </p>
         )}
-        {(COMPANY_INFO.taxNumber || COMPANY_INFO.gstin) && (
+        {(branding.taxNumber || branding.gstin) && (
           <p className="text-[9px] text-black/90">
-            SST/Reg: {COMPANY_INFO.taxNumber || COMPANY_INFO.gstin}
+            SST/Reg: {branding.taxNumber || branding.gstin}
           </p>
         )}
         {bill.outletName && (
@@ -305,10 +305,10 @@ export function ThermalReceiptTemplate({ bill, paperWidth = 48, productMasters =
       {/* ─── Footer & Barcode/Thank You ─── */}
       <div className="border-t border-dashed border-black my-1.5 pt-1 text-center space-y-1">
         <p className="font-bold text-[10px] uppercase">
-          {COMPANY_INFO.receiptFooter || "THANK YOU FOR YOUR VISIT!"}
+          {branding.receiptFooter || "THANK YOU FOR YOUR VISIT!"}
         </p>
         <p className="text-[8px] text-black/60 pt-0.5">
-          {COMPANY_INFO.terms || "Services and products once rendered/sold are non-refundable. Computer generated invoice."}
+          {branding.terms || "Services and products once rendered/sold are non-refundable. Computer generated invoice."}
         </p>
       </div>
     </div>
