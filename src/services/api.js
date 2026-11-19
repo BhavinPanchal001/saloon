@@ -624,6 +624,15 @@ export const fetchBillsFromAPI = async ({ outletId, search, paymentMethod } = {}
   return handleResponse(res);
 };
 
+export const fetchCustomerLastOrderAPI = async (customerId, { outletId, signal } = {}) => {
+  const query = outletId ? `?${new URLSearchParams({ outletId })}` : "";
+  const res = await fetch(`${API_BASE}/pos/customers/${customerId}/last-order${query}`, {
+    headers: authHeaders(),
+    signal,
+  });
+  return handleResponse(res);
+};
+
 export const fetchBillByIdFromAPI = async (id) => {
   const res = await fetch(`${API_BASE}/pos/bills/${id}`, {
     headers: authHeaders(),
@@ -1692,10 +1701,11 @@ export const updateVoucherRewardRulesAPI = async (payload) => {
 
 // ─── Customers API ────────────────────────────────────────────────────────────
 
-export const fetchCustomersAPI = async (params = {}) => {
+export const fetchCustomersAPI = async (params = {}, { signal } = {}) => {
   const query = new URLSearchParams(params).toString();
   const res = await fetch(`${API_BASE}/customers?${query}`, {
     headers: authHeaders(),
+    signal,
   });
   return handleResponse(res);
 };
