@@ -31,11 +31,13 @@ import EmployeeFormPage from "../modules/employees/pages/EmployeeFormPage";
 import EmployeeDetailPage from "../modules/employees/pages/EmployeeDetailPage";
 import AttendancePage from "../modules/employees/pages/AttendancePage";
 import AttendanceSummaryPage from "../modules/employees/pages/AttendanceSummaryPage";
+import LeaveManagementPage from "../modules/employees/pages/LeaveManagementPage";
 import ContractListPage from "../modules/contracts/pages/management/ContractListPage";
 import ContractDetailPage from "../modules/contracts/pages/management/ContractDetailPage";
 import ContractFormPage from "../modules/contracts/pages/management/ContractFormPage";
 import ContractMastersPage from "../modules/contracts/pages/management/ContractMastersPage";
 import CommissionMastersPage from '../modules/employees/pages/CommissionMastersPage';
+import SalaryPage from '../modules/employees/pages/SalaryPage';
 import BankListPage from "../modules/bank/pages/BankListPage";
 import BankFormPage from "../modules/bank/pages/BankFormPage";
 import UserManagementPage from "../pages/users/UserManagementPage";
@@ -96,6 +98,7 @@ export const router = createBrowserRouter([
             index: true,
             element: <RoleHomeRedirect />,
           },
+          { path: "/leave", element: <LeaveManagementPage /> },
           {
             element: <ProtectedRoute allowedRoles={["admin", "super_admin"]} />,
             children: [
@@ -103,6 +106,7 @@ export const router = createBrowserRouter([
                 path: "/outlets",
                 element: <OutletsPage />,
               },
+              { path: "/payroll", element: <SalaryPage /> },
               {
                 path: "/outlets/transactions",
                 element: <OutletTransactionsPage />,

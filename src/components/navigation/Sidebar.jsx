@@ -40,6 +40,7 @@ import { useAuthStore } from "../../stores/authStore";
 // ─── Navigation structure ───────────────────────────────────────────────────
 
 const posNav = [
+  { section: "My leave", icon: CalendarCheck, links: [{ label: "Leave management", to: "/leave", icon: CalendarCheck }] },
   {
     section: "POS & Billing",
     icon: CreditCard,
@@ -108,6 +109,7 @@ const adminNav = [
       { label: "Employees", to: "/staff", icon: Users, exact: true },
       { label: "Attendance", to: "/attendance", icon: CalendarCheck, exact: true },
       { label: "Attendance Summary", to: "/attendance/summary", icon: UserCheck },
+      { label: "Leave management", to: "/leave", icon: CalendarCheck },
       { label: "Contracts", to: "/contracts", icon: FileText, exact: true },
       { label: "Contract Masters", to: "/contracts/masters", icon: BookOpen },
     ],
@@ -117,6 +119,7 @@ const adminNav = [
     icon: DollarSign,
     links: [
       { label: "Commission Rules", to: "/payroll/commission-masters", icon: Briefcase },
+      { label: "Salary & Payroll", to: "/payroll", icon: Wallet, exact: true },
     ],
   },
   {
@@ -190,6 +193,7 @@ const staffNav = [
       { label: "Employees", to: "/staff", icon: Users, exact: true, permission: "staff:view" },
       { label: "Attendance", to: "/attendance", icon: CalendarCheck, exact: true, permission: "attendance:view" },
       { label: "Attendance Summary", to: "/attendance/summary", icon: UserCheck, permission: "attendance:view" },
+      { label: "Leave management", to: "/leave", icon: CalendarCheck },
       { label: "Contracts", to: "/contracts", icon: FileText, exact: true, permission: "contracts:view" },
       { label: "Contract Masters", to: "/contracts/masters", icon: BookOpen, permission: "contracts:view" },
     ],

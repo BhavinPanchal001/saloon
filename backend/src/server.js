@@ -57,6 +57,8 @@ const startServer = async () => {
     console.log('Database connection established successfully.');
 
     const queryInterface = sequelize.getQueryInterface();
+    await require('./migrations/20261119000000-create-salary-calculations').up(queryInterface, require('sequelize').DataTypes);
+    await require('./migrations/20261119000001-create-salary-settings').up(queryInterface, require('sequelize').DataTypes);
     if (sequelize.getDialect() === 'mssql') {
       await require('./services/sqlServerSchema').initializeSqlServer();
     } else {
@@ -290,7 +292,7 @@ const startServer = async () => {
       console.log('[Migration] Adding column outlet_id to purchase_orders...');
       const { DataTypes } = require('sequelize');
       await queryInterface.addColumn('purchase_orders', 'outlet_id', {
-        type: DataTypes.INTEGER.UNSIGNED,
+        type: sequelize.getDialect() === 'mssql' ? DataTypes.INTEGER : DataTypes.INTEGER.UNSIGNED,
         allowNull: true,
         defaultValue: null,
       });
@@ -317,7 +319,7 @@ const startServer = async () => {
       console.log('[Migration] Adding column outlet_id to admins...');
       const { DataTypes } = require('sequelize');
       await queryInterface.addColumn('admins', 'outlet_id', {
-        type: DataTypes.INTEGER.UNSIGNED,
+        type: sequelize.getDialect() === 'mssql' ? DataTypes.INTEGER : DataTypes.INTEGER.UNSIGNED,
         allowNull: true,
         defaultValue: null,
       });

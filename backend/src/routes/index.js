@@ -74,6 +74,8 @@ router.use('/notifications', notificationRoutes);
 router.use('/printer', printerRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/attendance', attendanceRoutes);
+router.use('/leave-requests', require('./leaveRequests'));
+router.use('/payroll', require('./payroll'));
 
 // Register HR and Contract routes
 router.use('/staff', staffRoutes);

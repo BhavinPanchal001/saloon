@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { fetchSettings, saveSettings, fetchPrinterStatusAPI, togglePrinterAPI, testPrintAPI, switchPrinterConnectionAPI, savePrinterSettingsAPI } from '../../services/api';
 import { useAuthStore } from "../../stores/authStore";
@@ -7,6 +8,8 @@ import { Bell, Lock, User, Moon, Globe, Shield, Mail, Smartphone, QrCode, CheckC
 import { RewardSettingsTab } from "./RewardSettingsTab";
 import { BusinessInfoTab } from "./BusinessInfoTab";
 import { WhatsAppSettingsTab } from "./WhatsAppSettingsTab";
+import { SalarySettingsTab } from "./SalarySettingsTab";
+import { Calculator } from "lucide-react";
 import {
   isBluetoothSupported,
   getBluetoothPrinterStatus,
@@ -20,6 +23,8 @@ import {
 
 export function SettingsPage() {
   const user = useAuthStore((state) => state.user);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const canManageSalary = ['admin', 'super_admin'].includes(user?.role);
   const toast = useToastStore();
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -31,6 +36,11 @@ export function SettingsPage() {
     inventory: { allowOutOfStockCheckout: false },
   });
   const [activeTab, setActiveTab] = useState("profile");
+  useEffect(() => {
+    const requested = searchParams.get('tab');
+    if (requested === 'salary' && canManageSalary) setActiveTab('salary');
+    else if (requested && ['profile', 'business', 'printer', 'whatsapp', 'rewards', 'inventory', 'notifications', 'appearance', 'security'].includes(requested)) setActiveTab(requested);
+  }, [searchParams, canManageSalary]);
 
   const setupTOTP = useAuthStore((state) => state.setupTOTP);
   const confirmTOTP = useAuthStore((state) => state.confirmTOTP);
@@ -320,6 +330,7 @@ export function SettingsPage() {
   const tabs = [
     { id: "profile", label: "Profile", icon: User },
     { id: "business", label: "Business & Store", icon: Building2 },
+    ...(canManageSalary ? [{ id: 'salary', label: 'Salary Settings', icon: Calculator }] : []),
     { id: "printer", label: "Printer & POS", icon: Printer },
     { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
     { id: "rewards", label: "Reward System", icon: Award },
@@ -344,7 +355,7 @@ export function SettingsPage() {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => { setActiveTab(tab.id); setSearchParams({ tab: tab.id }); }}
                   className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all ${
                     activeTab === tab.id
                       ? "bg-navy-900 text-white"
@@ -1363,6 +1374,7 @@ export function SettingsPage() {
 
             {/* Business & Store Info Tab */}
             {activeTab === "business" && <BusinessInfoTab />}
+            {activeTab === 'salary' && canManageSalary && <SalarySettingsTab />}
           </div>
         </div>
       </div>

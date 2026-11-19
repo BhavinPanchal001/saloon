@@ -1,0 +1,11 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { calculateLeave } = require('../src/services/leaveValidation');
+const contract = { id: 1, status: 'active', start_date: '2026-01-01', end_date: '2026-12-31', leave_configuration: [{ id: 4, count: 12, isPaid: true }], holiday_configuration: [{ startDate: '2026-11-24', endDate: '2026-11-24' }], terms_snapshot: { workWeek: { operational_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] } } };
+const type = { id: 4, allow_anytime: false, advance_notice_days: 2 };
+const base = { contracts: [contract], leaveType: type, startDate: '2026-11-23', endDate: '2026-11-25', duration: 'full', today: '2026-11-19' };
+test('counts scheduled workdays excluding contract holidays', () => { const value = calculateLeave(base); assert.deepEqual(value.dates, ['2026-11-23', '2026-11-25']); assert.equal(value.days, 2); });
+test('rejects types outside the contract', () => assert.throws(() => calculateLeave({ ...base, leaveType: { ...type, id: 9 } }), /not included/));
+test('rejects invalid and crossed contract dates', () => { assert.throws(() => calculateLeave({ ...base, startDate: '2026-02-30' }), /valid date/); assert.throws(() => calculateLeave({ ...base, endDate: '2027-01-01' }), /one active contract/); });
+test('enforces notice and half-day constraints', () => { assert.throws(() => calculateLeave({ ...base, today: '2026-11-22' }), /advance notice/); assert.throws(() => calculateLeave({ ...base, duration: 'half' }), /one date/); });
+test('counts a half day on a single working date', () => assert.equal(calculateLeave({ ...base, endDate: base.startDate, duration: 'half' }).days, 0.5));

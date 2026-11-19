@@ -24,6 +24,19 @@ const handleResponse = async (res) => {
   return data;
 };
 
+export const fetchPayroll = async (month) => handleResponse(await fetch(`${API_BASE}/payroll?${new URLSearchParams({ month })}`, { headers: authHeaders() }));
+export const fetchSalarySettings = async () => handleResponse(await fetch(`${API_BASE}/payroll/settings`, { headers: authHeaders() }));
+export const saveSalarySettings = async (payload) => handleResponse(await fetch(`${API_BASE}/payroll/settings`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(payload) }));
+export const fetchSalaryCalculation = async (staffId, month) => handleResponse(await fetch(`${API_BASE}/payroll/${staffId}?${new URLSearchParams({ month })}`, { headers: authHeaders() }));
+export const previewSalary = async (staffId, payload) => handleResponse(await fetch(`${API_BASE}/payroll/${staffId}/preview`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) }));
+export const saveSalaryCalculation = async (staffId, payload) => handleResponse(await fetch(`${API_BASE}/payroll/${staffId}/save`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) }));
+
+export const fetchLeaveContext = async (params = {}) => handleResponse(await fetch(`${API_BASE}/leave-requests/context?${new URLSearchParams(params)}`, { headers: authHeaders() }));
+export const fetchLeaveRequests = async (all = false) => handleResponse(await fetch(`${API_BASE}/leave-requests${all ? '?all=true' : ''}`, { headers: authHeaders() }));
+export const createLeaveRequest = async (payload) => handleResponse(await fetch(`${API_BASE}/leave-requests`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) }));
+export const reviewLeaveRequest = async (id, decision, note = '') => handleResponse(await fetch(`${API_BASE}/leave-requests/${id}/review`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ decision, note }) }));
+export const cancelLeaveRequest = async (id, reason = '') => handleResponse(await fetch(`${API_BASE}/leave-requests/${id}/cancel`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ reason }) }));
+
 // ─── Outlets ──────────────────────────────────────────────────────────────────
 
 export const fetchOutletsFromAPI = async (params = {}) => {

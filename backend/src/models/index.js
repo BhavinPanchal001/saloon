@@ -35,6 +35,9 @@ const Appointment = require('./Appointment');
 const Role = require('./Role');
 const Shift = require('./Shift');
 const LeaveType = require('./LeaveType');
+const LeaveRequest = require('./LeaveRequest');
+const SalaryCalculation = require('./SalaryCalculation');
+const SalarySetting = require('./SalarySetting');
 const WorkWeek = require('./WorkWeek');
 const ContractType = require('./ContractType');
 const ContractTypeTemplate = require('./ContractTypeTemplate');
@@ -264,6 +267,9 @@ module.exports = {
   Role,
   Shift,
   LeaveType,
+  LeaveRequest,
+  SalaryCalculation,
+  SalarySetting,
   WorkWeek,
   ContractType,
   ContractTypeTemplate,

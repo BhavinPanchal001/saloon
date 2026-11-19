@@ -9,7 +9,7 @@ import {
   fetchContracts,
   fetchAttendanceSummary,
   fetchAttendanceData,
-  markAttendance,
+  fetchLeaveRequests,
 } from "../../../services/api";
 import {
   ArrowLeft,
@@ -298,8 +298,11 @@ const AttendanceSummaryPage = () => {
   const [loading, setLoading] = useState(true);
   const [rawMonthlyData, setMonthlyData] = useState<Record<string, any>>({});
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
+  const [staffFilterInitialized, setStaffFilterInitialized] = useState(false);
   const [staffCount, setStaffCount] = useState(12);
   const [activeStaffList, setActiveStaffList] = useState<any[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [leaveRequestsError, setLeaveRequestsError] = useState('');
   const [employeeDialog, setEmployeeDialog] = useState<{
     date: string;
     type: 'present' | 'absent' | 'halfDay' | 'paidLeave';
@@ -346,6 +349,14 @@ const AttendanceSummaryPage = () => {
 
   const loadData = async () => {
     setLoading(true);
+    setLeaveRequestsError('');
+    try {
+      const canViewAll = user?.role === 'admin' || user?.role === 'super_admin';
+      setLeaveRequests(await fetchLeaveRequests(canViewAll));
+    } catch (err: any) {
+      setLeaveRequests([]);
+      setLeaveRequestsError(err?.message || 'Unable to load leave requests.');
+    }
     try {
       let fetchedStaff: any[] = [];
       let fetchedContracts: any[] = [];
@@ -372,6 +383,10 @@ const AttendanceSummaryPage = () => {
 
       setStaffCount(activeStaff.length);
       setActiveStaffList(activeStaff);
+      if (!staffFilterInitialized && activeStaff.length > 0) {
+        setSelectedStaff(String(activeStaff[0].id));
+        setStaffFilterInitialized(true);
+      }
       setContractsList(fetchedContracts);
 
       const summaryData = await fetchAttendanceSummary({
@@ -386,6 +401,12 @@ const AttendanceSummaryPage = () => {
       setLoading(false);
     }
   };
+
+  const monthLeaveRequests = useMemo(() => {
+    const start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const end = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
+    return leaveRequests.filter((request: any) => request.start_date <= end && request.end_date >= start && (!selectedStaff || String(request.staff_id) === String(selectedStaff)));
+  }, [leaveRequests, year, month, selectedStaff]);
 
   const monthlyData = useMemo(() => Object.fromEntries(
     Object.entries(rawMonthlyData).map(([date, data]) => {
@@ -536,6 +557,8 @@ const AttendanceSummaryPage = () => {
   }, [applyLeaveStaffId, contractsList]);
 
   const openApplyLeaveModal = (staffId?: string) => {
+    navigate('/leave', { state: { apply: true, staffId: staffId || '' } });
+    return;
     const initialStaffId = staffId || (activeStaffList.length > 0 ? String(activeStaffList[0].id) : '');
     setApplyLeaveStaffId(initialStaffId);
 
@@ -760,38 +783,7 @@ const AttendanceSummaryPage = () => {
 
   const handleApplyLeaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!leaveCalculation.isValid) {
-      setLeaveValidationError(leaveCalculation.error || 'Please resolve the validation errors before submitting.');
-      return;
-    }
-
-    setSubmittingLeave(true);
-    setLeaveValidationError(null);
-
-    try {
-      for (const dateStr of leaveCalculation.workingDates) {
-        await markAttendance({
-          staffId: applyLeaveStaffId,
-          date: dateStr,
-          status: 'paid_leave',
-        });
-      }
-
-      const staffObj = activeStaffList.find((s) => String(s.id) === String(applyLeaveStaffId));
-      const staffName = staffObj ? (staffObj.name || `${staffObj.firstName} ${staffObj.lastName}`) : 'Employee';
-
-      toast.success(
-        `Leave applied successfully for ${staffName} (${leaveCalculation.netDays} day${leaveCalculation.netDays !== 1 ? 's' : ''
-        })`
-      );
-      setShowApplyLeaveModal(false);
-      await loadData();
-    } catch (err: any) {
-      console.error('Failed to submit leave:', err);
-      setLeaveValidationError(err?.message || 'Failed to submit leave. Please verify contract status.');
-    } finally {
-      setSubmittingLeave(false);
-    }
+    navigate('/leave');
   };
 
   const goToPreviousMonth = () => {
@@ -914,6 +906,8 @@ const AttendanceSummaryPage = () => {
           </button>
         </div>
       </div>
+
+      {leaveRequestsError && <p role="alert" className="text-sm text-rose-700">Unable to load calendar leave statuses: {leaveRequestsError}</p>}
 
       {/* Month Navigation */}
       <div className="glass-card flex items-center justify-between px-6 py-4">
@@ -1071,6 +1065,7 @@ const AttendanceSummaryPage = () => {
 
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
               const dayData = monthlyData[dateStr];
+              const requestsOnDay = monthLeaveRequests.filter((request: any) => request.start_date <= dateStr && request.end_date >= dateStr && ['approved', 'rejected', 'cancelled'].includes(request.status));
               const staffHoliday = dayData?.holidayEmployees?.find((employee: any) => String(employee.id) === selectedStaff);
               const isWeekend = selectedStaff
                 ? dayData?.weeklyOffEmployees?.some((employee: any) => String(employee.id) === selectedStaff)
@@ -1139,6 +1134,13 @@ const AttendanceSummaryPage = () => {
                     </span>
                     {isWeekend && <Sun className="h-3 w-3 text-slate-400" />}
                   </div>
+
+                  {requestsOnDay.length > 0 && <div className="mt-1 space-y-1">{(['approved', 'rejected', 'cancelled'] as const).map(status => {
+                    const matches = requestsOnDay.filter((request: any) => request.status === status);
+                    if (!matches.length) return null;
+                    const colors = status === 'approved' ? 'bg-emerald-100 text-emerald-800' : status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700';
+                    return <div key={status} title={matches.map((request: any) => `${request.staffName}: ${request.leaveTypeName}`).join('\n')} className={`rounded px-1 py-0.5 text-[10px] font-semibold capitalize ${colors}`}>{status}{selectedStaff ? '' : `: ${matches.length}`}</div>;
+                  })}</div>}
 
                   {dayData && (
                     <>
