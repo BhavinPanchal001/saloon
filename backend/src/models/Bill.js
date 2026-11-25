@@ -9,6 +9,8 @@ const Bill = sequelize.define('Bill', {
   },
   request_hash: { type: DataTypes.STRING(64), allowNull: true },
   request_key: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  original_bill_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+  return_details: { type: DataTypes.JSON, allowNull: true },
   bill_number: {
     type: DataTypes.STRING(50),
     allowNull: false,
@@ -130,6 +132,7 @@ const Bill = sequelize.define('Bill', {
   },
 }, {
   tableName: 'bills',
+  indexes: [{ fields: ['original_bill_id'], name: 'bills_original_bill_id_idx' }],
   underscored: true,
   timestamps: true,
 });

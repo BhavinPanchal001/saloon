@@ -131,7 +131,7 @@ export default function BillingListPage() {
   };
 
   const totalRevenue = filtered
-    .filter((b) => b.status === "paid")
+    .filter((b) => ["paid", "completed"].includes(b.status))
     .reduce((s, b) => s + b.total, 0);
 
   return (
@@ -330,7 +330,7 @@ export default function BillingListPage() {
                     <span className={`status-badge ${
                       bill.status === "paid" ? "status-active" : bill.status === "partially_paid" ? "bg-amber-100 text-amber-800 border border-amber-200" : bill.status === "unpaid" ? "bg-rose-100 text-rose-800 border border-rose-200" : "status-danger"
                     }`}>
-                      {bill.status === "partially_paid" ? "Partial" : bill.status === "unpaid" ? "Unpaid" : bill.status}
+                      {bill.originalBillId ? "Return" : bill.hasReturns ? "Return recorded" : bill.status === "partially_paid" ? "Partial" : bill.status === "unpaid" ? "Unpaid" : bill.status}
                     </span>
                   </td>
                   <td className="text-right">
@@ -338,7 +338,7 @@ export default function BillingListPage() {
                   </td>
                   <td className="text-center">
                     <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                      {bill.status !== "paid" && (
+                      {!bill.originalBillId && !bill.hasReturns && !["paid", "completed"].includes(bill.status) && (
                         <button
                           onClick={() => setPaymentModalBill(bill)}
                           className="group inline-flex items-center gap-1.5 rounded-xl border border-emerald-300/70 bg-emerald-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 whitespace-nowrap transition-all hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-md"
@@ -356,14 +356,15 @@ export default function BillingListPage() {
                         <Eye size={13} />
                         View
                       </button>
-                      <button
+                      {!bill.originalBillId && !bill.hasReturns && <button
                         onClick={() => navigate(`/pos?editBillId=${bill.id}`, { state: { editBill: bill } })}
                         className="group inline-flex items-center gap-1.5 rounded-xl border border-blue-300/60 bg-blue-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-blue-700 whitespace-nowrap transition-all hover:bg-blue-600 hover:text-white hover:border-blue-600 hover:shadow-md"
                         title="Edit Invoice in POS"
                       >
                         <Edit size={13} />
                         Edit
-                      </button>
+                      </button>}
+                      {!bill.originalBillId && <>
                       <button
                         onClick={() => handleDownload(bill)}
                         className="group inline-flex items-center gap-1.5 rounded-xl border border-gold-300/50 bg-gold-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-gold-700 whitespace-nowrap transition-all hover:bg-gold-400 hover:text-navy-900 hover:shadow-gold"
@@ -398,6 +399,7 @@ export default function BillingListPage() {
                         )}
                         WhatsApp
                       </button>
+                      </>}
                     </div>
 
                   </td>

@@ -93,6 +93,7 @@ Outlet.hasMany(PurchaseOrder, { foreignKey: 'outlet_id' });
 Payment.belongsTo(Bank, { foreignKey: 'bank_account_id', as: 'bankAccount' });
 Bank.hasMany(Payment, { foreignKey: 'bank_account_id' });
 
+Bill.hasMany(Bill, { foreignKey: 'original_bill_id', as: 'saleReturns', constraints: false });
 Bill.hasMany(BillLineItem, { foreignKey: 'bill_id', as: 'lineItems', onDelete: 'CASCADE' });
 BillLineItem.belongsTo(Bill, { foreignKey: 'bill_id' });
 

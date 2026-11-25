@@ -70,6 +70,9 @@ const startServer = async () => {
 
     // Ensure new tables exist before alter sync
     const tablesBeforeSync = await queryInterface.showAllTables();
+    if (tablesBeforeSync.includes('bills')) {
+      await require('./migrations/20261125000000-add-sale-returns').up(queryInterface, require('sequelize').DataTypes);
+    }
     if (tablesBeforeSync.includes('bill_line_items')) {
       await require('./migrations/20261119000000-add-bill-line-staff-effort').up(queryInterface, require('sequelize').DataTypes);
     }

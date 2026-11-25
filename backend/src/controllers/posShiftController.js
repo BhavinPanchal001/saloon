@@ -1,3 +1,4 @@
+const updateLock = require('../utils/updateLock');
 const { PosTerminal, PosShift, PosShiftMovement, Bill, Admin, Outlet, Payment, PaymentDetail, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { whatsappService } = require('../services/whatsappService');
@@ -302,8 +303,9 @@ exports.addCashMovement = async (req, res) => {
 };
 
 // Internal Helper to calculate shift financial metrics
-const computeShiftMetrics = async (shiftId) => {
+const computeShiftMetrics = async (shiftId, transaction) => {
   const shift = await PosShift.findByPk(shiftId, {
+    transaction,
     include: [
       { model: PosTerminal, as: 'terminal' },
       { model: Admin, as: 'user', attributes: ['id', 'name', 'email'] },
@@ -315,6 +317,7 @@ const computeShiftMetrics = async (shiftId) => {
 
   // Fetch all completed bills associated with this shift
   const bills = await Bill.findAll({
+    transaction,
     where: {
       pos_shift_id: shiftId,
       status: { [Op.ne]: 'cancelled' },
@@ -339,7 +342,7 @@ const computeShiftMetrics = async (shiftId) => {
 
   bills.forEach((bill) => {
     const total = parseFloat(bill.total || 0);
-    const discount = parseFloat(bill.discount_amount || 0);
+    const discount = Number(bill.discount_amount || 0) + Number(bill.voucher_discount_amount || 0) + Number(bill.points_discount_amount || 0);
     const tax = parseFloat(bill.tax || 0);
 
     totalSales += total;
@@ -426,27 +429,23 @@ exports.closeShift = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Valid actual closing cash amount is required' });
     }
 
-    const metrics = await computeShiftMetrics(id);
-    if (!metrics) {
-      return res.status(404).json({ success: false, message: 'Shift not found' });
-    }
+    const failure = await sequelize.transaction(async transaction => {
+      const shift = await PosShift.findByPk(id, updateLock(transaction));
+      if (!shift) return { status: 404, message: 'Shift not found' };
+      if (shift.status === 'CLOSED') return { status: 400, message: 'Shift is already closed' };
 
-    const shift = metrics.shift;
-    if (shift.status === 'CLOSED') {
-      return res.status(400).json({ success: false, message: 'Shift is already closed' });
-    }
-
-    const expectedClosingCash = metrics.expectedCash;
-    const variance = numActualCash - expectedClosingCash;
-
-    shift.status = 'CLOSED';
-    shift.closed_at = new Date();
-    shift.expected_closing_cash = expectedClosingCash;
-    shift.actual_closing_cash = numActualCash;
-    shift.variance = variance;
-    shift.closing_notes = closing_notes || null;
-
-    await shift.save();
+      const metrics = await computeShiftMetrics(id, transaction);
+      await shift.update({
+        status: 'CLOSED',
+        closed_at: new Date(),
+        expected_closing_cash: metrics.expectedCash,
+        actual_closing_cash: numActualCash,
+        variance: numActualCash - metrics.expectedCash,
+        closing_notes: closing_notes || null,
+      }, { transaction });
+      return null;
+    });
+    if (failure) return res.status(failure.status).json({ success: false, message: failure.message });
 
     const updatedMetrics = await computeShiftMetrics(id);
 

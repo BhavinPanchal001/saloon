@@ -25,6 +25,9 @@ router.put('/bills/:id', authenticateToken, requirePermission('pos:create'), pos
 // POST /api/pos/bills/:id/payments
 router.post('/bills/:id/payments', authenticateToken, requirePermission('pos:create'), posController.addBillPayment);
 
+router.post('/bills/:id/returns/preview', authenticateToken, requirePermission('pos:create'), posController.previewSaleReturn);
+router.post('/bills/:id/returns', authenticateToken, requirePermission('pos:create'), posController.recordSaleReturn);
+
 // POST /api/pos/print-receipt/:billId
 router.post('/print-receipt/:billId', authenticateToken, requirePermission('pos:view'), printController.printBillReceipt);
 

@@ -1,5 +1,7 @@
 const { checkoutHash, assertSameCheckout } = require("../utils/checkoutRequest");
 const costs = require("../services/inventoryCostService");
+const returns = require('../services/saleReturnService');
+const updateLock = require('../utils/updateLock');
 const { Op } = require('sequelize');
 const {
   Service,
@@ -553,18 +555,17 @@ const checkout = async (req, res) => {
 
     if (voucherId) {
       const CustomerVoucher = require('../models/CustomerVoucher');
-      const v = await CustomerVoucher.findByPk(voucherId, { transaction });
-      if (v) {
-        const discAmt = parseFloat(voucherDiscountAmount || 0);
-        const newBal = Math.max(0, parseFloat(v.balance_value || 0) - discAmt);
-        v.balance_value = newBal;
-        if (newBal <= 0 || v.voucher_type !== 'cash') {
-          v.status = 'redeemed';
-        }
-        v.redeemed_at = new Date();
-        v.redeemed_bill_id = bill.id;
-        await v.save({ transaction });
+      const v = await CustomerVoucher.findByPk(voucherId, updateLock(transaction));
+      if (!v || v.status !== 'active') costs.invalid('The selected voucher is no longer active.');
+      const discAmt = parseFloat(voucherDiscountAmount || 0);
+      const newBal = Math.max(0, parseFloat(v.balance_value || 0) - discAmt);
+      v.balance_value = newBal;
+      if (newBal <= 0 || v.voucher_type !== 'cash') {
+        v.status = 'redeemed';
       }
+      v.redeemed_at = new Date();
+      v.redeemed_bill_id = bill.id;
+      await v.save({ transaction });
     }
 
     await costs.applyBillLines(bill, lineItems, [], transaction, stockOverride(req));
@@ -591,7 +592,7 @@ const checkout = async (req, res) => {
       }, { transaction });
 
       total = Number(bill.total);
-      await targetCustomer.reload({ transaction, lock: transaction.LOCK.UPDATE });
+      await targetCustomer.reload(updateLock(transaction));
       // Handle Store Credit & Unpaid due charges
       let newCreditBalance = Number(targetCustomer.credit_balance || 0);
 
@@ -806,7 +807,7 @@ const getCustomerLastOrder = async (req, res) => {
     const phone = customer.phone?.trim();
     if (phone === '0000000000') return res.json({ order: null });
 
-    const where = { status: { [Op.in]: ['paid', 'completed'] } };
+    const where = { original_bill_id: null, status: { [Op.in]: ['paid', 'completed'] } };
     if (phone && phone.toUpperCase() !== 'N/A') {
       // Older bills may only have a phone. Keep explicitly linked bills with their CRM customer.
       where[Op.or] = [{ customer_id: customerId }, { customer_id: null, customer_phone: phone }];
@@ -892,6 +893,7 @@ const getBills = async (req, res) => {
       include: [
         { model: BillLineItem, as: 'lineItems' },
         { model: Outlet, attributes: ['id', 'name'] },
+        { model: Bill, as: 'saleReturns', attributes: ['id'] },
         { model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] },
       ],
       order: [['created_at', 'DESC']],
@@ -903,6 +905,8 @@ const getBills = async (req, res) => {
       billNumber: bill.bill_number,
       createdAt: bill.createdAt,
       createdBy: bill.created_by,
+      originalBillId: bill.original_bill_id,
+      hasReturns: bill.saleReturns.length > 0,
       customer: {
         name: bill.customer_name,
         phone: bill.customer_phone,
@@ -989,11 +993,20 @@ const getBillById = async (req, res) => {
       return res.status(403).json({ message: 'You cannot access another outlet invoice.' });
     }
 
-    // Format response
+    const history = bill.original_bill_id ? [] : await returns.getReturns(bill.id);
+    const returned = returns.returnedQuantities(history);
+    const original = bill.original_bill_id && await Bill.findByPk(bill.original_bill_id, { attributes: ['bill_number'] });
     const response = {
       id: bill.id,
       billNumber: bill.bill_number,
       createdAt: bill.createdAt,
+      originalBillId: bill.original_bill_id,
+      originalBillNumber: original?.bill_number || null,
+      returnReason: bill.return_details?.reason,
+      returns: history.map(returns.returnSummary),
+      canReturn: !bill.original_bill_id && ['paid', 'completed'].includes(bill.status) && returns.canReturnBill(bill, req.user),
+      returnableQuantities: Object.fromEntries(bill.lineItems.filter(line => line.item_type === 'product')
+        .map(line => [line.id, costs.D(line.qty).minus(costs.D(returned.get(Number(line.id)))).toNumber()])),
       customer: {
         name: bill.customer_name,
         phone: bill.customer_phone,
@@ -1061,6 +1074,16 @@ const getBillById = async (req, res) => {
   }
 };
 
+const handleSaleReturn = preview => async (req, res) => {
+  try {
+    const result = await returns.saleReturn({ billId: req.params.id, user: req.user, body: req.body || {}, preview });
+    return res.status(preview ? 200 : 201).json(result);
+  } catch (err) {
+    if (!err.status) console.error('Sale return failed:', err);
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Unable to process the sale return.' });
+  }
+};
+
 // POST /api/pos/bills/:id/payments
 const addBillPayment = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -1068,6 +1091,7 @@ const addBillPayment = async (req, res) => {
     const { id } = req.params;
     const { paymentDetails, paymentMethod, bankAccountId, transactionReference, paymentNotes } = req.body;
 
+    await Bill.findByPk(id, updateLock(transaction));
     const bill = await Bill.findByPk(id, {
       include: [
         { model: BillLineItem, as: 'lineItems' },
@@ -1103,6 +1127,8 @@ const addBillPayment = async (req, res) => {
       await transaction.rollback();
       return res.status(400).json({ message: 'Valid payment amount greater than 0 is required.' });
     }
+
+    await returns.guardReturnBill(bill, transaction);
 
     // Calculate existing paid amount across all previous payments
     let existingPaid = 0;
@@ -1154,7 +1180,7 @@ const addBillPayment = async (req, res) => {
     if (bill.customer_id) {
       const Customer = require('../models/Customer');
       const CustomerLedger = require('../models/CustomerLedger');
-      const targetCustomer = await Customer.findByPk(bill.customer_id, { transaction });
+      const targetCustomer = await Customer.findByPk(bill.customer_id, updateLock(transaction));
       if (targetCustomer) {
         let newCreditBalance = Number(targetCustomer.credit_balance || 0);
 
@@ -1165,6 +1191,15 @@ const addBillPayment = async (req, res) => {
 
         if (storeCreditPaid > 0) {
           newCreditBalance -= storeCreditPaid;
+          if (addedMethodLabel === 'Split') await CustomerLedger.create({
+            customer_id: targetCustomer.id,
+            bill_id: bill.id,
+            type: 'adjustment',
+            amount: -storeCreditPaid,
+            balance_after: newCreditBalance,
+            payment_method: 'Store Credit',
+            notes: `Store credit used on bill #${bill.bill_number}`,
+          }, { transaction });
         }
 
         // Add payment entry into CustomerLedger (reduces due)
@@ -1176,7 +1211,7 @@ const addBillPayment = async (req, res) => {
           type: 'bill_payment',
           amount: addedPaid,
           balance_after: newCreditBalance,
-          payment_method: addedMethodLabel,
+          payment_method: addedMethodLabel === 'Split' ? null : addedMethodLabel,
           notes: `Payment of RM ${addedPaid.toFixed(2)} collected for bill #${bill.bill_number}`,
         }, { transaction });
 
@@ -1266,9 +1301,9 @@ const addBillPayment = async (req, res) => {
       bill: formattedBill,
     });
   } catch (err) {
-    await transaction.rollback();
-    console.error('Error adding payment to bill:', err);
-    return res.status(500).json({ message: 'Server error adding payment to bill.' });
+    if (!transaction.finished) await transaction.rollback();
+    if (!err.status) console.error('Error adding payment to bill:', err);
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error adding payment to bill.' });
   }
 };
 
@@ -1294,7 +1329,7 @@ const updateBill = async (req, res) => {
       paymentNotes,
     } = req.body;
 
-    await Bill.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+    await Bill.findByPk(id, updateLock(transaction));
     const bill = await Bill.findByPk(id, {
       include: [
         { model: BillLineItem, as: 'lineItems' },
@@ -1319,6 +1354,7 @@ const updateBill = async (req, res) => {
     if (req.user?.outlet_id && !['admin', 'super_admin'].includes(req.user.role) && Number(req.user.outlet_id) !== Number(outletId)) {
       const error = new Error('You cannot edit another outlet invoice.'); error.status = 403; throw error;
     }
+    await returns.guardReturnBill(bill, transaction);
     if (lineItems !== undefined) await costs.applyBillLines(bill, lineItems, bill.lineItems, transaction, stockOverride(req));
 
     // 3. Update totals & discounts
@@ -1356,6 +1392,13 @@ const updateBill = async (req, res) => {
       const newPaymentDetailRows = paymentDetails
         .filter((d) => validModes.includes(d.paymentMode) && Number(d.amount) > 0)
         .map((d) => ({ payment_mode: d.paymentMode, amount: Number(d.amount), bank_account_id: d.bankAccountId || null }));
+
+      const storeCredit = details => details.filter(d => d.payment_mode === 'store_credit')
+        .reduce((sum, d) => sum.plus(d.amount), costs.D(0));
+      const existingStoreCredit = storeCredit(bill.payments.flatMap(payment => payment.details || []));
+      if (!existingStoreCredit.eq(storeCredit(newPaymentDetailRows))) {
+        throw Object.assign(new Error('Collect store credit through the payment screen so the customer ledger is updated.'), { status: 409 });
+      }
 
       // Delete existing payments and their details
       const existingPaymentIds = (bill.payments || []).map((p) => p.id);
@@ -1494,7 +1537,7 @@ const updateBill = async (req, res) => {
     });
   } catch (err) {
     if (!transaction.finished) await transaction.rollback();
-    console.error('Error updating invoice:', err);
+    if (!err.status) console.error('Error updating invoice:', err);
     return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error updating invoice.' });
   }
 };
@@ -1635,6 +1678,8 @@ module.exports = {
   getBills,
   getBillById,
   addBillPayment,
+  previewSaleReturn: handleSaleReturn(true),
+  recordSaleReturn: handleSaleReturn(false),
   updateBill,
   sendWhatsAppBill,
 };

@@ -6,9 +6,15 @@ const D = (value) => new Decimal(value ?? 0);
 const amount = (value) => Number(D(value).toDecimalPlaces(2));
 
 // Allocate integer currency cents with deterministic residual reconciliation.
-function allocateDiscount(lines, discount) {
-  const rawGross = lines.map((line) => D(line.qty).times(line.price));
-  const rawTotal = rawGross.reduce((a, b) => a.plus(b), D(0));
+function allocateSaleAmounts(lines, discount, subtotal) {
+  let rawGross = lines.map((line) => D(line.qty).times(line.price));
+  let rawTotal = rawGross.reduce((a, b) => a.plus(b), D(0));
+  if (subtotal != null && !rawTotal.toDecimalPlaces(2).eq(subtotal)) {
+    const weights = rawTotal.gt(0) ? rawGross : lines.map(line => D(line.qty));
+    const totalWeight = weights.reduce((sum, value) => sum.plus(value), D(0));
+    rawGross = weights.map(weight => totalWeight.gt(0) ? D(subtotal).times(weight).div(totalWeight) : D(0));
+    rawTotal = D(subtotal);
+  }
   const gross = rawGross.map((value) => value.times(100).floor());
   let grossRemainder = rawTotal.times(100).toDecimalPlaces(0).minus(gross.reduce((a, b) => a.plus(b), D(0))).toNumber();
   for (let i = 0; grossRemainder > 0 && i < gross.length; i++) if (rawGross[i].gt(0)) { gross[i] = gross[i].plus(1); grossRemainder--; }
@@ -23,17 +29,32 @@ function allocateDiscount(lines, discount) {
   for (let i = 0; residual > 0 && i < shares.length; i++) {
     if (gross[i].gt(shares[i])) { shares[i] = shares[i].plus(1); residual--; }
   }
-  return gross.map((value, i) => amount(value.minus(shares[i]).div(100)));
+  return gross.map((value, i) => ({ gross: value.div(100), discount: shares[i].div(100) }));
+}
+
+function allocateDiscount(lines, discount) {
+  return allocateSaleAmounts(lines, discount).map(line => amount(line.gross.minus(line.discount)));
 }
 function buildProfitData(bills, expenses) {
   let grossRevenue = D(0), totalDiscount = D(0), taxCollected = D(0), knownCost = D(0), unknownCostLines = 0;
   const productMap = new Map(), productSales = [];
   for (const bill of bills) {
-    const lines = bill.lineItems || [];
+    const lines = [...(bill.lineItems || [])].sort((a, b) => a.id - b.id);
     const discounts = D(bill.discount_amount).plus(bill.voucher_discount_amount || 0).plus(bill.points_discount_amount || 0);
-    const allocatedSales = allocateDiscount(lines, discounts);
+    const isReturn = Boolean(bill.original_bill_id);
+    const recordedNet = new Map((bill.return_details?.items || []).filter(item => item.returnLineId != null)
+      .map(item => [Number(item.returnLineId), Number(item.netRevenue)]));
+    const hasRecordedNet = isReturn && lines.every(line => recordedNet.has(Number(line.id)));
+    const allocatedSales = hasRecordedNet ? lines.map(line => -recordedNet.get(Number(line.id))) : isReturn
+      ? allocateDiscount(lines.map(line => ({ qty: D(line.qty).neg(), price: line.price })), discounts.neg()).map(value => -value)
+      : allocateSaleAmounts(lines, discounts, bill.subtotal).map(line => amount(line.gross.minus(line.discount)));
+    if (isReturn && !hasRecordedNet && allocatedSales.length) {
+      const net = D(bill.subtotal).minus(discounts);
+      const allocated = allocatedSales.reduce((sum, value) => sum.plus(value), D(0));
+      allocatedSales[0] = amount(D(allocatedSales[0]).plus(net.minus(allocated)));
+    }
     grossRevenue = grossRevenue.plus(bill.subtotal);
-    totalDiscount = totalDiscount.plus(Decimal.min(D(bill.subtotal), discounts));
+    totalDiscount = totalDiscount.plus(isReturn ? discounts : Decimal.min(D(bill.subtotal), discounts));
     taxCollected = taxCollected.plus(bill.tax || 0);
     lines.forEach((line, index) => {
       const hasMaterials = line.item_type === 'product' || (Array.isArray(line.product_consumption) && line.product_consumption.length > 0)
@@ -88,4 +109,4 @@ async function getProfitData({ outletId, startDate, endDate } = {}) {
   ]);
   return { startDate: startDate || null, endDate: endDate || null, timeZone, ...buildProfitData(bills, expenses) };
 }
-module.exports = { allocateDiscount, buildProfitData, getProfitData };
+module.exports = { allocateSaleAmounts, allocateDiscount, buildProfitData, getProfitData };

@@ -653,6 +653,15 @@ export const fetchBillByIdFromAPI = async (id) => {
   return handleResponse(res);
 };
 
+export const saleReturnAPI = async (billId, payload, preview = false) => {
+  const res = await fetch(`${API_BASE}/pos/bills/${billId}/returns${preview ? "/preview" : ""}`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+};
+
 export const addBillPaymentAPI = async (billId, payload) => {
   const res = await fetch(`${API_BASE}/pos/bills/${billId}/payments`, {
     method: "POST",

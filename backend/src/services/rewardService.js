@@ -1,3 +1,4 @@
+const updateLock = require('../utils/updateLock');
 const { calculateRedemption } = require("../utils/redemption");
 const { RewardSetting, LoyaltyTier, LoyaltyLedger, Customer, sequelize } = require('../models');
 
@@ -89,7 +90,7 @@ const processBillLoyalty = async ({ bill, customerId, pointsToRedeem = 0, create
   if (!customerId) return { pointsEarned: 0, pointsRedeemed: 0, discountAmount: 0 };
 
   const settings = await getRewardSettings();
-  const customer = await Customer.findByPk(customerId, { transaction, ...(transaction ? { lock: transaction.LOCK.UPDATE } : {}) });
+  const customer = await Customer.findByPk(customerId, transaction ? updateLock(transaction) : {});
   if (customer) customer.loyaltyTier = customer.loyalty_tier_id ? await LoyaltyTier.findByPk(customer.loyalty_tier_id, { transaction }) : null;
   if (!customer) return { pointsEarned: 0, pointsRedeemed: 0, discountAmount: 0 };
 

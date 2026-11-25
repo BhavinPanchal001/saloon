@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, User, MapPin, Package, Scissors, CreditCard, Info, FlaskConical, Banknote, Printer, Edit, MessageCircle } from "lucide-react";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, Calendar, User, MapPin, Package, Scissors, CreditCard, Info, FlaskConical, Banknote, Printer, Edit, MessageCircle, RotateCcw } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { formatCurrency } from "../../utils/format";
 import { getUnitAbbr } from "../../utils/unitConversion";
@@ -8,6 +8,8 @@ import { fetchBillByIdFromAPI, fetchProductsFromAPI, sendWhatsAppBillAPI } from 
 import { ThermalReceiptModal } from "../../components/pos/ThermalReceiptModal";
 import { AddPaymentModal } from "../../components/pos/AddPaymentModal";
 import { EditInvoiceModal } from "./EditInvoiceModal";
+import { SaleReturnModal } from "./SaleReturnModal";
+import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/toastStore";
 
 const formatDate = (iso) => {
@@ -29,6 +31,8 @@ export default function BillDetailPage() {
   const navigate = useNavigate();
   const toast = useToastStore();
   const [bill, setBill] = useState(null);
+  const canCreate = useAuthStore(state => state.hasPermission("pos:create"));
+  const [showReturn, setShowReturn] = useState(false);
   const [productMasters, setProductMasters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -68,6 +72,7 @@ export default function BillDetailPage() {
         setLoading(false);
       }
     };
+    setShowReturn(false);
     load();
   }, [id]);
 
@@ -90,6 +95,10 @@ export default function BillDetailPage() {
     );
   }
 
+  const isReturn = Boolean(bill.originalBillId);
+  const hasReturns = Boolean(bill.returns?.length);
+  const canReturn = canCreate && bill.canReturn && Object.values(bill.returnableQuantities || {}).some(quantity => quantity > 0);
+
   return (
     <div>
       <button
@@ -100,7 +109,7 @@ export default function BillDetailPage() {
       </button>
 
       <PageHeader
-        eyebrow="POS · Bill"
+        eyebrow={isReturn ? "POS · Sale return" : "POS · Bill"}
         title={`#${bill.billNumber}`}
         description={`${formatDate(bill.createdAt)} at ${formatTime(bill.createdAt)} · ${bill.outletName}`}
       >
@@ -108,22 +117,27 @@ export default function BillDetailPage() {
           <span className={`status-badge text-sm px-4 py-1.5 ${
             bill.status === "paid" ? "status-active" : bill.status === "partially_paid" ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-rose-100 text-rose-800 border border-rose-200"
           }`}>
-            {bill.status === "partially_paid" ? "Partial" : bill.status === "unpaid" ? "Unpaid" : bill.status}
+            {isReturn ? "Return recorded" : bill.status === "partially_paid" ? "Partial" : bill.status === "unpaid" ? "Unpaid" : bill.status}
           </span>
-          <button
+          {!isReturn && <button
             onClick={handleSendWhatsApp}
             disabled={sendingWa}
             className="btn-premium-secondary !py-2 !px-4 text-xs flex items-center gap-2 !bg-emerald-600 hover:!bg-emerald-700 !text-white transition-colors"
           >
             <MessageCircle size={14} /> {sendingWa ? "Sending..." : "Send WhatsApp"}
-          </button>
-          <button
+          </button>}
+          {!isReturn && !hasReturns && <button
             onClick={() => navigate(`/pos?editBillId=${bill.id}`, { state: { editBill: bill } })}
             className="btn-premium-outline !py-2 !px-4 text-xs flex items-center gap-2"
           >
             <Edit size={14} /> Edit Invoice in POS
-          </button>
-          {bill.status !== "paid" && (
+          </button>}
+          {canReturn && (
+            <button onClick={() => setShowReturn(true)} className="btn-premium-outline !py-2 !px-4 text-xs flex items-center gap-2">
+              <RotateCcw size={14} /> Return products
+            </button>
+          )}
+          {!isReturn && !hasReturns && !["paid", "completed"].includes(bill.status) && (
             <button
               onClick={() => setShowAddPayment(true)}
               className="btn-premium-primary !py-2 !px-4 text-xs flex items-center gap-2"
@@ -134,6 +148,28 @@ export default function BillDetailPage() {
         </div>
       </PageHeader>
 
+
+      {isReturn && (
+        <section className="glass-card mb-6 space-y-2 p-5 text-sm">
+          <Link className="font-semibold text-navy-800 underline" to={`/pos/bills/${bill.originalBillId}`}>
+            Original invoice #{bill.originalBillNumber || bill.originalBillId}
+          </Link>
+          <p className="whitespace-pre-wrap break-words text-navy-600">{bill.returnReason}</p>
+        </section>
+      )}
+      {hasReturns && (
+        <section className="glass-card mb-6 p-5">
+          <h2 className="mb-3 text-sm font-bold text-navy-900">Sale returns</h2>
+          <ul className="space-y-2 text-sm">
+            {bill.returns.map(entry => (
+              <li key={entry.id} className="flex flex-wrap justify-between gap-2">
+                <Link className="font-semibold text-navy-800 underline" to={`/pos/bills/${entry.id}`}>{entry.billNumber}</Link>
+                <span>{formatDate(entry.createdAt)} · {formatCurrency(entry.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Info Grid */}
       <div className="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2">
@@ -169,14 +205,16 @@ export default function BillDetailPage() {
             <div className="flex flex-col gap-1 text-sm">
               <div className="flex items-center gap-3">
                 <CreditCard size={15} className="text-navy-400 flex-shrink-0" />
-                <span className="text-navy-700">Paid via {bill.paymentMethod}</span>
+                <span className="text-navy-700">
+                  {bill.paymentMethod === "No Refund" ? "No payment refund" : `${isReturn ? "Refunded" : "Paid"} via ${bill.paymentMethod}`}
+                </span>
               </div>
               {bill.payments && bill.payments.length > 0 && bill.payments.some(p => (p.details || []).length > 0) && (
                 <div className="pl-6 space-y-0.5 text-xs text-navy-600">
                   {bill.payments.flatMap(p => p.details || []).map((d, i) => (
                     <div key={i} className="flex items-center justify-between">
                       <span className="capitalize">{d.payment_mode || d.paymentMode}:</span>
-                      <span className="font-semibold">{formatCurrency(d.amount)}</span>
+                      <span className="font-semibold">{formatCurrency(isReturn ? -d.amount : d.amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -333,13 +371,13 @@ export default function BillDetailPage() {
           <div className="flex gap-10">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Subtotal</p>
-              <p className="mt-1 font-bold">{formatCurrency(bill.subtotal)}</p>
+              <p className="mt-1 font-bold">{formatCurrency(isReturn ? -bill.subtotal : bill.subtotal)}</p>
             </div>
-            {bill.discountAmount > 0 && (
+            {(isReturn ? bill.discountAmount !== 0 : bill.discountAmount > 0) && (
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Discount</p>
                 <div className="mt-1 flex items-center gap-1.5">
-                  <span className="font-bold text-gold-400">−{formatCurrency(bill.discountAmount)}</span>
+                  <span className="font-bold text-gold-400">−{formatCurrency(isReturn ? -bill.discountAmount : bill.discountAmount)}</span>
                   {bill.couponCode && (
                     <span className="rounded bg-amber-400/20 px-2 py-0.5 text-[10px] font-mono font-bold text-amber-300 border border-amber-400/30 uppercase tracking-wider">
                       {bill.couponCode}
@@ -373,13 +411,13 @@ export default function BillDetailPage() {
               </div>
             )}
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Tax (8%)</p>
-              <p className="mt-1 font-bold">{formatCurrency(bill.tax)}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-navy-400">Tax</p>
+              <p className="mt-1 font-bold">{formatCurrency(isReturn ? -bill.tax : bill.tax)}</p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gold-400">Total Charged</p>
-            <p className="mt-1 text-4xl font-black text-white">{formatCurrency(bill.total)}</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-gold-400">{isReturn ? "Total refunded" : "Total Charged"}</p>
+            <p className="mt-1 text-4xl font-black text-white">{formatCurrency(isReturn ? -bill.total : bill.total)}</p>
           </div>
         </div>
       </div>
@@ -388,7 +426,7 @@ export default function BillDetailPage() {
       {bill.payments && bill.payments.length > 0 && (
         <div className="mt-8">
           <p className="text-[10px] font-black uppercase tracking-widest text-navy-400 mb-4 flex items-center gap-2">
-            <CreditCard size={13} /> Payment Details
+            <CreditCard size={13} /> {isReturn ? "Refund details" : "Payment Details"}
           </p>
           <div className="overflow-hidden rounded-2xl border border-navy-100 bg-white">
             <table className="w-full text-left">
@@ -413,7 +451,7 @@ export default function BillDetailPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <span className="text-sm font-black text-navy-900">{formatCurrency(detail.amount)}</span>
+                        <span className="text-sm font-black text-navy-900">{formatCurrency(isReturn ? -detail.amount : detail.amount)}</span>
                       </td>
                       <td className="px-5 py-3 text-center">
                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -428,9 +466,9 @@ export default function BillDetailPage() {
                   ))
                 )}
                 <tr className="bg-navy-50/50 font-semibold">
-                  <td colSpan={2} className="px-5 py-3 text-right text-sm font-bold text-navy-900">Total Paid</td>
+                  <td colSpan={2} className="px-5 py-3 text-right text-sm font-bold text-navy-900">{isReturn ? "Total Refund" : "Total Paid"}</td>
                   <td className="px-5 py-3 text-right text-sm font-black text-emerald-600">
-                    {formatCurrency(bill.payments.reduce((s, p) => s + (p.totalAmount || 0), 0))}
+                    {formatCurrency(isReturn ? -bill.total : bill.payments.reduce((s, p) => s + (p.totalAmount || 0), 0))}
                   </td>
                   <td />
                 </tr>
@@ -448,6 +486,14 @@ export default function BillDetailPage() {
             )}
           </div>
         </div>
+      )}
+
+      {showReturn && (
+        <SaleReturnModal bill={bill} onClose={() => setShowReturn(false)} onSuccess={record => {
+          setShowReturn(false);
+          toast.success(`Sale return ${record.billNumber} recorded.`);
+          navigate(`/pos/bills/${record.id}`);
+        }} />
       )}
 
       {showAddPayment && (

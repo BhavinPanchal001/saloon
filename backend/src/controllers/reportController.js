@@ -1,5 +1,6 @@
 const { csvCell } = require("../utils/csvCell");
 const { getProfitData } = require("../services/profitReportService");
+const { businessDate, reportRange } = require('../utils/reportDates');
 const { InventoryLot, OutletProductPrice } = require("../models");
 const Decimal = require("decimal.js");
 const {
@@ -22,97 +23,97 @@ const {
 const { Op, fn, col } = require('sequelize');
 const { generateReportPDFBuffer } = require('../services/pdfService');
 
+async function getShiftEndData({ outletId, date }) {
+  const targetDate = date || businessDate();
+  const { range } = reportRange({ startDate: targetDate, endDate: targetDate });
+  const location = outletId ? { outlet_id: outletId } : {};
+
+  // Fetch all non-cancelled bills for outlet on target date
+  const bills = await Bill.findAll({
+    where: {
+      ...location,
+      status: { [Op.ne]: 'cancelled' },
+      createdAt: range,
+    },
+    include: [
+      {
+        model: Payment,
+        as: 'payments',
+        include: [{ model: PaymentDetail, as: 'details' }],
+      },
+    ],
+  });
+
+  let totalGrossSales = 0;
+  let totalDiscounts = 0;
+  let totalTax = 0;
+  let totalNetSales = 0;
+  const paymentBreakdown = { Cash: 0, Card: 0, UPI: 0, 'Store Credit': 0, Split: 0, Unpaid: 0 };
+
+  const modeKeyMap = { cash: 'Cash', card: 'Card', upi: 'UPI', store_credit: 'Store Credit', bank_transfer: 'Card', bank: 'Card', cheque: 'Card' };
+
+  bills.forEach((bill) => {
+    totalGrossSales += Number(bill.subtotal || 0);
+    totalDiscounts += Number(bill.discount_amount || 0) + Number(bill.voucher_discount_amount || 0) + Number(bill.points_discount_amount || 0);
+    totalTax += Number(bill.tax || 0);
+    totalNetSales += Number(bill.total || 0);
+
+    let billPaidTotal = 0;
+    (bill.payments || []).forEach((p) => {
+      (p.details || []).forEach((d) => {
+        const amt = Number(d.amount || 0);
+        billPaidTotal += amt;
+        const modeKey = modeKeyMap[(d.payment_mode || '').toLowerCase()] || 'Cash';
+        if (paymentBreakdown[modeKey] !== undefined) {
+          paymentBreakdown[modeKey] += amt;
+        }
+      });
+    });
+
+    if (billPaidTotal === 0 && (bill.status === 'paid' || bill.status === 'completed')) {
+      const modeKey = modeKeyMap[(bill.payment_method || '').toLowerCase().replace(/\s+/g, '_')] || 'Cash';
+      if (paymentBreakdown[modeKey] !== undefined) {
+        paymentBreakdown[modeKey] += Number(bill.total || 0);
+      } else {
+        paymentBreakdown.Cash += Number(bill.total || 0);
+      }
+    } else if (billPaidTotal < Number(bill.total || 0)) {
+      paymentBreakdown.Unpaid += Number(bill.total || 0) - billPaidTotal;
+    }
+  });
+
+  // Fetch cash expenses paid on this date for this outlet
+  const expenses = await Expense.findAll({
+    where: {
+      ...location,
+      createdAt: range,
+    },
+  });
+
+  const totalCashExpenses = expenses.reduce((acc, exp) => acc + Number(exp.total_amount || 0), 0);
+
+  return {
+    date: targetDate,
+    outletId: Number(outletId),
+    totalBillsCount: bills.length,
+    totalGrossSales,
+    totalDiscounts,
+    totalTax,
+    totalNetSales,
+    paymentBreakdown,
+    totalCashExpenses,
+    expectedCashInDrawer: paymentBreakdown.Cash - totalCashExpenses,
+  };
+}
+
 // GET /api/reports/shift-end?outletId=&date=
 const getShiftEndReport = async (req, res) => {
   try {
-    const { outletId, date } = req.query;
-    if (!outletId) {
-      return res.status(400).json({ message: 'outletId is required.' });
-    }
-
-    const targetDate = date || new Date().toISOString().split('T')[0];
-    const startOfDay = new Date(`${targetDate}T00:00:00.000Z`);
-    const endOfDay = new Date(`${targetDate}T23:59:59.999Z`);
-
-    // Fetch all non-cancelled bills for outlet on target date
-    const bills = await Bill.findAll({
-      where: {
-        outlet_id: outletId,
-        status: { [Op.ne]: 'cancelled' },
-        createdAt: { [Op.between]: [startOfDay, endOfDay] },
-      },
-      include: [
-        {
-          model: Payment,
-          as: 'payments',
-          include: [{ model: PaymentDetail, as: 'details' }],
-        },
-      ],
-    });
-
-    let totalGrossSales = 0;
-    let totalDiscounts = 0;
-    let totalTax = 0;
-    let totalNetSales = 0;
-    const paymentBreakdown = { Cash: 0, Card: 0, UPI: 0, 'Store Credit': 0, Split: 0, Unpaid: 0 };
-
-    const modeKeyMap = { cash: 'Cash', card: 'Card', upi: 'UPI', store_credit: 'Store Credit', bank_transfer: 'Card', cheque: 'Card' };
-
-    bills.forEach((bill) => {
-      totalGrossSales += Number(bill.subtotal || 0);
-      totalDiscounts += Number(bill.discount_amount || 0);
-      totalTax += Number(bill.tax || 0);
-      totalNetSales += Number(bill.total || 0);
-
-      let billPaidTotal = 0;
-      (bill.payments || []).forEach((p) => {
-        (p.details || []).forEach((d) => {
-          const amt = Number(d.amount || 0);
-          billPaidTotal += amt;
-          const modeKey = modeKeyMap[(d.payment_mode || '').toLowerCase()] || 'Cash';
-          if (paymentBreakdown[modeKey] !== undefined) {
-            paymentBreakdown[modeKey] += amt;
-          }
-        });
-      });
-
-      if (billPaidTotal === 0 && (bill.status === 'paid' || bill.status === 'completed')) {
-        const modeKey = modeKeyMap[(bill.payment_method || '').toLowerCase()] || 'Cash';
-        if (paymentBreakdown[modeKey] !== undefined) {
-          paymentBreakdown[modeKey] += Number(bill.total || 0);
-        } else {
-          paymentBreakdown.Cash += Number(bill.total || 0);
-        }
-      } else if (billPaidTotal < Number(bill.total || 0)) {
-        paymentBreakdown.Unpaid += Number(bill.total || 0) - billPaidTotal;
-      }
-    });
-
-    // Fetch cash expenses paid on this date for this outlet
-    const expenses = await Expense.findAll({
-      where: {
-        outlet_id: outletId,
-        createdAt: { [Op.between]: [startOfDay, endOfDay] },
-      },
-    });
-
-    const totalCashExpenses = expenses.reduce((acc, exp) => acc + Number(exp.total_amount || 0), 0);
-
-    return res.json({
-      date: targetDate,
-      outletId: Number(outletId),
-      totalBillsCount: bills.length,
-      totalGrossSales,
-      totalDiscounts,
-      totalTax,
-      totalNetSales,
-      paymentBreakdown,
-      totalCashExpenses,
-      expectedCashInDrawer: paymentBreakdown.Cash - totalCashExpenses,
-    });
+    if (!req.query.outletId) return res.status(400).json({ message: 'outletId is required.' });
+    return res.json(await getShiftEndData(req.query));
   } catch (err) {
-    console.error('Error generating shift end report:', err);
-    return res.status(500).json({ message: 'Server error generating shift end report.' });
+    if (!err.status) console.error('Error generating shift end report:', err);
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error generating shift end report.' });
   }
 };
 
@@ -180,11 +181,7 @@ const getGstReportData = async ({ outletId, startDate, endDate }) => {
   if (outletId) {
     whereBill.outlet_id = outletId;
   }
-  if (startDate && endDate) {
-    const start = new Date(`${startDate}T00:00:00.000Z`);
-    const end = new Date(`${endDate}T23:59:59.999Z`);
-    whereBill.createdAt = { [Op.between]: [start, end] };
-  }
+  if (startDate || endDate) whereBill.createdAt = reportRange({ startDate, endDate }).range;
 
   const bills = await Bill.findAll({
     where: whereBill,
@@ -199,10 +196,10 @@ const getGstReportData = async ({ outletId, startDate, endDate }) => {
 
   const itemizedBills = bills.map((b) => {
     const subtotal = Number(b.subtotal || 0);
-    const discount = Number(b.discount_amount || 0);
-    const taxable = Math.max(0, subtotal - discount);
+    const discount = Number(b.discount_amount || 0) + Number(b.voucher_discount_amount || 0) + Number(b.points_discount_amount || 0);
     const tax = Number(b.tax || 0);
     const total = Number(b.total || 0);
+    const taxable = total - tax;
     const cgst = tax / 2;
     const sgst = tax / 2;
 
@@ -211,7 +208,7 @@ const getGstReportData = async ({ outletId, startDate, endDate }) => {
     totalTaxableAmount += taxable;
     totalTax += tax;
 
-    const dateStr = b.createdAt ? new Date(b.createdAt).toISOString().split('T')[0] : '';
+    const dateStr = b.createdAt ? businessDate(b.createdAt) : '';
 
     return {
       id: b.id,
@@ -258,7 +255,7 @@ const getGstReport = async (req, res) => {
     return res.json(data);
   } catch (err) {
     console.error('Error generating GST report:', err);
-    return res.status(500).json({ message: 'Server error generating GST report.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error generating GST report.' });
   }
 };
 
@@ -341,21 +338,9 @@ const exportReportCSV = async (req, res) => {
         csvRows.push([`"${p.poNumber}"`, `"${p.date}"`, `"${p.vendorName}"`, `"${p.vendorGstin}"`, p.taxableValue.toFixed(2), p.cgst.toFixed(2), p.sgst.toFixed(2), p.totalTax.toFixed(2), p.totalAmount.toFixed(2)].join(','));
       });
     } else if (type === 'shift') {
-      const targetDate = date || new Date().toISOString().split('T')[0];
-      const startOfDay = new Date(`${targetDate}T00:00:00.000Z`);
-      const endOfDay = new Date(`${targetDate}T23:59:59.999Z`);
-      const bills = await Bill.findAll({
-        where: { outlet_id: outletId, status: { [Op.ne]: 'cancelled' }, createdAt: { [Op.between]: [startOfDay, endOfDay] } },
-      });
-      const expenses = await Expense.findAll({
-        where: { outlet_id: outletId, createdAt: { [Op.between]: [startOfDay, endOfDay] } },
-      });
-
-      let netSales = bills.reduce((acc, b) => acc + Number(b.total || 0), 0);
-      let cashExp = expenses.reduce((acc, e) => acc + Number(e.total_amount || 0), 0);
-
+      const shift = await getShiftEndData({ outletId, date });
       csvRows.push(['Shift Date', 'Total Bills', 'Net Sales Revenue', 'Cash Expenses', 'Expected Cash in Drawer'].join(','));
-      csvRows.push([`"${targetDate}"`, bills.length, netSales.toFixed(2), cashExp.toFixed(2), (netSales - cashExp).toFixed(2)].join(','));
+      csvRows.push([shift.date, shift.totalBillsCount, shift.totalNetSales.toFixed(2), shift.totalCashExpenses.toFixed(2), shift.expectedCashInDrawer.toFixed(2)].join(','));
     } else if (type === 'pnl') {
       const data = await getProfitData({ outletId, startDate, endDate });
       csvRows.push(['Gross Revenue', 'Discounts', 'Net Revenue', 'Known COGS', 'COGS', 'Gross Profit', 'Expenses', 'Net Profit', 'Unknown Cost Lines'].join(','));
@@ -421,37 +406,7 @@ const exportReportPDF = async (req, res) => {
     } else if (type === 'gstr2') {
       reportData = await getGstr2ReportData({ outletId, startDate, endDate });
     } else if (type === 'shift') {
-      const targetDate = date || new Date().toISOString().split('T')[0];
-      const startOfDay = new Date(`${targetDate}T00:00:00.000Z`);
-      const endOfDay = new Date(`${targetDate}T23:59:59.999Z`);
-      const bills = await Bill.findAll({
-        where: { outlet_id: outletId, status: { [Op.ne]: 'cancelled' }, createdAt: { [Op.between]: [startOfDay, endOfDay] } },
-        include: [{ model: Payment, as: 'payments', include: [{ model: PaymentDetail, as: 'details' }] }],
-      });
-      const expenses = await Expense.findAll({
-        where: { outlet_id: outletId, createdAt: { [Op.between]: [startOfDay, endOfDay] } },
-      });
-
-      let totalNetSales = 0;
-      const paymentBreakdown = { Cash: 0, Card: 0, UPI: 0, 'Store Credit': 0 };
-      bills.forEach((b) => {
-        totalNetSales += Number(b.total || 0);
-        (b.payments || []).forEach((p) => {
-          (p.details || []).forEach((d) => {
-            const mode = d.payment_mode === 'upi' ? 'UPI' : d.payment_mode === 'card' ? 'Card' : 'Cash';
-            paymentBreakdown[mode] = (paymentBreakdown[mode] || 0) + Number(d.amount || 0);
-          });
-        });
-      });
-      const totalCashExpenses = expenses.reduce((acc, e) => acc + Number(e.total_amount || 0), 0);
-
-      reportData = {
-        totalBillsCount: bills.length,
-        totalNetSales,
-        totalCashExpenses,
-        expectedCashInDrawer: paymentBreakdown.Cash - totalCashExpenses,
-        paymentBreakdown,
-      };
+      reportData = await getShiftEndData({ outletId, date });
     } else if (type === 'pnl') {
       reportData = await getProfitData({ outletId, startDate, endDate });
     } else if (type === 'credit') {
@@ -506,9 +461,7 @@ const exportReportPDF = async (req, res) => {
 const getTopSellingReportData = async ({ outletId, startDate, endDate }) => {
   const whereBill = { status: { [Op.in]: ['paid', 'completed'] } };
   if (outletId) whereBill.outlet_id = outletId;
-  if (startDate && endDate) {
-    whereBill.createdAt = { [Op.between]: [new Date(`${startDate}T00:00:00.000Z`), new Date(`${endDate}T23:59:59.999Z`)] };
-  }
+  if (startDate || endDate) whereBill.createdAt = reportRange({ startDate, endDate }).range;
 
   const bills = await Bill.findAll({
     where: whereBill,
@@ -795,7 +748,7 @@ const getTopSellingReport = async (req, res) => {
     return res.json(data);
   } catch (err) {
     console.error('Error in getTopSellingReport:', err);
-    return res.status(500).json({ message: 'Server error generating top selling report.' });
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error generating top selling report.' });
   }
 };
 

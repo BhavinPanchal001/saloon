@@ -1,6 +1,7 @@
 const Decimal = require('decimal.js');
 const { Op } = require('sequelize');
 const { Product, UnitMaster, OutletInventory, InventoryLot, InventoryMovement, BillLineItem } = require('../models');
+const updateLock = require('../utils/updateLock');
 const D = (value = 0) => new Decimal(value ?? 0);
 const qty = (value) => D(value).toDecimalPlaces(4);
 const money = (value) => D(value).toDecimalPlaces(2);
@@ -30,7 +31,7 @@ function signature(item) {
 }
 async function lockProducts(ids, transaction) {
   const unique = [...new Set(ids.map(Number))].sort((a, b) => a - b);
-  const products = await Product.findAll({ where: { id: unique }, order: [['id', 'ASC']], transaction, lock: transaction.LOCK.UPDATE });
+  const products = await Product.findAll({ where: { id: unique }, order: [['id', 'ASC']], ...updateLock(transaction) });
   if (products.length !== unique.length) invalid('One or more selected products no longer exist.');
   for (const product of products) {
     product.unitMaster = product.unit_master_id ? await UnitMaster.findByPk(product.unit_master_id, { transaction }) : null;
@@ -54,13 +55,16 @@ async function changeBalance(product, locationId, delta, transaction) {
   if (Number(locationId) === 0) {
     await product.update({ central_stock: qty(D(product.central_stock).plus(delta)).toFixed(4) }, { transaction });
   } else {
-    const [inventory] = await OutletInventory.findOrCreate({ where: { product_id: product.id, outlet_id: locationId }, defaults: { current_stock: 0 }, transaction });
-    await inventory.update({ current_stock: qty(D(inventory.current_stock).plus(delta)).toFixed(4) }, { transaction });
+    const location = { product_id: product.id, outlet_id: locationId };
+    const inventory = await OutletInventory.findOne({ where: location, ...updateLock(transaction) });
+    const balance = qty(D(inventory?.current_stock).plus(delta)).toFixed(4);
+    if (inventory) await inventory.update({ current_stock: balance }, { transaction });
+    else await OutletInventory.create({ ...location, current_stock: balance }, { transaction });
   }
 }
 async function consume(product, locationId, quantity, reference, transaction, allowNegative = false, eligibleLotIds = null) {
   const required = positive(quantity);
-  const lots = await InventoryLot.findAll({ where: { product_id: product.id, location_id: locationId, ...(eligibleLotIds ? { id: eligibleLotIds } : {}) }, order: [['received_at', 'ASC'], ['id', 'ASC']], transaction, lock: transaction.LOCK.UPDATE });
+  const lots = await InventoryLot.findAll({ where: { product_id: product.id, location_id: locationId, ...(eligibleLotIds ? { id: eligibleLotIds } : {}) }, order: [['received_at', 'ASC'], ['id', 'ASC']], ...updateLock(transaction) });
   const available = lots.reduce((sum, lot) => sum.plus(lot.remaining_qty), D(0));
   if (available.lt(required) && !allowNegative) invalid(`Insufficient stock for ${product.item_name}: need ${required}, available ${available} in base units.`);
   let left = required;
@@ -87,8 +91,8 @@ async function consume(product, locationId, quantity, reference, transaction, al
 async function restore(allocations, products, reference, transaction) {
   for (const allocation of allocations) {
     const product = products.get(Number(allocation.productId));
-    const lot = await InventoryLot.findByPk(allocation.lotId, { transaction, lock: transaction.LOCK.UPDATE });
-    if (!lot || !product) invalid('Original cost allocation is unavailable; invoice cannot be reversed safely.');
+    const lot = await InventoryLot.findByPk(allocation.lotId, updateLock(transaction));
+    if (!lot || !product || Number(lot.product_id) !== Number(allocation.productId) || Number(lot.location_id) !== Number(allocation.locationId)) invalid('Original cost allocation is unavailable; invoice cannot be reversed safely.');
     await lot.update({ remaining_qty: D(lot.remaining_qty).plus(allocation.qty).toFixed(4) }, { transaction });
     await changeBalance(product, allocation.locationId, allocation.qty, transaction);
     await movement(product.id, allocation.locationId, lot.id, allocation.qty, allocation.unitCost, reference, transaction);
@@ -224,14 +228,15 @@ async function applyBillLines(bill, items, oldLines, transaction, options = {}) 
   });
   for (const plan of plans) if (!plan.exact && plan.compatible && !plan.original.cost_allocations) {
     // Old sales lack lot references. Record an unknown-cost basis without adding physical stock.
-    plan.original.cost_allocations = [];
+    const legacyAllocations = [];
     for (const r of savedRequirements(plan.original, products)) {
       if (D(r.baseQty).eq(0)) continue;
       const [lot] = await InventoryLot.findOrCreate({ where: { source_key: `legacy-basis:${plan.original.id}:${r.productId}:${r.unit}` }, defaults: {
         product_id: r.productId, location_id: bill.outlet_id, remaining_qty: 0, unit_cost: null, received_at: plan.original.createdAt || new Date(),
       }, transaction });
-      plan.original.cost_allocations.push({ productId: r.productId, locationId: bill.outlet_id, lotId: lot.id, qty: r.baseQty, unitCost: null });
+      legacyAllocations.push({ productId: r.productId, locationId: bill.outlet_id, lotId: lot.id, qty: r.baseQty, unitCost: null });
     }
+    plan.original.cost_allocations = legacyAllocations;
   }
   for (const plan of plans) {
     const need = new Map();
@@ -319,7 +324,7 @@ async function adjustOpening(product, delta, unitCost, transaction) {
   }
   if (unitCost !== null && unitCost !== undefined) {
     // Explicit opening-cost input values remaining opening stock, including transferred legacy stock.
-    const unknown = await InventoryLot.findAll({ where: { product_id: product.id, unit_cost: null }, transaction, lock: transaction.LOCK.UPDATE });
+    const unknown = await InventoryLot.findAll({ where: { product_id: product.id, unit_cost: null }, ...updateLock(transaction) });
     const openingIds = new Set(unknown.filter((lot) => lot.source_key.startsWith('opening:') || lot.source_key.startsWith('opening-adjust:')).map((lot) => lot.id));
     let changed = true;
     while (changed) {
@@ -332,5 +337,47 @@ async function adjustOpening(product, delta, unitCost, transaction) {
     for (const lot of unknown) if (openingIds.has(lot.id)) await lot.update({ unit_cost: unitCost }, { transaction });
   }
 }
+async function restockReturnedProduct({ bill, line, previousQty, returnedQty, products, reference }, transaction) {
+  const requirements = savedRequirements(line, products);
+  const originalBase = requirements.reduce((sum, entry) => sum.plus(entry.baseQty), D(0));
+  const soldQty = D(line.qty);
+  const start = qty(originalBase.times(previousQty).div(soldQty));
+  const end = qty(originalBase.times(previousQty.plus(returnedQty)).div(soldQty));
+  const baseQty = end.minus(start);
+  let allocations = [];
+  let costTotal = null;
+
+  if (line.cost_allocations?.length) {
+    let offset = D(0);
+    let costBefore = D(0);
+    let costThroughReturn = D(0);
+    for (const allocation of line.cost_allocations) {
+      const next = offset.plus(allocation.qty);
+      const baseThrough = boundary => Decimal.max(0, Decimal.min(next, boundary).minus(offset));
+      const overlap = baseThrough(end).minus(baseThrough(start));
+      costBefore = costBefore.plus(baseThrough(start).times(D(allocation.unitCost)));
+      costThroughReturn = costThroughReturn.plus(baseThrough(end).times(D(allocation.unitCost)));
+      if (overlap.gt(0)) allocations.push({ ...allocation, qty: overlap.toFixed(4) });
+      offset = next;
+    }
+    if (!offset.eq(originalBase) || allocations.some(a => Number(a.productId) !== Number(line.item_id)
+      || Number(a.locationId) !== Number(bill.outlet_id))) invalid('Original stock allocations do not match this product sale.');
+    await restore(allocations, products, reference, transaction);
+    if (allocations.every(a => a.unitCost != null)) {
+      costTotal = money(costBefore).minus(money(costThroughReturn)).toFixed(2);
+    }
+  } else if (baseQty.gt(0)) {
+    const lot = await addLot({ productId: line.item_id, locationId: bill.outlet_id, quantity: baseQty, source: reference }, transaction);
+    await changeBalance(products.get(Number(line.item_id)), bill.outlet_id, baseQty, transaction);
+    allocations = [{ productId: line.item_id, locationId: bill.outlet_id, lotId: lot.id, qty: baseQty.toFixed(4), unitCost: null }];
+  }
+
+  return {
+    base_qty: baseQty.neg().toFixed(4),
+    cost_total: costTotal,
+    cost_allocations: allocations.map(a => ({ ...a, qty: D(a.qty).neg().toFixed(4) })),
+  };
+}
+
 function saleSnapshot(line) { return { barcode: line.barcode, baseQty: line.base_qty === null ? null : Number(line.base_qty) }; }
-module.exports = { D, qty, money, positive, baseQuantity, signature, lockProducts, addLot, consume, changeBalance, applyBillLines, receivePurchase, transfer, adjustOpening, saleSnapshot, invalid, numeric, validateLines };
+module.exports = { D, qty, money, positive, baseQuantity, signature, lockProducts, addLot, consume, changeBalance, applyBillLines, receivePurchase, transfer, adjustOpening, saleSnapshot, restockReturnedProduct, invalid, numeric, validateLines };

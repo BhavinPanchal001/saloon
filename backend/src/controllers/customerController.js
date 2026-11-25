@@ -1,5 +1,7 @@
 const { Customer, Bill, Appointment, CustomerLedger, LoyaltyTier, Bank, Payment, PaymentDetail, sequelize } = require('../models');
 const { Op } = require('sequelize');
+const { guardReturnBill } = require('../services/saleReturnService');
+const updateLock = require('../utils/updateLock');
 const { sendCustomerDueReminderWhatsApp } = require('../services/whatsappService');
 
 // GET /api/customers
@@ -286,7 +288,11 @@ const settleCustomerBalance = async (req, res) => {
       return res.status(400).json({ message: 'A valid positive amount is required.' });
     }
 
-    const customer = await Customer.findByPk(customerId, { transaction: t, lock: true });
+    if (bill_id) {
+      const bill = await Bill.findByPk(bill_id, updateLock(t));
+      if (bill) await guardReturnBill(bill, t);
+    }
+    const customer = await Customer.findByPk(customerId, updateLock(t));
     if (!customer) {
       await t.rollback();
       return res.status(404).json({ message: 'Customer not found.' });
@@ -393,9 +399,9 @@ const settleCustomerBalance = async (req, res) => {
       ledger,
     });
   } catch (err) {
-    await t.rollback();
-    console.error('Error recording customer settlement:', err);
-    return res.status(500).json({ message: 'Server error recording customer transaction.' });
+    if (!t.finished) await t.rollback();
+    if (!err.status) console.error('Error recording customer settlement:', err);
+    return res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error recording customer transaction.' });
   }
 };
 

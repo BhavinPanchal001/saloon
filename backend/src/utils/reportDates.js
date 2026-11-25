@@ -25,4 +25,9 @@ function reportRange({ startDate, endDate, timeZone = process.env.BUSINESS_TIMEZ
   if (endDate) { const next = parse(endDate); next.setUTCDate(next.getUTCDate() + 1); range[Op.lt] = midnight(next); }
   return { range, timeZone };
 }
-module.exports = { reportRange };
+function businessDate(value = new Date(), timeZone = process.env.BUSINESS_TIMEZONE || 'Asia/Kolkata') {
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const parts = Object.fromEntries(formatter.formatToParts(value).map(part => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+module.exports = { reportRange, businessDate };

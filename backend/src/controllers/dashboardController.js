@@ -58,7 +58,7 @@ const getDashboardSummary = async (req, res) => {
 
     // Summary Card Calculations for target outlet
     const totalRevenue = allBills.reduce((sum, b) => sum + Number(b.total || 0), 0);
-    const totalBills = allBills.length;
+    const totalBills = allBills.filter(bill => !bill.original_bill_id).length;
     const avgBillValue = totalBills > 0 ? Math.round(totalRevenue / totalBills) : 0;
 
     let totalServices = 0;
@@ -72,6 +72,7 @@ const getDashboardSummary = async (req, res) => {
 
     const customerSet = new Set();
     allBills.forEach((b) => {
+      if (b.original_bill_id) return;
       const identifier = (b.customer_phone || b.customer_name || '').trim().toLowerCase();
       if (identifier) {
         customerSet.add(identifier);
